@@ -5,12 +5,13 @@ dotnet test
 Windows 11 CLI (scaffold) to locate application install directories, executables, and future config/data paths. Output will be deterministic JSON (plus CSV/text) once sources are implemented.
 
 ## Current Status
-Baseline only – no real hits yet.
+Early prototype – some real signals (processes, registry uninstall, PATH, heuristics, shortcuts, services/tasks) but many placeholders remain.
 - Core contract: `AppHit` record & enums (stable).
-- Placeholder sources in `Sources/` all return zero results.
-- Ranking & rules engines are stubs.
-- CLI uses `System.CommandLine` (RC) tokenization with stable manual extraction (finalized option set).
-- Tests: 2 passing placeholder xUnit tests.
+- Sources: several heuristic/placeholder implementations (RegistryUninstall, AppPaths, StartMenu, Process, PATH search, Services/Tasks, heuristic FS, MSIX placeholder).
+- Ranking: token coverage, evidence boosts (shortcut/process synergy, where, dir/exe match, alias placeholder), multi-source diminishing returns, type baselines, penalties.
+- Indexing: JSON cache per normalized query (`%LOCALAPPDATA%/AppLocate/index.json`) with `--index-path` and `--refresh-index` options (cache always refreshed currently; future optimization will short‑circuit when fresh).
+- CLI uses `System.CommandLine` (RC) for help, manual token extraction for stability.
+- Tests: 13 passing xUnit tests (CLI options + ranking + indexing create test).
 
 ## Project Layout
 ```
@@ -42,12 +43,31 @@ Artifacts land under `./artifacts/<rid>/`.
 
 ## Roadmap (abridged)
 - [x] Reintroduce `System.CommandLine` with full option set.
+- [x] Initial ranking heuristics & evidence model.
+- [x] Basic JSON indexing cache (write-through).
 - [ ] Implement sources: deepen Registry, StartMenu, Processes; complete MSIX & heuristics.
-- [ ] Aggregation refinement (current de-dup present; improve evidence merging & weighting).
-- [ ] Fuzzy token-set ranking enhancements & penalty tuning.
+- [ ] Index read short‑circuit (reuse fresh cache unless --refresh-index).
+- [ ] Aggregation refinement (improved evidence merging & weighting rules).
 - [ ] YAML rules engine → derive Config/Data hits.
 - [ ] Golden JSON tests (Verify) + ranking tests.
 - [ ] Performance: parallel source execution, timeouts, trimming & ReadyToRun tuning.
+- [ ] Alias dictionary and fuzzy synonym expansion.
+
+## Indexing
+The tool maintains a lightweight JSON cache at `%LOCALAPPDATA%/AppLocate/index.json`. Each normalized query string stores:
+- Timestamp of last refresh.
+- List of scored entries with first/last seen timestamps.
+
+Current behavior always refreshes then writes (ensuring new sources/ranking tweaks propagate). A future optimization will:
+1. Load index.
+2. If record not stale (e.g. < 24h) and not `--refresh-index`, return cached hits immediately.
+3. Otherwise re-query sources then upsert.
+
+Options:
+`--index-path <file>` Override default index location.
+`--refresh-index` Force ignoring any cached record for this query (even if fresh).
+
+The cache is opportunistic; failures to load/save are silent and won't block queries.
 
 ## Contributing
 See `.github/copilot-instructions.md` for design/extension guidance. Keep `AppHit` schema backward compatible.
@@ -56,7 +76,7 @@ See `.github/copilot-instructions.md` for design/extension guidance. Keep `AppHi
 - No network I/O, no executing discovered binaries.
 - Keep JSON camelCase & deterministic ordering via source generator (`JsonContext`).
 - Add XML docs gradually (warnings currently suppressed only by omission).
-- Ranking: token coverage (+ up to 0.25), exact filename (+0.30), evidence boosts (shortcut/process synergy, alias, where, dir/exe matches), multi-source diminishing returns (cap +0.18), type baselines, and penalties (broken shortcut, temp paths). Scores clamped to [0,1].
+- Ranking: token coverage (+ up to 0.25), exact filename (+0.30), evidence boosts (shortcut/process synergy, alias placeholder, where, dir/exe matches), multi-source diminishing returns (cap +0.18), type baselines, and penalties (broken shortcut, temp paths). Scores clamped to [0,1].
 
 ---
 This README reflects the CLI refactor milestone; update alongside each future milestone.

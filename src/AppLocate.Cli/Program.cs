@@ -4,6 +4,7 @@ using AppLocate.Core.Models;
 using AppLocate.Core.Abstractions;
 using AppLocate.Core.Sources;
 using AppLocate.Core.Ranking;
+using AppLocate.Core.Indexing;
 
 namespace AppLocate.Cli;
 
@@ -36,6 +37,8 @@ internal static class Program
         var limitOpt = new Option<int?>("--limit") { Description = "Maximum number of results to return" };
     var confMinOpt = new Option<double>("--confidence-min") { Description = "Minimum confidence threshold (0-1)" };
     var timeoutOpt = new Option<int>("--timeout") { Description = "Per-source timeout seconds (default 5)" };
+        var indexPathOpt = new Option<string>("--index-path") { Description = "Custom index file path (default %LOCALAPPDATA%/AppLocate/index.json)" };
+        var refreshIndexOpt = new Option<bool>("--refresh-index") { Description = "Force refresh index for this query (ignore cached)" };
         var evidenceOpt = new Option<bool>("--evidence") { Description = "Include evidence keys when available" };
         var verboseOpt = new Option<bool>("--verbose") { Description = "Verbose diagnostics (warnings)" };
         var noColorOpt = new Option<bool>("--no-color") { Description = "Disable ANSI colors" };
@@ -43,7 +46,7 @@ internal static class Program
         {
             queryArg,
             jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt,
-            limitOpt, confMinOpt, timeoutOpt, evidenceOpt, verboseOpt, noColorOpt
+            limitOpt, confMinOpt, timeoutOpt, indexPathOpt, refreshIndexOpt, evidenceOpt, verboseOpt, noColorOpt
         };
         // Manual token extraction
         var parse = root.Parse(args);
@@ -62,6 +65,17 @@ internal static class Program
         bool evidence = Has("--evidence");
         bool verbose = Has("--verbose");
         bool noColor = Has("--no-color");
+        bool refreshIndex = Has("--refresh-index");
+        string? indexPath = null;
+        // Extract index path argument manually
+        for (int i = 0; i < tokens.Count - 1; i++)
+        {
+            if (string.Equals(tokens[i].Value, "--index-path", StringComparison.OrdinalIgnoreCase))
+            {
+                var candidate = tokens[i + 1].Value;
+                if (!candidate.StartsWith('-')) indexPath = candidate;
+            }
+        }
 
         int? IntAfter(string name)
         {
@@ -94,13 +108,24 @@ internal static class Program
         }
     int timeout = IntAfter("--timeout") ?? 5; if (timeout <= 0) timeout = 5;
         if (!noColor && (Console.IsOutputRedirected || Console.IsErrorRedirected)) noColor = true;
-        return await ExecuteAsync(query, json, csv, text, user, machine, strict, limit, confidenceMin, timeout, evidence, verbose, noColor);
+        return await ExecuteAsync(query, json, csv, text, user, machine, strict, limit, confidenceMin, timeout, evidence, verbose, noColor, indexPath, refreshIndex);
     }
 
-    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose, bool noColor)
+    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose, bool noColor, string? indexPath, bool refreshIndex)
     {
         if (string.IsNullOrWhiteSpace(query)) return 2;
         var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
+        // Index initialization (load). Future: attempt cache hit unless refreshIndex.
+        string defaultIndexPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLocate", "index.json");
+        var effectiveIndexPath = string.IsNullOrWhiteSpace(indexPath) ? defaultIndexPath : indexPath;
+        IndexStore? indexStore = null;
+        IndexFile? indexFile = null;
+        try
+        {
+            indexStore = new IndexStore(effectiveIndexPath);
+            indexFile = indexStore.Load();
+        }
+        catch { /* ignore index load errors */ }
         var hits = new List<AppHit>();
         var normalized = Normalize(query);
         using var cts = new CancellationTokenSource();
@@ -169,6 +194,17 @@ internal static class Program
         // Apply ranking scores now on merged hits.
         var scored = mergedMap.Values.Select(h => h with { Confidence = Ranker.Score(normalized, h) }).ToList();
         var filtered = scored.Where(h => h.Confidence >= confidenceMin).OrderByDescending(h => h.Confidence).ToList();
+
+        // Persist into index (upsert) after scoring.
+        try
+        {
+            if (indexStore != null && indexFile != null)
+            {
+                indexStore.Upsert(indexFile, normalized, filtered, DateTimeOffset.UtcNow);
+                indexStore.Save(indexFile);
+            }
+        }
+        catch { /* ignore persistence errors */ }
         if (limit.HasValue) filtered = filtered.Take(limit.Value).ToList();
         if (filtered.Count == 0) return 1;
         if (json)
