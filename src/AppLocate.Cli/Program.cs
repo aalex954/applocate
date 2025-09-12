@@ -15,6 +15,7 @@ internal static class Program
         new StartMenuShortcutSource(),
         new ProcessSource(),
         new PathSearchSource(),
+    new ServicesTasksSource(),
         new MsixStoreSource(),
         new HeuristicFsSource()
     ];

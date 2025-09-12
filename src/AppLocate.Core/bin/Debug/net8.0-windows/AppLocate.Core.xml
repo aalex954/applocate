@@ -89,6 +89,15 @@
         <member name="M:AppLocate.Core.Sources.MsixStoreSource.QueryAsync(System.String,AppLocate.Core.Abstractions.SourceOptions,System.Threading.CancellationToken)">
             <inheritdoc />
         </member>
+        <member name="T:AppLocate.Core.Sources.ServicesTasksSource">
+            <summary>Enumerates Windows Services (ImagePath) and Scheduled Tasks (actions) to find executables referencing the query.</summary>
+        </member>
+        <member name="P:AppLocate.Core.Sources.ServicesTasksSource.Name">
+            <summary>Source name.</summary>
+        </member>
+        <member name="M:AppLocate.Core.Sources.ServicesTasksSource.QueryAsync(System.String,AppLocate.Core.Abstractions.SourceOptions,System.Threading.CancellationToken)">
+            <summary>Enumerate services and scheduled tasks for executables whose paths contain the query substring.</summary>
+        </member>
         <member name="T:AppLocate.Core.Sources.HeuristicFsSource">
             <summary>Placeholder: future heuristic filesystem scanning of known install locations.</summary>
         </member>

@@ -454,6 +454,153 @@ public sealed class MsixStoreSource : ISource
     { await System.Threading.Tasks.Task.CompletedTask; yield break; }
 }
 
+/// <summary>Enumerates Windows Services (ImagePath) and Scheduled Tasks (actions) to find executables referencing the query.</summary>
+public sealed class ServicesTasksSource : ISource
+{
+    /// <summary>Source name.</summary>
+    public string Name => nameof(ServicesTasksSource);
+
+    /// <summary>Enumerate services and scheduled tasks for executables whose paths contain the query substring.</summary>
+    public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        await System.Threading.Tasks.Task.Yield();
+        if (string.IsNullOrWhiteSpace(query)) yield break;
+        var norm = query.ToLowerInvariant();
+        // Services: HKLM\System\CurrentControlSet\Services\*
+        if (!options.UserOnly)
+        {
+            foreach (var hit in EnumerateServices(norm, options, ct))
+            {
+                if (ct.IsCancellationRequested) yield break;
+                yield return hit;
+            }
+        }
+        // Scheduled tasks: %SystemRoot%\System32\Tasks (XML files) – user & machine tasks; treat as machine scope if path under Windows dir, else user.
+        foreach (var hit in EnumerateTasks(norm, options, ct))
+        {
+            if (ct.IsCancellationRequested) yield break;
+            yield return hit;
+        }
+    }
+
+    private IEnumerable<AppHit> EnumerateServices(string norm, SourceOptions options, CancellationToken ct)
+    {
+        Microsoft.Win32.RegistryKey? rk = null;
+        try
+        {
+            rk = Registry.LocalMachine.OpenSubKey("System\\CurrentControlSet\\Services");
+        }
+        catch { }
+        if (rk == null) yield break;
+        foreach (var name in rk.GetSubKeyNames())
+        {
+            if (ct.IsCancellationRequested) yield break;
+            Microsoft.Win32.RegistryKey? sk = null;
+            try { sk = rk.OpenSubKey(name); } catch { }
+            if (sk == null) continue;
+            string? imagePath = null;
+            try { imagePath = sk.GetValue("ImagePath") as string; } catch { }
+            if (string.IsNullOrWhiteSpace(imagePath)) continue;
+            // Expand environment variables and strip quotes
+            imagePath = Environment.ExpandEnvironmentVariables(imagePath).Trim().Trim('"');
+            // Some service commands contain arguments; split on first .exe or .bat or .cmd
+            string exeCandidate = ExtractExecutablePath(imagePath);
+            if (string.IsNullOrWhiteSpace(exeCandidate)) continue;
+            string lowerExe = exeCandidate.ToLowerInvariant();
+            if (!lowerExe.Contains(norm)) continue;
+            if (!File.Exists(exeCandidate)) continue;
+            var scope = ServicesScopeFromPath(exeCandidate);
+            if (options.MachineOnly && scope == Scope.User) continue;
+            if (options.UserOnly && scope == Scope.Machine) continue;
+            var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"Service", name}} : null;
+            yield return new AppHit(HitType.Exe, scope, exeCandidate, null, PackageType.EXE, new[] { Name }, 0, evidence);
+            var dir = Path.GetDirectoryName(exeCandidate);
+            if (!string.IsNullOrEmpty(dir))
+                yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, evidence);
+        }
+    }
+
+    private IEnumerable<AppHit> EnumerateTasks(string norm, SourceOptions options, CancellationToken ct)
+    {
+        string tasksRoot = Environment.ExpandEnvironmentVariables("%SystemRoot%\\System32\\Tasks");
+        if (string.IsNullOrWhiteSpace(tasksRoot) || !Directory.Exists(tasksRoot)) yield break;
+        IEnumerable<string> taskFiles = Array.Empty<string>();
+        try { taskFiles = Directory.EnumerateFiles(tasksRoot, "*", SearchOption.AllDirectories); } catch { }
+        foreach (var tf in taskFiles)
+        {
+            if (ct.IsCancellationRequested) yield break;
+            // Quick substring scan to avoid loading XML unless likely match.
+            string? content = null;
+            try { content = File.ReadAllText(tf); } catch { }
+            if (string.IsNullOrEmpty(content)) continue;
+            if (!content.Contains(".exe", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!content.Contains(norm, StringComparison.OrdinalIgnoreCase)) continue; // coarse filter
+            // Very naive XML extraction: look for <Command>...</Command>
+            foreach (var exe in ExtractCommands(content))
+            {
+                if (ct.IsCancellationRequested) yield break;
+                var lower = exe.ToLowerInvariant();
+                if (!lower.Contains(norm)) continue;
+                if (!File.Exists(exe)) continue;
+                var scope = ServicesScopeFromPath(exe);
+                if (options.MachineOnly && scope == Scope.User) continue;
+                if (options.UserOnly && scope == Scope.Machine) continue;
+                var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"TaskFile", tf}} : null;
+                yield return new AppHit(HitType.Exe, scope, exe, null, PackageType.EXE, new[] { Name }, 0, evidence);
+                var dir = Path.GetDirectoryName(exe);
+                if (!string.IsNullOrEmpty(dir))
+                    yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, evidence);
+            }
+        }
+    }
+
+    private static string ExtractExecutablePath(string imagePath)
+    {
+        try
+        {
+            // Common patterns: "C:\\Path\\App.exe" /service, C:\\Path\\App.exe -k something
+            var idxExe = imagePath.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+            if (idxExe == -1) return string.Empty;
+            var startQuote = imagePath.LastIndexOf('"', idxExe);
+            var start = startQuote >= 0 ? startQuote + 1 : 0;
+            var candidate = imagePath.Substring(start, idxExe + 4 - start);
+            return candidate.Trim('"');
+        }
+        catch { return string.Empty; }
+    }
+
+    private static IEnumerable<string> ExtractCommands(string xmlContent)
+    {
+        int pos = 0;
+        while (true)
+        {
+            if (pos >= xmlContent.Length) yield break;
+            var start = xmlContent.IndexOf("<Command>", pos, StringComparison.OrdinalIgnoreCase);
+            if (start == -1) yield break;
+            var end = xmlContent.IndexOf("</Command>", start, StringComparison.OrdinalIgnoreCase);
+            if (end == -1) yield break;
+            var innerStart = start + "<Command>".Length;
+            var inner = xmlContent.Substring(innerStart, end - innerStart).Trim();
+            pos = end + "</Command>".Length;
+            if (string.IsNullOrEmpty(inner)) continue;
+            // Commands may include arguments; extract initial executable path
+            var exe = ExtractExecutablePath(inner);
+            if (!string.IsNullOrEmpty(exe)) yield return exe;
+        }
+    }
+
+    private static Scope ServicesScopeFromPath(string path)
+    {
+        try
+        {
+            var lower = path.ToLowerInvariant();
+            if (lower.Contains("\\users\\")) return Scope.User;
+            return Scope.Machine;
+        }
+        catch { return Scope.Machine; }
+    }
+}
+
 /// <summary>Placeholder: future heuristic filesystem scanning of known install locations.</summary>
 public sealed class HeuristicFsSource : ISource
 {
