@@ -218,23 +218,70 @@ internal static class Program
 
     private static void PrintHelp()
     {
-        const string usage = "applocate <query> [options]\n\nOptions:";
+        var rows = new (string Opt, string Desc)[]
+        {
+            ("--json", "Output results as JSON array"),
+            ("--csv", "Output results as CSV"),
+            ("--text", "Output text (default)"),
+            ("--user", "Only user-scope hits"),
+            ("--machine", "Only machine-scope hits"),
+            ("--strict", "Disable fuzzy/alias matching"),
+            ("--limit <N>", "Limit number of results"),
+            ("--confidence-min <X>", "Minimum confidence (0-1)"),
+            ("--timeout <sec>", "Per-source timeout (default 5)"),
+            ("--evidence", "Include evidence fields"),
+            ("--verbose", "Verbose diagnostics"),
+            ("-h, --help", "Show this help and exit")
+        };
+        int consoleWidth;
+        try { consoleWidth = Console.WindowWidth; } catch { consoleWidth = 100; }
+        if (consoleWidth < 40) consoleWidth = 80; // minimal sane width
+        var usage = "applocate <query> [options]\n\nOptions:";
         Console.Out.WriteLine(usage);
-        Console.Out.WriteLine("  --json                Output results as JSON array");
-        Console.Out.WriteLine("  --csv                 Output results as CSV");
-        Console.Out.WriteLine("  --text                Output text (default)");
-        Console.Out.WriteLine("  --user                Only user-scope hits");
-        Console.Out.WriteLine("  --machine             Only machine-scope hits");
-        Console.Out.WriteLine("  --strict              Disable fuzzy/alias matching");
-        Console.Out.WriteLine("  --limit <N>           Limit number of results");
-        Console.Out.WriteLine("  --confidence-min <X>  Minimum confidence (0-1)");
-        Console.Out.WriteLine("  --timeout <sec>       Per-source timeout (default 5)");
-        Console.Out.WriteLine("  --evidence            Include evidence fields");
-        Console.Out.WriteLine("  --verbose             Verbose diagnostics");
-        Console.Out.WriteLine("  -h, --help            Show this help and exit");
+        int optColWidth = rows.Max(r => r.Opt.Length) + 4; // padding
+        if (optColWidth > 32) optColWidth = 32; // cap option column
+        int descWidth = consoleWidth - optColWidth - 2;
+        foreach (var row in rows)
+        {
+            var wrapped = Wrap(row.Desc, descWidth).ToArray();
+            if (wrapped.Length == 0) continue;
+            Console.Out.WriteLine($"  {row.Opt.PadRight(optColWidth)}{wrapped[0]}");
+            for (int i = 1; i < wrapped.Length; i++)
+            {
+                Console.Out.WriteLine($"  {new string(' ', optColWidth)}{wrapped[i]}");
+            }
+        }
         Console.Out.WriteLine();
         Console.Out.WriteLine("Examples:");
         Console.Out.WriteLine("  applocate vscode --json --limit 2");
         Console.Out.WriteLine("  applocate 'Google Chrome' --machine --confidence-min 0.7");
+    }
+
+    private static IEnumerable<string> Wrap(string text, int width)
+    {
+        if (string.IsNullOrEmpty(text) || width <= 10) return new[]{ text };
+        var words = text.Split(' ');
+        var line = new System.Text.StringBuilder();
+        var lines = new List<string>();
+        foreach (var w in words)
+        {
+            if (line.Length == 0)
+            {
+                line.Append(w);
+                continue;
+            }
+            if (line.Length + 1 + w.Length > width)
+            {
+                lines.Add(line.ToString());
+                line.Clear();
+                line.Append(w);
+            }
+            else
+            {
+                line.Append(' ').Append(w);
+            }
+        }
+        if (line.Length > 0) lines.Add(line.ToString());
+        return lines;
     }
 }
