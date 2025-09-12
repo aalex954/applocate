@@ -635,97 +635,144 @@ public sealed class ServicesTasksSource : ISource
 {
     /// <summary>Source name.</summary>
     public string Name => nameof(ServicesTasksSource);
-
-    /// <summary>Enumerate services and scheduled tasks for executables whose paths contain the query substring.</summary>
+    /// <summary>Enumerate services and scheduled tasks, applying token-based strict/loose matching and providing evidence.</summary>
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await System.Threading.Tasks.Task.Yield();
         if (string.IsNullOrWhiteSpace(query)) yield break;
         var norm = query.ToLowerInvariant();
-        // Services: HKLM\System\CurrentControlSet\Services\*
+        var tokens = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        // Deduplication across services and tasks (exe + install dir)
+        var seenExe = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenInstall = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Services are inherently machine-scope; skip if user-only requested.
         if (!options.UserOnly)
         {
-            foreach (var hit in EnumerateServices(norm, options, ct))
+            foreach (var hit in EnumerateServices(norm, tokens, options, seenExe, seenInstall, ct))
             {
                 if (ct.IsCancellationRequested) yield break;
                 yield return hit;
             }
         }
-        // Scheduled tasks: %SystemRoot%\System32\Tasks (XML files) – user & machine tasks; treat as machine scope if path under Windows dir, else user.
-        foreach (var hit in EnumerateTasks(norm, options, ct))
+
+        // Scheduled tasks (system tasks considered machine scope; user tasks also live under same root but may reference user paths)
+        foreach (var hit in EnumerateTasks(norm, tokens, options, seenExe, seenInstall, ct))
         {
             if (ct.IsCancellationRequested) yield break;
             yield return hit;
         }
     }
 
-    private IEnumerable<AppHit> EnumerateServices(string norm, SourceOptions options, CancellationToken ct)
+    private IEnumerable<AppHit> EnumerateServices(string norm, string[] tokens, SourceOptions options, HashSet<string> seenExe, HashSet<string> seenInstall, CancellationToken ct)
     {
         Microsoft.Win32.RegistryKey? rk = null;
-        try
-        {
-            rk = Registry.LocalMachine.OpenSubKey("System\\CurrentControlSet\\Services");
-        }
-        catch { }
+        try { rk = Registry.LocalMachine.OpenSubKey("System\\CurrentControlSet\\Services"); } catch { }
         if (rk == null) yield break;
-        foreach (var name in rk.GetSubKeyNames())
+        foreach (var serviceName in rk.GetSubKeyNames())
         {
             if (ct.IsCancellationRequested) yield break;
-            Microsoft.Win32.RegistryKey? sk = null;
-            try { sk = rk.OpenSubKey(name); } catch { }
+            Microsoft.Win32.RegistryKey? sk = null; try { sk = rk.OpenSubKey(serviceName); } catch { }
             if (sk == null) continue;
-            string? imagePath = null;
+            string? imagePath = null; string? displayName = null;
             try { imagePath = sk.GetValue("ImagePath") as string; } catch { }
+            try { displayName = sk.GetValue("DisplayName") as string; } catch { }
             if (string.IsNullOrWhiteSpace(imagePath)) continue;
-            // Expand environment variables and strip quotes
             imagePath = Environment.ExpandEnvironmentVariables(imagePath).Trim().Trim('"');
-            // Some service commands contain arguments; split on first .exe or .bat or .cmd
-            string exeCandidate = ExtractExecutablePath(imagePath);
-            if (string.IsNullOrWhiteSpace(exeCandidate)) continue;
-            string lowerExe = exeCandidate.ToLowerInvariant();
-            if (!lowerExe.Contains(norm)) continue;
-            if (!File.Exists(exeCandidate)) continue;
+            var exeCandidate = ExtractExecutablePath(imagePath);
+            if (string.IsNullOrWhiteSpace(exeCandidate) || !File.Exists(exeCandidate)) continue;
+            var fileName = Path.GetFileNameWithoutExtension(exeCandidate) ?? string.Empty;
+            var lowerFile = fileName.ToLowerInvariant();
+            var lowerService = serviceName.ToLowerInvariant();
+            var lowerDisplay = displayName?.ToLowerInvariant();
+            bool match;
+            if (options.Strict)
+            {
+                match = tokens.All(t => lowerFile.Contains(t) || lowerService.Contains(t) || (lowerDisplay?.Contains(t) ?? false));
+            }
+            else
+            {
+                match = lowerFile.Contains(norm) || lowerService.Contains(norm) || (lowerDisplay?.Contains(norm) ?? false) || exeCandidate.ToLowerInvariant().Contains(norm);
+            }
+            if (!match) continue;
             var scope = ServicesScopeFromPath(exeCandidate);
             if (options.MachineOnly && scope == Scope.User) continue;
             if (options.UserOnly && scope == Scope.Machine) continue;
-            var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"Service", name}} : null;
+            if (!seenExe.Add(exeCandidate)) continue;
+            Dictionary<string,string>? evidence = null;
+            if (options.IncludeEvidence)
+            {
+                evidence = new Dictionary<string,string>{{"Service", serviceName},{"ExeName", Path.GetFileName(exeCandidate)}};
+                if (!string.IsNullOrWhiteSpace(displayName)) evidence["ServiceDisplayName"] = displayName!;
+                var dirName = Path.GetFileName(Path.GetDirectoryName(exeCandidate) ?? string.Empty)?.ToLowerInvariant();
+                if (!string.IsNullOrEmpty(dirName) && (options.Strict ? tokens.All(t => dirName.Contains(t)) : dirName.Contains(norm))) evidence["DirMatch"] = dirName;
+            }
             yield return new AppHit(HitType.Exe, scope, exeCandidate, null, PackageType.EXE, new[] { Name }, 0, evidence);
             var dir = Path.GetDirectoryName(exeCandidate);
-            if (!string.IsNullOrEmpty(dir))
-                yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, evidence);
+            if (!string.IsNullOrEmpty(dir) && seenInstall.Add(dir))
+            {
+                Dictionary<string,string>? dirEvidence = evidence;
+                if (options.IncludeEvidence && dirEvidence != null && !dirEvidence.ContainsKey("FromService"))
+                {
+                    dirEvidence = new Dictionary<string,string>(dirEvidence) { {"FromService","true"} };
+                }
+                yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, dirEvidence);
+            }
         }
     }
 
-    private IEnumerable<AppHit> EnumerateTasks(string norm, SourceOptions options, CancellationToken ct)
+    private IEnumerable<AppHit> EnumerateTasks(string norm, string[] tokens, SourceOptions options, HashSet<string> seenExe, HashSet<string> seenInstall, CancellationToken ct)
     {
-        string tasksRoot = Environment.ExpandEnvironmentVariables("%SystemRoot%\\System32\\Tasks");
+        var tasksRoot = Environment.ExpandEnvironmentVariables("%SystemRoot%\\System32\\Tasks");
         if (string.IsNullOrWhiteSpace(tasksRoot) || !Directory.Exists(tasksRoot)) yield break;
-        IEnumerable<string> taskFiles = Array.Empty<string>();
-        try { taskFiles = Directory.EnumerateFiles(tasksRoot, "*", SearchOption.AllDirectories); } catch { }
-        foreach (var tf in taskFiles)
+        IEnumerable<string> files = Array.Empty<string>();
+        try { files = Directory.EnumerateFiles(tasksRoot, "*", SearchOption.AllDirectories); } catch { }
+        foreach (var tf in files)
         {
             if (ct.IsCancellationRequested) yield break;
-            // Quick substring scan to avoid loading XML unless likely match.
             string? content = null;
             try { content = File.ReadAllText(tf); } catch { }
             if (string.IsNullOrEmpty(content)) continue;
-            if (!content.Contains(".exe", StringComparison.OrdinalIgnoreCase)) continue;
-            if (!content.Contains(norm, StringComparison.OrdinalIgnoreCase)) continue; // coarse filter
-            // Very naive XML extraction: look for <Command>...</Command>
+            if (!content.Contains(".exe", StringComparison.OrdinalIgnoreCase)) continue; // coarse filter 1
+            // Coarse filter 2: either any token (strict) or norm present to avoid full parse
+            if (options.Strict)
+            {
+                if (!tokens.All(t => content.Contains(t, StringComparison.OrdinalIgnoreCase))) continue;
+            }
+            else if (!content.Contains(norm, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
             foreach (var exe in ExtractCommands(content))
             {
                 if (ct.IsCancellationRequested) yield break;
-                var lower = exe.ToLowerInvariant();
-                if (!lower.Contains(norm)) continue;
-                if (!File.Exists(exe)) continue;
+                if (string.IsNullOrWhiteSpace(exe) || !File.Exists(exe)) continue;
+                var fileName = Path.GetFileNameWithoutExtension(exe)?.ToLowerInvariant() ?? string.Empty;
+                bool match = options.Strict ? tokens.All(t => fileName.Contains(t) || exe.ToLowerInvariant().Contains(t)) : (fileName.Contains(norm) || exe.ToLowerInvariant().Contains(norm));
+                if (!match) continue;
+                if (!seenExe.Add(exe)) continue;
                 var scope = ServicesScopeFromPath(exe);
                 if (options.MachineOnly && scope == Scope.User) continue;
                 if (options.UserOnly && scope == Scope.Machine) continue;
-                var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"TaskFile", tf}} : null;
+                Dictionary<string,string>? evidence = null;
+                if (options.IncludeEvidence)
+                {
+                    var taskName = tf.StartsWith(tasksRoot, StringComparison.OrdinalIgnoreCase) ? tf.Substring(tasksRoot.Length).TrimStart(Path.DirectorySeparatorChar) : tf;
+                    evidence = new Dictionary<string,string>{{"TaskFile", tf},{"TaskName", taskName},{"ExeName", Path.GetFileName(exe)}};
+                    var dirName = Path.GetFileName(Path.GetDirectoryName(exe) ?? string.Empty)?.ToLowerInvariant();
+                    if (!string.IsNullOrEmpty(dirName) && (options.Strict ? tokens.All(t => dirName.Contains(t)) : dirName.Contains(norm))) evidence["DirMatch"] = dirName;
+                }
                 yield return new AppHit(HitType.Exe, scope, exe, null, PackageType.EXE, new[] { Name }, 0, evidence);
                 var dir = Path.GetDirectoryName(exe);
-                if (!string.IsNullOrEmpty(dir))
-                    yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, evidence);
+                if (!string.IsNullOrEmpty(dir) && seenInstall.Add(dir))
+                {
+                    Dictionary<string,string>? dirEvidence = evidence;
+                    if (options.IncludeEvidence && dirEvidence != null && !dirEvidence.ContainsKey("FromTask"))
+                        dirEvidence = new Dictionary<string,string>(dirEvidence) { {"FromTask","true"} };
+                    yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, dirEvidence);
+                }
             }
         }
     }
