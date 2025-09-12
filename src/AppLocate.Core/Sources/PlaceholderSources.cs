@@ -933,8 +933,9 @@ public sealed class HeuristicFsSource : ISource
         await System.Threading.Tasks.Task.Yield();
         if (string.IsNullOrWhiteSpace(query)) yield break;
         var norm = query.ToLowerInvariant();
+        var tokens = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        // Heuristic roots: user-scoped and machine-scoped
+        // Heuristic roots: user-scoped and machine-scoped (ordered from most likely to broadest)
         var userRoots = new List<(string path, Scope scope)>()
         {
             (Environment.ExpandEnvironmentVariables("%LOCALAPPDATA%\\Programs"), Scope.User),
@@ -951,37 +952,40 @@ public sealed class HeuristicFsSource : ISource
         if (options.UserOnly) machineRoots.Clear();
         if (options.MachineOnly) userRoots.Clear();
 
-        // Limit directory depth to avoid huge traversals. We'll cap at depth 3 from each root.
-        const int MaxDepth = 3;
+        // Depth + time bounds
+        const int MaxDepth = 3; // hierarchical depth limit
+        var stopTime = DateTime.UtcNow + (options.Timeout == TimeSpan.Zero ? TimeSpan.FromSeconds(2) : options.Timeout);
         var yieldedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var yieldedExe = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var (root, scope) in userRoots.Concat(machineRoots))
         {
             if (ct.IsCancellationRequested) yield break;
+            if (DateTime.UtcNow > stopTime) yield break; // global timeout
             if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
-            foreach (var hit in EnumerateRoot(root, scope, norm, options, MaxDepth, yieldedDirs, yieldedExe, ct))
+            foreach (var hit in EnumerateRoot(root, scope, norm, tokens, options, MaxDepth, yieldedDirs, yieldedExe, stopTime, ct))
             {
                 if (ct.IsCancellationRequested) yield break;
                 yield return hit;
             }
         }
     }
-
-    private IEnumerable<AppHit> EnumerateRoot(string root, Scope scope, string norm, SourceOptions options, int maxDepth, HashSet<string> yieldedDirs, HashSet<string> yieldedExe, CancellationToken ct)
+    private IEnumerable<AppHit> EnumerateRoot(string root, Scope scope, string norm, string[] tokens, SourceOptions options, int maxDepth, HashSet<string> yieldedDirs, HashSet<string> yieldedExe, DateTime stopTime, CancellationToken ct)
     {
         var stack = new Stack<(string path, int depth)>();
         stack.Push((root, 0));
         while (stack.Count > 0)
         {
             if (ct.IsCancellationRequested) yield break;
+            if (DateTime.UtcNow > stopTime) yield break;
             var (current, depth) = stack.Pop();
             string? namePart = null;
             try { namePart = Path.GetFileName(current); } catch { }
-            if (!string.IsNullOrEmpty(namePart) && namePart.ToLowerInvariant().Contains(norm))
+            if (!string.IsNullOrEmpty(namePart))
             {
-                // Directory name match → InstallDir heuristic
-                if (yieldedDirs.Add(current))
+                var lowerDir = namePart.ToLowerInvariant();
+                bool dirMatch = options.Strict ? tokens.All(t => lowerDir.Contains(t)) : lowerDir.Contains(norm);
+                if (dirMatch && yieldedDirs.Add(current))
                 {
                     var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"DirMatch", namePart}} : null;
                     yield return new AppHit(HitType.InstallDir, scope, current, null, PackageType.Unknown, new[] { Name }, 0, evidence);
@@ -996,10 +1000,13 @@ public sealed class HeuristicFsSource : ISource
                 foreach (var exe in exes)
                 {
                     if (ct.IsCancellationRequested) yield break;
+                    if (DateTime.UtcNow > stopTime) yield break;
                     string? fileName = null;
                     try { fileName = Path.GetFileNameWithoutExtension(exe); } catch { }
                     if (string.IsNullOrEmpty(fileName)) continue;
-                    if (!fileName.ToLowerInvariant().Contains(norm)) continue;
+                    var lowerFile = fileName.ToLowerInvariant();
+                    bool exeMatch = options.Strict ? tokens.All(t => lowerFile.Contains(t)) : lowerFile.Contains(norm);
+                    if (!exeMatch) continue;
                     if (!File.Exists(exe)) continue;
                     if (yieldedExe.Add(exe))
                     {
@@ -1023,6 +1030,10 @@ public sealed class HeuristicFsSource : ISource
                 foreach (var sub in subs)
                 {
                     if (ct.IsCancellationRequested) yield break;
+                    if (DateTime.UtcNow > stopTime) yield break;
+                    // Early skip: ignore extremely large vendor roots (node_modules like) by name heuristic
+                    var leaf = Path.GetFileName(sub)?.ToLowerInvariant();
+                    if (leaf == "node_modules" || leaf == ".git" || leaf == "temp" || leaf == "tmp") continue;
                     stack.Push((sub, depth + 1));
                 }
             }
