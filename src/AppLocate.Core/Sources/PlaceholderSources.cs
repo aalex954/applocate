@@ -25,54 +25,140 @@ public sealed class RegistryUninstallSource : ISource
         @"HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
     ];
 
-    /// <summary>Queries registry uninstall keys for apps whose DisplayName contains the normalized query.</summary>
-    /// <summary>Enumerates Start Menu shortcuts matching the normalized query and resolves their target executables.</summary>
+    /// <summary>
+    /// Enumerates Windows Uninstall registry keys to infer install directory and primary executable candidates.
+    /// Matching strategy:
+    ///  * Non-strict: case-insensitive substring on DisplayName OR key name.
+    ///  * Strict: all query tokens must appear in DisplayName tokens (order-agnostic).
+    /// Evidence keys: DisplayName, HasInstallLocation, HasDisplayIcon, WindowsInstaller, Key.
+    /// </summary>
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
-        // Very small first pass: linear scan of uninstall keys, substring match on DisplayName.
         await System.Threading.Tasks.Task.Yield();
-        var hits = new List<AppHit>();
+        if (string.IsNullOrWhiteSpace(query)) yield break;
+        // Collect then yield to keep cancellation responsiveness predictable.
+        var list = new List<AppHit>();
         if (!options.MachineOnly)
-            EnumerateRoots(UninstallRootsUser, Scope.User, query, options, hits, ct);
+            EnumerateRoots(UninstallRootsUser, Scope.User, query, options, list, ct);
         if (!options.UserOnly)
-            EnumerateRoots(UninstallRootsMachine, Scope.Machine, query, options, hits, ct);
-        foreach (var h in hits) yield return h;
+            EnumerateRoots(UninstallRootsMachine, Scope.Machine, query, options, list, ct);
+        foreach (var h in list) yield return h;
     }
 
     private void EnumerateRoots(IEnumerable<string> roots, Scope scope, string query, SourceOptions options, List<AppHit> sink, CancellationToken ct)
     {
+        var queryTokens = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         foreach (var root in roots)
         {
             if (ct.IsCancellationRequested) return;
-            try
+            RegistryKey? rk = null;
+            try { rk = OpenRoot(root); } catch { }
+            if (rk == null) continue;
+            using (rk)
             {
-                using var rk = OpenRoot(root);
-                if (rk == null) continue;
-                foreach (var sub in rk.GetSubKeyNames())
+                string[] subNames;
+                try { subNames = rk.GetSubKeyNames(); }
+                catch { continue; }
+                foreach (var sub in subNames)
                 {
                     if (ct.IsCancellationRequested) return;
                     try
                     {
                         using var subKey = rk.OpenSubKey(sub);
                         if (subKey == null) continue;
-                        var displayName = subKey.GetValue("DisplayName") as string;
-                        if (string.IsNullOrWhiteSpace(displayName)) continue;
-                        var norm = displayName.ToLowerInvariant();
-                        if (!norm.Contains(query)) continue;
-                        var installLocation = (subKey.GetValue("InstallLocation") as string)?.Trim();
-                        var displayIcon = (subKey.GetValue("DisplayIcon") as string)?.Trim('"');
-                        var version = subKey.GetValue("DisplayVersion") as string;
-                            var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"DisplayName", displayName}} : null;
-                            if (!string.IsNullOrEmpty(installLocation))
-                                sink.Add(new AppHit(HitType.InstallDir, scope, installLocation!, version, PackageType.MSI, new[] { this.Name }, 0, evidence));
-                            if (!string.IsNullOrEmpty(displayIcon) && displayIcon.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-                                sink.Add(new AppHit(HitType.Exe, scope, displayIcon!, version, PackageType.MSI, new[] { this.Name }, 0, evidence));
+                        var displayName = (subKey.GetValue("DisplayName") as string)?.Trim();
+                        var dnLower = displayName?.ToLowerInvariant();
+                        var keyLower = sub.ToLowerInvariant();
+                        if (string.IsNullOrEmpty(displayName)) continue; // skip entries with no friendly name
+
+                        if (options.Strict)
+                        {
+                            if (!AllTokensPresent(dnLower!, queryTokens)) continue;
+                        }
+                        else
+                        {
+                            if (!dnLower!.Contains(query) && !keyLower.Contains(query)) continue;
+                        }
+
+                        var installLocation = (subKey.GetValue("InstallLocation") as string)?.Trim().Trim('"');
+                        if (string.IsNullOrEmpty(installLocation)) installLocation = null;
+                        var displayIconRaw = (subKey.GetValue("DisplayIcon") as string)?.Trim();
+                        var version = (subKey.GetValue("DisplayVersion") as string)?.Trim();
+                        var windowsInstaller = (subKey.GetValue("WindowsInstaller") as int?) == 1 || (subKey.GetValue("WindowsInstaller") as string) == "1";
+
+                        string? exeCandidate = ParseExeFromDisplayIcon(displayIconRaw);
+                        // If installLocation missing but exeCandidate present, derive from it.
+                        if (installLocation == null && exeCandidate != null)
+                        {
+                            try { installLocation = System.IO.Path.GetDirectoryName(exeCandidate); } catch { }
+                        }
+
+                        var pkgType = windowsInstaller ? PackageType.MSI : PackageType.EXE;
+
+                        Dictionary<string,string>? evidence = null;
+                        if (options.IncludeEvidence)
+                        {
+                            evidence = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase)
+                            {
+                                {"DisplayName", displayName!},
+                                {"Key", sub}
+                            };
+                            if (windowsInstaller) evidence["WindowsInstaller"] = "1";
+                            if (installLocation != null) evidence["HasInstallLocation"] = "true";
+                            if (!string.IsNullOrEmpty(displayIconRaw)) evidence["HasDisplayIcon"] = "true";
+                        }
+
+                        if (installLocation != null && PathIsPlausibleDir(installLocation))
+                        {
+                            sink.Add(new AppHit(HitType.InstallDir, scope, installLocation, version, pkgType, new[] { Name }, 0, evidence));
+                        }
+                        if (exeCandidate != null && File.Exists(exeCandidate))
+                        {
+                            sink.Add(new AppHit(HitType.Exe, scope, exeCandidate, version, pkgType, new[] { Name }, 0, evidence));
+                        }
                     }
                     catch { /* swallow individual key errors */ }
                 }
             }
-            catch { /* swallow root errors */ }
         }
+    }
+
+    private static bool AllTokensPresent(string displayNameLower, string[] queryTokens)
+    {
+        foreach (var t in queryTokens)
+        {
+            if (!displayNameLower.Contains(t)) return false;
+        }
+        return true;
+    }
+
+    private static bool PathIsPlausibleDir(string path)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(path)) return false;
+            // Avoid obvious uninstall / temp directories.
+            var lower = path.ToLowerInvariant();
+            if (lower.Contains("\\uninstall") || lower.Contains("%temp%")) return false;
+            return true;
+        }
+        catch { return false; }
+    }
+
+    private static string? ParseExeFromDisplayIcon(string? displayIconRaw)
+    {
+        if (string.IsNullOrWhiteSpace(displayIconRaw)) return null;
+        var s = displayIconRaw.Trim().Trim('"');
+        // Split off trailing ,resourceIndex (e.g., ",0")
+        var commaIdx = s.IndexOf(',');
+        if (commaIdx > 0) s = s.Substring(0, commaIdx);
+        // Some entries quote with extra whitespace
+        s = s.Trim();
+        if (!s.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) return null;
+        // Filter out typical uninstaller executables
+        var fileLower = System.IO.Path.GetFileName(s).ToLowerInvariant();
+        if (fileLower is "uninstall.exe" or "unins000.exe" or "setup.exe" or "msiexec.exe" or "_uninst.exe") return null;
+        return s;
     }
 
     private static RegistryKey? OpenRoot(string path)

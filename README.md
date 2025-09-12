@@ -15,10 +15,10 @@ Early prototype – some real signals (processes, registry uninstall, PATH, heur
 
 ## Project Layout
 ```
-src/AppLocate.Core    # Domain models, abstractions, placeholder sources, ranking (rules now heuristic/in-code)
+src/AppLocate.Core    # Domain models, abstractions, placeholder sources, ranking & rules stubs
 src/AppLocate.Cli     # CLI entry point (manual parsing placeholder)
 tests/*.Tests         # xUnit test projects
-rules/apps.default.yaml  # (legacy placeholder – YAML rules deprecated; may be removed later)
+rules/apps.default.yaml  # Sample rule file (placeholder)
 build/publish.ps1     # Single-file publish script (win-x64 / win-arm64)
 ```
 
@@ -48,7 +48,7 @@ Artifacts land under `./artifacts/<rid>/`.
 - [ ] Implement sources: deepen Registry, StartMenu, Processes; complete MSIX & heuristics.
 - [ ] Index read short‑circuit (empty-cache reuse + staleness heuristics; non-empty hit reuse implemented).
 - [ ] Aggregation refinement (improved evidence merging & weighting rules).
-	<!-- Removed: YAML rules engine requirement (replaced by built-in heuristic pattern registry) -->
+- [ ] YAML rules engine → derive Config/Data hits.
 - [ ] Golden JSON tests (Verify) + ranking tests.
 - [ ] Performance: parallel source execution, timeouts, trimming & ReadyToRun tuning.
 - [ ] Alias dictionary and fuzzy synonym expansion.
