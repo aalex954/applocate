@@ -280,7 +280,47 @@ public sealed class ProcessSource : ISource
     public string Name => nameof(ProcessSource);
     /// <inheritdoc />
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
-    { await System.Threading.Tasks.Task.CompletedTask; yield break; }
+    {
+        await System.Threading.Tasks.Task.Yield();
+        if (string.IsNullOrWhiteSpace(query)) yield break;
+        var norm = query.ToLowerInvariant();
+        System.Diagnostics.Process[] procs;
+        try { procs = System.Diagnostics.Process.GetProcesses(); }
+        catch { yield break; }
+
+        foreach (var p in procs)
+        {
+            if (ct.IsCancellationRequested) yield break;
+            string? name = null;
+            string? mainModulePath = null;
+            try { name = p.ProcessName; } catch { }
+            try { mainModulePath = p.MainModule?.FileName; } catch { }
+            if (string.IsNullOrEmpty(name) && string.IsNullOrEmpty(mainModulePath)) continue;
+            var nameMatch = name != null && name.ToLowerInvariant().Contains(norm);
+            var pathMatch = mainModulePath != null && mainModulePath.ToLowerInvariant().Contains(norm);
+            if (!nameMatch && !pathMatch) continue;
+            if (!string.IsNullOrEmpty(mainModulePath) && File.Exists(mainModulePath))
+            {
+                var scope = InferScope(mainModulePath);
+                var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"ProcessId", p.Id.ToString()},{"ProcessName", name ?? string.Empty}} : null;
+                yield return new AppHit(HitType.Exe, scope, mainModulePath, null, PackageType.EXE, new[] { Name }, 0, evidence);
+                var dir = Path.GetDirectoryName(mainModulePath);
+                if (!string.IsNullOrEmpty(dir))
+                    yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, evidence);
+            }
+        }
+    }
+
+    private static Scope InferScope(string path)
+    {
+        try
+        {
+            var lower = path.ToLowerInvariant();
+            if (lower.Contains("\\users\\")) return Scope.User;
+            return Scope.Machine;
+        }
+        catch { return Scope.Machine; }
+    }
 }
 
 /// <summary>Placeholder: future PATH search using where.exe and directory scan.</summary>
