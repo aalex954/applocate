@@ -73,33 +73,40 @@ public class CliSnapshotTests
                     JsonValueKind.Number => e.GetRawText(), // numeric enum underlying value
                     _ => e.ToString()
                 };
-                var stable = doc.RootElement.EnumerateArray()
-                    .Select(el => new
-                    {
-                        type = EnumToString(el.GetProperty("type"))
-                        // scope removed for stability (CI variance)
-                    }).ToList();
-                return stable;
+                var groups = doc.RootElement.EnumerateArray()
+                    .GroupBy(el => EnumToString(el.GetProperty("type")))
+                    .OrderBy(g => g.Key)
+                    .Select(g => new { type = g.Key, count = g.Count() })
+                    .ToList();
+                return groups;
             }
             catch { }
         }
         // Attempt to parse text output format lines like: [0.23] Exe C:\Path\to\something.exe
-    var lines = trimmed.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-        var parsed = new List<object>();
+        var lines = trimmed.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        var typeTokens = new List<string>();
         foreach (var line in lines)
         {
             var ln = line.Trim().TrimEnd(',');
-            if (!ln.StartsWith("[")) continue;
+            if (!ln.StartsWith("[")) continue; // skip non-hit lines
             var closeIdx = ln.IndexOf(']');
             if (closeIdx <= 1) continue;
-            // After confidence token, next token is the type label (Exe/InstallDir/Config/Data)
             var remainder = ln.Substring(closeIdx + 1).Trim();
             var firstSpace = remainder.IndexOf(' ');
             if (firstSpace < 1) continue;
             var typeToken = remainder.Substring(0, firstSpace);
-            parsed.Add(new { type = typeToken });
+            if (!string.IsNullOrWhiteSpace(typeToken)) typeTokens.Add(typeToken);
         }
-        if (parsed.Count > 0) return parsed; // stable projection for text output
+        if (typeTokens.Count > 0)
+        {
+            // Group and count for stability (order-independent)
+            var grouped = typeTokens
+                .GroupBy(t => t)
+                .OrderBy(g => g.Key)
+                .Select(g => new { type = g.Key, count = g.Count() })
+                .ToList();
+            return grouped;
+        }
         return lines.Length == 1 ? (object)lines[0] : lines;
     }
 

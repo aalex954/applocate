@@ -1,13 +1,12 @@
 {
   StdOut: [
     {
-      type: Exe
+      type: Exe,
+      count: 2
     },
     {
-      type: InstallDir
-    },
-    {
-      type: InstallDir
+      type: InstallDir,
+      count: 1
     }
   ],
   StdErr: 

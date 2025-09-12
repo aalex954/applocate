@@ -45,12 +45,15 @@ jobs:
     - name: Cleanup obsolete snapshots
       shell: pwsh
       run: |
-        $obsolete = Get-ChildItem -Path tests/AppLocate.Cli.Tests/Snapshots/CliSnapshots -Filter 'CliSnapshotTests.Query_Vscode_*.verified.txt' -ErrorAction SilentlyContinue
-        if ($obsolete) { $obsolete | Remove-Item -Force }
+        $patterns = 'CliSnapshotTests.Query_Vscode_*.verified.txt','CliSnapshotTests.Query_Vscode_*.received.txt'
+        foreach ($pat in $patterns) {
+          $obsolete = Get-ChildItem -Path tests/AppLocate.Cli.Tests/Snapshots/CliSnapshots -Filter $pat -ErrorAction SilentlyContinue
+          if ($obsolete) { $obsolete | Remove-Item -Force }
+        }
 
     - name: Test
       run: >-
-        dotnet test ${{ env.SOLUTION_FILE }} -c ${{ env.CONFIGURATION }} --no-build
+        dotnet test ${{ env.SOLUTION_FILE }} -c ${{ env.CONFIGURATION }}
         --logger trx --results-directory TestResults /nowarn:1591
         -p:ContinuousIntegrationBuild=true -p:Deterministic=true
 
