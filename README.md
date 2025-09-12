@@ -1,8 +1,10 @@
-# applocate
+# applocate 
+
+[![build-test-release](https://github.com/aalex954/applocate/actions/workflows/build-release.yml/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/build-release.yml)
 
 Windows 11 CLI to locate application install directories, executables, and (in progress) config/data paths. Emits deterministic JSON (plus CSV/text). Core discovery, indexing, ranking scaffold, and baseline tests are now in place.
 
-## Current Status
+## Current Status 
 Foundation milestone reached – all primary discovery sources implemented with real enumeration logic.
 
 Implemented:
