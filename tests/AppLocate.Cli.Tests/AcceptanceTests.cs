@@ -58,19 +58,11 @@ public class AcceptanceTests
     [Fact]
     public void VscodeScenario_ExeAndConfig()
     {
-        // Arrange synthetic environment
-        var root = Path.Combine(Path.GetTempPath(), "applocate_accept_vscode");
-        if (Directory.Exists(root)) Directory.Delete(root, true);
-        Directory.CreateDirectory(root);
-        var localAppData = Path.Combine(root, "Local");
-        var roaming = Path.Combine(root, "Roaming");
-        var progDir = Path.Combine(localAppData, "Programs", "Microsoft VS Code");
-        var exe = CreateDummyExe(progDir, "Code.exe");
-        var userSettingsDir = Path.Combine(roaming, "Code", "User");
-        Directory.CreateDirectory(userSettingsDir);
-        File.WriteAllText(Path.Combine(userSettingsDir, "settings.json"), "{}" );
-
-        var pathEnv = progDir; // keep minimal PATH to speed up PathSearchSource
+    var fixture = CreateVscodeFixture();
+    var localAppData = fixture.local;
+    var roaming = fixture.roaming;
+    var progDir = fixture.programDir;
+    var pathEnv = progDir;
 
         // Act
     var (code, stdout, stderr) = RunWithEnv(new[]{"code","--json","--limit","10","--refresh-index"},
@@ -89,6 +81,21 @@ public class AcceptanceTests
     bool hasConfig = hits.Any(h => IsType(h, "config", 2) && h.GetProperty("path").GetString()!.EndsWith("settings.json", StringComparison.OrdinalIgnoreCase));
     // Accept either exe or config; config proves rules expansion works even if sources miss exe in edge CI env.
     Assert.True(hasExe || hasConfig, $"Expected at least one of exe or config hits. exe={hasExe} config={hasConfig}. Raw count={hits.Count}");
+    }
+
+    private static (string root,string local,string roaming,string programDir) CreateVscodeFixture()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "applocate_accept_vscode");
+        if (Directory.Exists(root)) Directory.Delete(root, true);
+        Directory.CreateDirectory(root);
+        var localAppData = Path.Combine(root, "Local");
+        var roaming = Path.Combine(root, "Roaming");
+        var progDir = Path.Combine(localAppData, "Programs", "Microsoft VS Code");
+        var exe = CreateDummyExe(progDir, "Code.exe");
+        var userSettingsDir = Path.Combine(roaming, "Code", "User");
+        Directory.CreateDirectory(userSettingsDir);
+        File.WriteAllText(Path.Combine(userSettingsDir, "settings.json"), "{}");
+        return (root, localAppData, roaming, progDir);
     }
 
     [Fact]

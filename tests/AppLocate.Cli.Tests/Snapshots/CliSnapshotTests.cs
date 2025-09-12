@@ -17,7 +17,7 @@ public class CliSnapshotTests
         return (asmPath, false); // run via dotnet
     }
 
-    private static async Task<VerifyResult> RunAndVerifyAsync(string query, params string[] extraArgs)
+    private static async Task<VerifyResult> RunAndVerifyAsync(string query, Dictionary<string,string>? env = null, params string[] extraArgs)
     {
         var args = new List<string>();
         args.Add(query);
@@ -40,6 +40,10 @@ public class CliSnapshotTests
             psi.FileName = "dotnet";
             psi.ArgumentList.Add(cliPath);
             foreach (var a in args) psi.ArgumentList.Add(a);
+        }
+        if (env != null)
+        {
+            foreach (var kv in env) psi.Environment[kv.Key] = kv.Value;
         }
         var p = Process.Start(psi)!;
         var stdout = await p.StandardOutput.ReadToEndAsync();
@@ -100,10 +104,35 @@ public class CliSnapshotTests
         return lines.Length == 1 ? (object)lines[0] : lines;
     }
 
+    private static Dictionary<string,string> CreateVscodeFixture()
+    {
+        // Synthetic VSCode per-user layout matching acceptance test approach.
+        var root = Path.Combine(Path.GetTempPath(), "applocate_snapshot_vscode");
+        if (Directory.Exists(root)) Directory.Delete(root, true);
+        Directory.CreateDirectory(root);
+        var local = Path.Combine(root, "Local");
+        var roaming = Path.Combine(root, "Roaming");
+        var progDir = Path.Combine(local, "Programs", "Microsoft VS Code");
+        Directory.CreateDirectory(progDir);
+        var exePath = Path.Combine(progDir, "Code.exe");
+        if (!File.Exists(exePath)) File.WriteAllBytes(exePath, new byte[]{0});
+        var settingsDir = Path.Combine(roaming, "Code", "User");
+        Directory.CreateDirectory(settingsDir);
+        File.WriteAllText(Path.Combine(settingsDir, "settings.json"), "{}");
+        // Restrict PATH to only program dir to make discovery deterministic.
+        return new Dictionary<string,string>
+        {
+            ["LOCALAPPDATA"] = local,
+            ["APPDATA"] = roaming,
+            ["PATH"] = progDir
+        };
+    }
+
     [Fact]
     public async Task Query_Vscode_Json()
     {
-        await RunAndVerifyAsync("vscode", "--json", "--limit", "5");
+        var env = CreateVscodeFixture();
+        await RunAndVerifyAsync("vscode", env, "--json", "--limit", "5", "--refresh-index");
     }
 
     [Fact]
@@ -116,6 +145,7 @@ public class CliSnapshotTests
     [Fact]
     public async Task Query_Vscode_Strict_Text()
     {
-        await RunAndVerifyAsync("vscode", "--strict", "--limit", "3");
+        var env = CreateVscodeFixture();
+        await RunAndVerifyAsync("vscode", env, "--strict", "--limit", "3", "--refresh-index");
     }
 }
