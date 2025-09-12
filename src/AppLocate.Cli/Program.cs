@@ -271,14 +271,30 @@ internal static class Program
         }
         catch (Exception rex) { if (verbose) Console.Error.WriteLine($"[warn] rules expansion failed: {rex.Message}"); }
 
-        // De-duplicate & merge evidence/sources by (Type,Scope,Path) case-insensitive path key.
+        // De-duplicate & merge evidence/sources by (Type,Scope,NormalizedPath) case-insensitive path key.
+        static string NormalizePath(string p)
+        {
+            if (string.IsNullOrWhiteSpace(p)) return p;
+            try
+            {
+                // GetFullPath handles relative segments; replace forward slashes for consistency.
+                var full = Path.GetFullPath(p).TrimEnd();
+                full = full.Replace('/', Path.DirectorySeparatorChar);
+                // Trim trailing directory separator (except root like C:\)
+                if (full.Length > 3 && (full.EndsWith("\\") || full.EndsWith("/")))
+                    full = full.TrimEnd('\\','/');
+                return full;
+            }
+            catch { return p.Replace('/', Path.DirectorySeparatorChar); }
+        }
         var mergedMap = new Dictionary<string, AppHit>(StringComparer.OrdinalIgnoreCase);
         foreach (var h in hits)
         {
-            var key = $"{h.Type}|{h.Scope}|{h.Path}";
+            var normPath = NormalizePath(h.Path);
+            var key = $"{h.Type}|{h.Scope}|{normPath}";
             if (!mergedMap.TryGetValue(key, out var existing))
             {
-                mergedMap[key] = h with { Source = (string[])h.Source.Clone() };
+                mergedMap[key] = h with { Path = normPath, Source = (string[])h.Source.Clone() };
                 continue;
             }
             // Merge: combine unique sources; merge evidence keys by accumulating distinct values.

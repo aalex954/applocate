@@ -7,7 +7,11 @@ namespace AppLocate.Core.Ranking;
 /// Heuristic ranking engine combining token coverage, evidence signals, multi-source strength, and type weighting.
 /// Scores are clamped to [0,1]. Intent: monotonic improvements from stronger evidence; diminishing returns on source count.
 /// </summary>
-internal static class Ranker
+/// <summary>
+/// Public ranking helper exposing scoring for <see cref="AppLocate.Core.Models.AppHit"/> instances.
+/// Made public to allow CLI and future plugins to reuse consistent scoring semantics.
+/// </summary>
+public static class Ranker
 {
     // Simple built-in alias dictionary (will later be externalized via plugin/rule pack)
     private static readonly System.Collections.Generic.Dictionary<string,string[]> _aliases = new(StringComparer.OrdinalIgnoreCase)

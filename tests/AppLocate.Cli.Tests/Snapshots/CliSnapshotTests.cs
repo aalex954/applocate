@@ -149,9 +149,9 @@ public class CliSnapshotTests
     }
 
     [Fact]
-    public async Task Query_Code_Strict_Text()
+    public async Task Query_Code_Strict_Json()
     {
         var env = CreateVscodeFixture();
-        await RunAndVerifyAsync("code", env, "--strict", "--limit", "3", "--refresh-index");
+        await RunAndVerifyAsync("code", env, "--json", "--strict", "--limit", "5", "--refresh-index");
     }
 }

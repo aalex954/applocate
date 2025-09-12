@@ -8,7 +8,11 @@ using System.Threading.Tasks;
 namespace AppLocate.Core.Rules;
 
 /// <summary>Placeholder rules engine. Will parse YAML and produce config/data paths.</summary>
-internal sealed class RulesEngine
+/// <summary>
+/// Lightweight YAML-like rules processor that loads app-specific config/data expansion rules.
+/// Format intentionally minimal to avoid external dependencies; upgrade path to full YAML parser preserved.
+/// </summary>
+public sealed class RulesEngine
 {
     /// <summary>
     /// Loads a very small subset of YAML supporting a list of items each with:
@@ -61,4 +65,10 @@ internal sealed class RulesEngine
     }
 }
 
-internal sealed record ResolvedRule(string[] MatchAnyOf, string[] Config, string[] Data);
+/// <summary>
+/// A resolved rule describing match tokens and resulting config/data path templates.
+/// </summary>
+/// <param name="MatchAnyOf">Tokens (case-insensitive) that, if any match application name or existing hits, activate the rule.</param>
+/// <param name="Config">Config path templates (environment variables are expanded at evaluation time).</param>
+/// <param name="Data">Data path templates (environment variables are expanded at evaluation time).</param>
+public sealed record ResolvedRule(string[] MatchAnyOf, string[] Config, string[] Data);
