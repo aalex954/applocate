@@ -39,7 +39,7 @@ internal static class Program
         // Minimal System.CommandLine usage: parse query + --json; fall back to manual for rest.
         string? query = null;
         bool json = false;
-        bool csv = false, text = false, user = false, machine = false, strict = false, evidence = false, verbose = false;
+    bool csv = false, text = false, user = false, machine = false, strict = false, evidence = false, verbose = false, noColor = false;
         int? limit = null; double confidenceMin = 0; int timeout = 5;
         try
         {
@@ -55,7 +55,8 @@ internal static class Program
             var timeoutOpt = new Option<int?>("--timeout") { Description = "Per-source timeout seconds (default 5)" };
             var evidenceOpt = new Option<bool>("--evidence") { Description = "Include evidence keys when available" };
             var verboseOpt = new Option<bool>("--verbose") { Description = "Verbose diagnostics (warnings)" };
-            var root = new RootCommand { queryArg, jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt, limitOpt, confMinOpt, timeoutOpt, evidenceOpt, verboseOpt };
+            var noColorOpt = new Option<bool>("--no-color") { Description = "Disable ANSI colors" };
+            var root = new RootCommand { queryArg, jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt, limitOpt, confMinOpt, timeoutOpt, evidenceOpt, verboseOpt, noColorOpt };
             var parse = root.Parse(args);
             // Build token list for quick lookups
             var tokens = parse.Tokens.ToList();
@@ -71,6 +72,7 @@ internal static class Program
             strict = Has("--strict");
             evidence = Has("--evidence");
             verbose = Has("--verbose");
+            noColor = Has("--no-color");
             // For value options, locate the token after the flag if numeric.
             int? AfterInt(string flag)
             {
@@ -106,7 +108,7 @@ internal static class Program
             json = args.Contains("--json");
             csv = !json && args.Contains("--csv");
             text = !json && !csv; // default
-            user = Has("--user"); machine = Has("--machine"); strict = Has("--strict"); evidence = Has("--evidence"); verbose = Has("--verbose");
+            user = Has("--user"); machine = Has("--machine"); strict = Has("--strict"); evidence = Has("--evidence"); verbose = Has("--verbose"); noColor = Has("--no-color");
             int idx(string n) => Array.IndexOf(args, n);
             int? parseInt(string n) { var i = idx(n); return (i >= 0 && i + 1 < args.Length && int.TryParse(args[i + 1], out var v)) ? v : null; }
             double? parseDouble(string n) { var i = idx(n); return (i >= 0 && i + 1 < args.Length && double.TryParse(args[i + 1], out var v)) ? v : null; }
@@ -115,10 +117,12 @@ internal static class Program
         if (timeout <= 0) timeout = 5;
         query ??= args.FirstOrDefault(a => !a.StartsWith("--"));
         if (string.IsNullOrWhiteSpace(query)) return 2;
-        return await ExecuteAsync(query, json, csv, text, user, machine, strict, limit, confidenceMin, timeout, evidence, verbose);
+        // Auto-disable color if redirected.
+        if (!noColor && (Console.IsOutputRedirected || Console.IsErrorRedirected)) noColor = true;
+        return await ExecuteAsync(query, json, csv, text, user, machine, strict, limit, confidenceMin, timeout, evidence, verbose, noColor);
     }
 
-    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose)
+    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose, bool noColor)
     {
         if (string.IsNullOrWhiteSpace(query)) return 2;
         var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
@@ -206,7 +210,20 @@ internal static class Program
         else if (text)
         {
             foreach (var h in filtered)
-                Console.Out.WriteLine($"[{h.Confidence:0.00}] {h.Type} {h.Path}");
+            {
+                if (noColor)
+                {
+                    Console.Out.WriteLine($"[{h.Confidence:0.00}] {h.Type} {h.Path}");
+                    continue;
+                }
+                var prevColor = Console.ForegroundColor;
+                Console.ForegroundColor = ConfidenceColor(h.Confidence);
+                Console.Out.Write($"[{h.Confidence:0.00}]");
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.Out.Write($" {h.Type}");
+                Console.ForegroundColor = prevColor;
+                Console.Out.WriteLine($" {h.Path}");
+            }
         }
         return 0;
     }
@@ -216,7 +233,7 @@ internal static class Program
         return string.Join(' ', query.Trim().ToLowerInvariant().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
     }
 
-    private static void PrintHelp()
+    private static void PrintHelp(bool noColor = false)
     {
         var rows = new (string Opt, string Desc)[]
         {
@@ -231,13 +248,24 @@ internal static class Program
             ("--timeout <sec>", "Per-source timeout (default 5)"),
             ("--evidence", "Include evidence fields"),
             ("--verbose", "Verbose diagnostics"),
+            ("--no-color", "Disable ANSI colors"),
             ("-h, --help", "Show this help and exit")
         };
         int consoleWidth;
         try { consoleWidth = Console.WindowWidth; } catch { consoleWidth = 100; }
         if (consoleWidth < 40) consoleWidth = 80; // minimal sane width
         var usage = "applocate <query> [options]\n\nOptions:";
-        Console.Out.WriteLine(usage);
+        if (noColor || Console.IsOutputRedirected) Console.Out.WriteLine(usage);
+        else
+        {
+            var prev = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.Out.WriteLine("applocate <query> [options]");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.Out.WriteLine();
+            Console.Out.WriteLine("Options:");
+            Console.ForegroundColor = prev;
+        }
         int optColWidth = rows.Max(r => r.Opt.Length) + 4; // padding
         if (optColWidth > 32) optColWidth = 32; // cap option column
         int descWidth = consoleWidth - optColWidth - 2;
@@ -245,16 +273,41 @@ internal static class Program
         {
             var wrapped = Wrap(row.Desc, descWidth).ToArray();
             if (wrapped.Length == 0) continue;
-            Console.Out.WriteLine($"  {row.Opt.PadRight(optColWidth)}{wrapped[0]}");
+            if (noColor || Console.IsOutputRedirected)
+            {
+                Console.Out.WriteLine($"  {row.Opt.PadRight(optColWidth)}{wrapped[0]}");
+            }
+            else
+            {
+                var prev = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.Out.Write("  " + row.Opt.PadRight(optColWidth));
+                Console.ForegroundColor = prev;
+                Console.Out.WriteLine(wrapped[0]);
+            }
             for (int i = 1; i < wrapped.Length; i++)
             {
                 Console.Out.WriteLine($"  {new string(' ', optColWidth)}{wrapped[i]}");
             }
         }
         Console.Out.WriteLine();
-        Console.Out.WriteLine("Examples:");
+        if (!noColor && !Console.IsOutputRedirected)
+        {
+            var prev = Console.ForegroundColor;
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.Out.WriteLine("Examples:");
+            Console.ForegroundColor = prev;
+        }
+        else Console.Out.WriteLine("Examples:");
         Console.Out.WriteLine("  applocate vscode --json --limit 2");
         Console.Out.WriteLine("  applocate 'Google Chrome' --machine --confidence-min 0.7");
+    }
+
+    private static ConsoleColor ConfidenceColor(double c)
+    {
+        if (c >= 0.80) return ConsoleColor.Green;
+        if (c >= 0.50) return ConsoleColor.Yellow;
+        return ConsoleColor.DarkGray;
     }
 
     private static IEnumerable<string> Wrap(string text, int width)
