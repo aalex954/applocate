@@ -3,6 +3,7 @@
   <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+  <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
   <!-- Publish settings moved to publish script; removed for regular build/test to avoid dependency copy issues -->
     <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
     <RootNamespace>AppLocate.Cli</RootNamespace>
