@@ -100,7 +100,7 @@ jobs:
 
       - name: Generate SBOM (CycloneDX)
         run: >-
-          dotnet cyclonedx --json --output artifacts/${{ matrix.rid }} --filename sbom-temp
+          dotnet dotnet-CycloneDX --json --output artifacts/${{ matrix.rid }} --filename sbom-temp
         env:
           DOTNET_CLI_TELEMETRY_OPTOUT: 1
 

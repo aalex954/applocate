@@ -4,7 +4,7 @@
   "tools": {
     "cyclonedx": {
       "version": "2.10.0",
-      "commands": [ "cyclonedx" ]
+      "commands": [ "dotnet-CycloneDX" ]
     }
   }
 }
