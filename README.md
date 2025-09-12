@@ -4,6 +4,9 @@
 
 Windows 11 CLI to locate application install directories, executables, and (in progress) config/data paths. Emits deterministic JSON (plus CSV/text). Core discovery, indexing, ranking scaffold, and baseline tests are now in place.
 
+<img width="537" height="413" alt="image" src="https://github.com/user-attachments/assets/45fe8756-6988-4091-af84-7097a45b2916" />
+
+
 ## Current Status 
 Foundation milestone reached – all primary discovery sources implemented with real enumeration logic.
 
