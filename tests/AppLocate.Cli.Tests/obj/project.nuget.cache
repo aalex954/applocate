@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "h5YMJUZ2dc0=",
+  "dgSpecHash": "QbHhX3ewCZk=",
   "success": true,
   "projectFilePath": "C:\\Users\\alexf\\Downloads\\applocate\\tests\\AppLocate.Cli.Tests\\AppLocate.Cli.Tests.csproj",
   "expectedPackageFiles": [
@@ -9,6 +9,7 @@
     "C:\\Users\\alexf\\.nuget\\packages\\microsoft.testplatform.objectmodel\\17.11.0\\microsoft.testplatform.objectmodel.17.11.0.nupkg.sha512",
     "C:\\Users\\alexf\\.nuget\\packages\\microsoft.testplatform.testhost\\17.11.0\\microsoft.testplatform.testhost.17.11.0.nupkg.sha512",
     "C:\\Users\\alexf\\.nuget\\packages\\newtonsoft.json\\13.0.1\\newtonsoft.json.13.0.1.nupkg.sha512",
+    "C:\\Users\\alexf\\.nuget\\packages\\system.commandline\\2.0.0-rc.1.25451.107\\system.commandline.2.0.0-rc.1.25451.107.nupkg.sha512",
     "C:\\Users\\alexf\\.nuget\\packages\\system.reflection.metadata\\1.6.0\\system.reflection.metadata.1.6.0.nupkg.sha512",
     "C:\\Users\\alexf\\.nuget\\packages\\xunit\\2.9.3\\xunit.2.9.3.nupkg.sha512",
     "C:\\Users\\alexf\\.nuget\\packages\\xunit.abstractions\\2.0.3\\xunit.abstractions.2.0.3.nupkg.sha512",

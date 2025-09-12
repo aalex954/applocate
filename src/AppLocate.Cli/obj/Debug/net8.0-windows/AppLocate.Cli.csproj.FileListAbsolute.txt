@@ -17,3 +17,17 @@ C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\obj\Debug\net8.0-windows\re
 C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\obj\Debug\net8.0-windows\applocate.pdb
 C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\obj\Debug\net8.0-windows\AppLocate.Cli.genruntimeconfig.cache
 C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\obj\Debug\net8.0-windows\ref\applocate.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\System.CommandLine.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\cs\System.CommandLine.resources.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\de\System.CommandLine.resources.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\es\System.CommandLine.resources.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\fr\System.CommandLine.resources.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\it\System.CommandLine.resources.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\ja\System.CommandLine.resources.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\ko\System.CommandLine.resources.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\pl\System.CommandLine.resources.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\pt-BR\System.CommandLine.resources.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\ru\System.CommandLine.resources.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\tr\System.CommandLine.resources.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\zh-Hans\System.CommandLine.resources.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Cli\bin\Debug\net8.0-windows\zh-Hant\System.CommandLine.resources.dll

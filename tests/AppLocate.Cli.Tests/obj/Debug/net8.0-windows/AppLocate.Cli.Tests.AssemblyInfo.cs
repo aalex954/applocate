@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AppLocate.Cli.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c791ff67a8db54213c17b2d634b37bd75356a8c3")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5f69970a6599955e6017093131a117be3cd1f390")]
 [assembly: System.Reflection.AssemblyProductAttribute("AppLocate.Cli.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AppLocate.Cli.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

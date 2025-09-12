@@ -13,6 +13,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AppLocate.Core\AppLocate.Core.csproj" />
   <!-- System.CommandLine removed for initial scaffold (manual parsing). Re-introduce later. -->
+  <PackageReference Include="System.CommandLine" Version="2.0.0-rc.1.25451.107" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="System.Text.Json" />
