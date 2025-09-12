@@ -16,7 +16,7 @@ Implemented:
 - Argument parsing: Manual robust multi-word parsing + `--` sentinel, validation for numeric options, custom help text (uses `System.CommandLine` only for usage surface).
 - Output formats: text (color-aware), JSON, CSV.
 - Rules engine: lightweight YAML (subset) parser expands config/data hits (VSCode, Chrome examples) before ranking.
-- Tests: 30 passing (core + ranking + deterministic CLI + snapshot + rules parsing + synthetic acceptance: VSCode, Portable, Chrome). MSIX placeholder test (skipped) pending injection seam. Snapshots stabilized by projecting volatile fields.
+- Comprehensive automated test suite (see Tests section).
 
 In Progress / Next Focus:
 - Ranking refinement (alias weighting, fuzzy distance scoring, multi-source diminishing returns calibration).
@@ -73,8 +73,8 @@ Artifacts land under `./artifacts/<rid>/`.
 - [x] Ranking calibration & alias/fuzzy weighting (phase 1)
 - [x] YAML rules engine for config/data paths (phase 1 subset parser)
 - [ ] Rule pack expansion (≥50 apps)
-- [x] Acceptance scenario tests (VSCode (synthetic), Portable app (synthetic), Chrome synthetic)
-- [ ] Additional acceptance scenarios (MSIX simulated, --running focus)
+- [x] Acceptance scenario tests (VSCode (synthetic), Portable app (synthetic), Chrome synthetic, MSIX fake provider)
+- [ ] Additional acceptance scenarios (--running live process capture, more config/data rule coverage)
 - [ ] Performance tuning (parallelism, profiling, R2R/trim)
 - [ ] Evidence output stabilization & selective inclusion tests
 - [ ] Plugin loading (data-only) for aliases/rules
@@ -83,6 +83,62 @@ Artifacts land under `./artifacts/<rid>/`.
 - [ ] CI matrix (x64/ARM64), artifact signing (optional)
 - [ ] JSON schema contract & versioning doc
 - [ ] Benchmark suite (cold vs warm index, thread scaling)
+
+## Tests
+
+Current summary: 34 passing, 1 skipped.
+
+Categories:
+- Core & Models: Validate `AppHit` serialization and JSON determinism.
+- Ranking: Tokenization, fuzzy scoring, boosts, penalties.
+- CLI Deterministic: Argument parsing, validation, exit codes.
+- Snapshot (Verify): Golden projections with volatile fields stripped.
+- Rules Parsing: YAML subset correctness & expansion.
+- Synthetic Acceptance: VSCode (query "code"), Portable app, Chrome, MSIX fake provider.
+- Skipped: One placeholder scenario reserved for future expansion.
+
+Run all tests:
+```pwsh
+dotnet test AppLocate.sln -c Release
+```
+
+Filter examples:
+```pwsh
+# Ranking tests only
+dotnet test tests/AppLocate.Core.Tests --filter FullyQualifiedName~RankingTests
+
+# Acceptance scenarios
+dotnet test tests/AppLocate.Cli.Tests --filter FullyQualifiedName~Acceptance
+```
+
+Snapshots:
+1. Make intentional change.
+2. Run tests; inspect *.received.* files.
+3. Approve by replacing .verified files (commit rationale).
+
+Synthetic acceptance tips:
+- Always pass `--refresh-index` to avoid stale index hits or cached misses.
+- Override `LOCALAPPDATA`, `APPDATA`, `PATH` to point to temp fixtures.
+- Inject MSIX packages via `APPLOCATE_MSIX_FAKE` (JSON array) for deterministic enumeration.
+- Use .lnk shortcuts to exercise Start Menu + evidence synergy.
+
+Adding acceptance scenarios:
+1. Build temp layout & dummy exe(s).
+2. Optionally add rule entries in `rules/apps.default.yaml` for config/data.
+3. Invoke CLI with `--refresh-index`; assert required hit types & confidence ≥0.8.
+4. Avoid dependence on real machine installs.
+
+Contributor guidelines:
+- Keep tests deterministic; no network or real software dependencies.
+- Strip/ignore volatile data in snapshots (timestamps, absolute temp roots).
+- Prefer suffix or logical assertions over full absolute path equality.
+- Document ranking expectation changes in commits.
+- Use `[Fact(Skip=..)]` sparingly with backlog reference.
+
+Planned test expansions:
+- Rule pack growth (≥50 apps) with fixtures.
+- Live `--running` process capture scenario.
+- Performance regression timing harness.
 
 ## Indexing
 The tool maintains a lightweight JSON cache at `%LOCALAPPDATA%/AppLocate/index.json`. Each normalized query string stores:

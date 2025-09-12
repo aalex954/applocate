@@ -1,6 +1,6 @@
 # Placeholder rules file. Populate with real application patterns.
 - match:
-    anyOf: ["Visual Studio Code", "Code.exe", "vscode"]
+  anyOf: ["Visual Studio Code", "Code.exe", "vscode", "code"]
   config:
     - "%APPDATA%/Code/User/settings.json"
   data:

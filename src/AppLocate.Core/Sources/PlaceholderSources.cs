@@ -625,6 +625,71 @@ public sealed class MsixStoreSource : ISource
 {
     /// <summary>Source name.</summary>
     public string Name => nameof(MsixStoreSource);
+    /// <summary>Internal package provider abstraction for test injection.</summary>
+    internal interface IMsixPackageProvider
+    {
+        IEnumerable<(string name,string family,string install,string version)> Enumerate();
+    }
+    private sealed class PowerShellMsixProvider : IMsixPackageProvider
+    {
+        public IEnumerable<(string name,string family,string install,string version)> Enumerate()
+        {
+            var packages = new List<(string,string,string,string)>();
+            try
+            {
+                using var p = new System.Diagnostics.Process();
+                p.StartInfo.FileName = Environment.ExpandEnvironmentVariables("%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe");
+                p.StartInfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"$ErrorActionPreference='SilentlyContinue'; Get-AppxPackage | ForEach-Object { \"$($_.Name)|$($_.PackageFamilyName)|$($_.InstallLocation)|$($_.Version)\" }\"";
+                p.StartInfo.UseShellExecute = false;
+                p.StartInfo.RedirectStandardOutput = true;
+                p.StartInfo.RedirectStandardError = true;
+                p.StartInfo.CreateNoWindow = true;
+                p.Start();
+                while (!p.StandardOutput.EndOfStream)
+                {
+                    var line = p.StandardOutput.ReadLine();
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var parts = line.Split('|');
+                    if (parts.Length < 4) continue;
+                    packages.Add((parts[0].Trim(), parts[1].Trim(), parts[2].Trim(), parts[3].Trim()));
+                }
+                try { if (!p.HasExited) p.Kill(true); } catch { }
+            }
+            catch { }
+            return packages;
+        }
+    }
+    private sealed class EnvMsixProvider : IMsixPackageProvider
+    {
+        public IEnumerable<(string name,string family,string install,string version)> Enumerate()
+        {
+            var json = Environment.GetEnvironmentVariable("APPLOCATE_MSIX_FAKE");
+            if (string.IsNullOrWhiteSpace(json)) return Array.Empty<(string,string,string,string)>();
+            try
+            {
+                var arr = System.Text.Json.JsonDocument.Parse(json).RootElement;
+                if (arr.ValueKind != System.Text.Json.JsonValueKind.Array) return Array.Empty<(string,string,string,string)>();
+                var list = new List<(string,string,string,string)>();
+                foreach (var el in arr.EnumerateArray())
+                {
+                    var name = el.GetProperty("name").GetString() ?? string.Empty;
+                    var family = el.GetProperty("family").GetString() ?? name + ".fake";
+                    var install = el.GetProperty("install").GetString() ?? string.Empty;
+                    var version = el.TryGetProperty("version", out var v) ? (v.GetString() ?? "") : "1.0.0.0";
+                    if (name.Length == 0 || install.Length == 0) continue;
+                    list.Add((name,family,install,version));
+                }
+                return list;
+            }
+            catch { return Array.Empty<(string,string,string,string)>(); }
+        }
+    }
+    private static IMsixPackageProvider CreateProvider()
+    {
+        // Test override when env var present
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("APPLOCATE_MSIX_FAKE"))) return new EnvMsixProvider();
+        return new PowerShellMsixProvider();
+    }
     /// <inheritdoc />
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
@@ -633,45 +698,9 @@ public sealed class MsixStoreSource : ISource
         var norm = query.ToLowerInvariant();
         var tokens = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        // MSIX / Store packages are per-user (scope=user). We enumerate via PowerShell Get-AppxPackage to avoid WinRT ref.
-        // This is a first-pass implementation; future optimization could use Windows.Management.Deployment.PackageManager directly.
-        // Format: Name|PackageFamilyName|InstallLocation|Version
-        List<(string name,string family,string install,string version)> packages = new();
-        try
-        {
-            using var p = new System.Diagnostics.Process();
-            p.StartInfo.FileName = Environment.ExpandEnvironmentVariables("%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe");
-            p.StartInfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"$ErrorActionPreference='SilentlyContinue'; Get-AppxPackage | ForEach-Object { \"$($_.Name)|$($_.PackageFamilyName)|$($_.InstallLocation)|$($_.Version)\" }\"";
-            p.StartInfo.UseShellExecute = false;
-            p.StartInfo.RedirectStandardOutput = true;
-            p.StartInfo.RedirectStandardError = true;
-            p.StartInfo.CreateNoWindow = true;
-            p.Start();
-            var timeoutMs = (int)options.Timeout.TotalMilliseconds;
-            if (timeoutMs <= 0) timeoutMs = 4000; // safety default
-            var waitTask = Task.Run(() => p.WaitForExit(timeoutMs), ct);
-            var finished = await waitTask.ConfigureAwait(false);
-            if (finished)
-            {
-                while (!p.StandardOutput.EndOfStream)
-                {
-                    if (ct.IsCancellationRequested) yield break;
-                    var line = await p.StandardOutput.ReadLineAsync().ConfigureAwait(false);
-                    if (string.IsNullOrWhiteSpace(line)) continue;
-                    var parts = line.Split('|');
-                    if (parts.Length < 4) continue;
-                    var name = parts[0].Trim();
-                    var family = parts[1].Trim();
-                    var install = parts[2].Trim();
-                    var version = parts[3].Trim();
-                    if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(family)) continue;
-                    packages.Add((name,family,install,version));
-                }
-            }
-            try { if (!p.HasExited) p.Kill(true); } catch { }
-        }
-        catch { }
-
+    // Source packages via provider (PowerShell or env-injected for tests)
+    var provider = CreateProvider();
+    var packages = provider.Enumerate().ToList();
         if (packages.Count == 0) yield break;
         var seenInstall = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seenExe = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
