@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("applocate")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ba618843e1bf43dad06cf98d319e463a7e9f1b21")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1355c0ec7e35494aa761ab760740887d3bd20ea1")]
 [assembly: System.Reflection.AssemblyProductAttribute("applocate")]
 [assembly: System.Reflection.AssemblyTitleAttribute("applocate")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

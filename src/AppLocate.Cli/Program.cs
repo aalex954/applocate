@@ -83,7 +83,7 @@ internal static class Program
                 mergedMap[key] = h with { Source = (string[])h.Source.Clone() };
                 continue;
             }
-            // Merge: combine unique sources; merge evidence keys (later wins) and take highest confidence after scoring.
+            // Merge: combine unique sources; merge evidence keys by accumulating distinct values.
             var srcSet = new HashSet<string>(existing.Source, StringComparer.OrdinalIgnoreCase);
             foreach (var s in h.Source) srcSet.Add(s);
             Dictionary<string,string>? evidenceMerged = null;
@@ -91,9 +91,30 @@ internal static class Program
             {
                 evidenceMerged = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
                 if (existing.Evidence != null)
+                {
                     foreach (var kv in existing.Evidence) evidenceMerged[kv.Key] = kv.Value;
+                }
                 if (h.Evidence != null)
-                    foreach (var kv in h.Evidence) evidenceMerged[kv.Key] = kv.Value; // override duplicates
+                {
+                    foreach (var kv in h.Evidence)
+                    {
+                        if (evidenceMerged.TryGetValue(kv.Key, out var existingVal))
+                        {
+                            // If same value already present (case-insensitive compare), skip.
+                            if (existingVal.Equals(kv.Value, StringComparison.OrdinalIgnoreCase)) continue;
+                            // If existing contains pipe-separated list, check for presence; else append.
+                            var parts = existingVal.Split('|');
+                            if (!parts.Any(p => p.Equals(kv.Value, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                evidenceMerged[kv.Key] = existingVal + "|" + kv.Value;
+                            }
+                        }
+                        else
+                        {
+                            evidenceMerged[kv.Key] = kv.Value;
+                        }
+                    }
+                }
             }
             // Keep existing for now; will rescore after loop.
             mergedMap[key] = existing with { Source = srcSet.ToArray(), Evidence = evidenceMerged };
