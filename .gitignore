@@ -65,6 +65,52 @@ $RECYCLE.BIN/
 # Security / secrets (none expected; placeholder)
 secrets.json
 *.pfx
+# Additional sensitive / key material
+*.pem
+*.key
+*.cer
+*.crt
+*.der
+*.snk
+*.p12
+*.pfx.json
+*.keystore
+*.jks
+*.ovpn
+
+# Environment & dotenv style files
+.env
+.env.*
+*.env
+*.env.local
+*.dotenv
+
+# Local override appsettings (keep base & environment defaults tracked)
+appsettings.*.local.json
+appsettings.Local.json
+appsettings.Development.local.json
+
+# Backup / patch artifacts
+*.bak
+*.orig
+*.rej
+*.patch
+
+# Credential / secret folders (if ever created)
+.secrets/
+secrets/
+
+# Encrypted vault / password store formats
+*.kdbx
+
+# SQLite / lite dbs (explicit opt‑out per file if needed)
+*.sqlite
+
+# Crash dumps (Windows)
+*.mdmp
+
+# macOS noise (if repo used cross‑platform later)
+.DS_Store
 
 # Rule packs local overrides
 rules/*.generated.yaml
