@@ -1,0 +1,137 @@
+name: build-test-release
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed for release upload
+  actions: read
+  checks: read
+
+env:
+  SOLUTION_FILE: AppLocate.sln
+  PROJECT_PATH: src/AppLocate.Cli/AppLocate.Cli.csproj
+  CONFIGURATION: Release
+
+jobs:
+  build-test:
+    name: Build & Test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Build
+        run: dotnet build ${{ env.SOLUTION_FILE }} -c ${{ env.CONFIGURATION }} --no-restore /warnaserror-:1591
+
+      - name: Test
+        run: dotnet test ${{ env.SOLUTION_FILE }} -c ${{ env.CONFIGURATION }} --no-build --logger trx --results-directory TestResults /warnaserror-:1591
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+          if-no-files-found: ignore
+
+  publish:
+    name: Publish (matrix)
+    needs: build-test
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [ win-x64, win-arm64 ]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      - name: Publish Single File
+        run: >-
+          dotnet publish ${{ env.PROJECT_PATH }} -c ${{ env.CONFIGURATION }} -r ${{ matrix.rid }}
+          -p:PublishSingleFile=true -p:SelfContained=true -p:EnableCompressionInSingleFile=true
+          -p:PublishReadyToRun=true --no-restore -o artifacts/${{ matrix.rid }}
+
+      - name: Generate Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem artifacts/${{ matrix.rid }} -File | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+            "$hash  $($_.Name)" | Out-File artifacts/${{ matrix.rid }}/SHA256SUMS.txt -Append -Encoding ascii
+          }
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: applocate-${{ matrix.rid }}
+          path: artifacts/${{ matrix.rid }}/*
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: publish
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Published Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Flatten & Prepare Assets
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          Get-ChildItem dist -Recurse -File | ForEach-Object {
+            Copy-Item $_.FullName -Destination (Join-Path release $_.Name) -Force
+          }
+          # Combined checksum file
+          Get-ChildItem dist -Recurse -Filter SHA256SUMS.txt | Get-Content | Out-File release/SHA256SUMS-all.txt -Encoding ascii
+
+      - name: Generate Release Notes (basic)
+        id: notes
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF.Split('/')[-1]
+          "## Release $tag`n`nAutomated build." | Out-File release/RELEASE_NOTES.md -Encoding utf8
+          echo "notes_path=release/RELEASE_NOTES.md" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: ${{ steps.notes.outputs.notes_path }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
+          files: |
+            release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Release SBOM (optional placeholder)
+        if: false
+        run: echo "Add SBOM generation here later"
