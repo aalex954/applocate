@@ -11,3 +11,4 @@ C:\Users\alexf\Downloads\applocate\src\AppLocate.Core\obj\Debug\net8.0-windows\r
 C:\Users\alexf\Downloads\applocate\src\AppLocate.Core\obj\Debug\net8.0-windows\AppLocate.Core.xml
 C:\Users\alexf\Downloads\applocate\src\AppLocate.Core\obj\Debug\net8.0-windows\AppLocate.Core.pdb
 C:\Users\alexf\Downloads\applocate\src\AppLocate.Core\obj\Debug\net8.0-windows\ref\AppLocate.Core.dll
+C:\Users\alexf\Downloads\applocate\src\AppLocate.Core\obj\Debug\net8.0-windows\AppLocate.Core.sourcelink.json

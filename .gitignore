@@ -1,0 +1,94 @@
+# Core build artifacts
+bin/
+obj/
+[Bb]uild/
+[Dd]ebug/
+[Rr]elease/
+*x64/
+*x86/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VS / VS Code
+.vs/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Rider / JetBrains
+.idea/
+*.iml
+
+# Dotnet intermediates
+project.lock.json
+project.fragment.lock.json
+artifacts/
+.nuget/packages/*
+# (keep) allow lock file generation, do not ignore global packages.
+
+# Logs / diagnostics
+*.log
+logs/
+TestResult*/
+*.VisualState.xml
+*.coverage
+*.coveragexml
+coverage/
+
+# Generated JSON or dumps
+*.dump
+*.diag
+*.dmp
+
+# Publish / distribution
+publish/
+*.publish.xml
+*.pubxml
+*.pubxml.user
+
+# Cache / temp
+*.tmp
+*.temp
+~$*
+[Tt]emporary[Aa]sp[Nn]et[Ff]iles/
+
+# OS / tooling noise
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.swp
+
+# Security / secrets (none expected; placeholder)
+secrets.json
+*.pfx
+
+# Rule packs local overrides
+rules/*.generated.yaml
+
+# Custom tool indexes
+AppData/Local/AppLocator/index.db
+**/AppLocator/index.db
+
+# Packaging
+*.nupkg
+*.snupkg
+
+# JSON source-gen caches
+**/obj/*/AppLocate.Cli.JsonContext.g.cs
+
+# Ignore test host artifacts
+**/TestResults/
+
+# Rider / ReSharper
+_ReSharper*/
+*.DotSettings.user
+
+# T4 / codegen (if added later)
+*.gen.cs
+
+# Ensure we keep YAML rules
+!rules/*.yaml

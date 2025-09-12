@@ -26,7 +26,16 @@ internal static class Program
     // Retained manual parser; System.CommandLine integration postponed.
     internal static async Task<int> RunAsync(string[] args)
     {
-        if (args.Length == 0) return 2;
+        if (args.Length == 0)
+        {
+            PrintHelp();
+            return 2;
+        }
+        if (args.Contains("--help") || args.Contains("-h"))
+        {
+            PrintHelp();
+            return 0;
+        }
         // Minimal System.CommandLine usage: parse query + --json; fall back to manual for rest.
         string? query = null;
         bool json = false;
@@ -34,18 +43,18 @@ internal static class Program
         int? limit = null; double confidenceMin = 0; int timeout = 5;
         try
         {
-            var queryArg = new Argument<string>("query");
-            var jsonOpt = new Option<bool>("--json");
-            var csvOpt = new Option<bool>("--csv");
-            var textOpt = new Option<bool>("--text");
-            var userOpt = new Option<bool>("--user");
-            var machineOpt = new Option<bool>("--machine");
-            var strictOpt = new Option<bool>("--strict");
-            var limitOpt = new Option<int?>("--limit");
-            var confMinOpt = new Option<double?>("--confidence-min");
-            var timeoutOpt = new Option<int?>("--timeout");
-            var evidenceOpt = new Option<bool>("--evidence");
-            var verboseOpt = new Option<bool>("--verbose");
+            var queryArg = new Argument<string>("query") { Description = "Application name or partial to search (e.g. 'vscode', 'chrome')" };
+            var jsonOpt = new Option<bool>("--json") { Description = "Output results as JSON array" };
+            var csvOpt = new Option<bool>("--csv") { Description = "Output results as CSV (Type,Scope,Path,...)" };
+            var textOpt = new Option<bool>("--text") { Description = "Output in human-readable text (default)" };
+            var userOpt = new Option<bool>("--user") { Description = "Limit to user-scope results" };
+            var machineOpt = new Option<bool>("--machine") { Description = "Limit to machine-scope results" };
+            var strictOpt = new Option<bool>("--strict") { Description = "Disable fuzzy/alias matching (exact tokens only)" };
+            var limitOpt = new Option<int?>("--limit") { Description = "Maximum number of results to return" };
+            var confMinOpt = new Option<double?>("--confidence-min") { Description = "Minimum confidence threshold (0-1)" };
+            var timeoutOpt = new Option<int?>("--timeout") { Description = "Per-source timeout seconds (default 5)" };
+            var evidenceOpt = new Option<bool>("--evidence") { Description = "Include evidence keys when available" };
+            var verboseOpt = new Option<bool>("--verbose") { Description = "Verbose diagnostics (warnings)" };
             var root = new RootCommand { queryArg, jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt, limitOpt, confMinOpt, timeoutOpt, evidenceOpt, verboseOpt };
             var parse = root.Parse(args);
             // Build token list for quick lookups
@@ -205,5 +214,27 @@ internal static class Program
     private static string Normalize(string query)
     {
         return string.Join(' ', query.Trim().ToLowerInvariant().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private static void PrintHelp()
+    {
+        const string usage = "applocate <query> [options]\n\nOptions:";
+        Console.Out.WriteLine(usage);
+        Console.Out.WriteLine("  --json                Output results as JSON array");
+        Console.Out.WriteLine("  --csv                 Output results as CSV");
+        Console.Out.WriteLine("  --text                Output text (default)");
+        Console.Out.WriteLine("  --user                Only user-scope hits");
+        Console.Out.WriteLine("  --machine             Only machine-scope hits");
+        Console.Out.WriteLine("  --strict              Disable fuzzy/alias matching");
+        Console.Out.WriteLine("  --limit <N>           Limit number of results");
+        Console.Out.WriteLine("  --confidence-min <X>  Minimum confidence (0-1)");
+        Console.Out.WriteLine("  --timeout <sec>       Per-source timeout (default 5)");
+        Console.Out.WriteLine("  --evidence            Include evidence fields");
+        Console.Out.WriteLine("  --verbose             Verbose diagnostics");
+        Console.Out.WriteLine("  -h, --help            Show this help and exit");
+        Console.Out.WriteLine();
+        Console.Out.WriteLine("Examples:");
+        Console.Out.WriteLine("  applocate vscode --json --limit 2");
+        Console.Out.WriteLine("  applocate 'Google Chrome' --machine --confidence-min 0.7");
     }
 }

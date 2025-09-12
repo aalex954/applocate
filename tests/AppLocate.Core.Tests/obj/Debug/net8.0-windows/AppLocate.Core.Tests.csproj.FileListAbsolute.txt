@@ -100,3 +100,4 @@ C:\Users\alexf\Downloads\applocate\tests\AppLocate.Core.Tests\obj\Debug\net8.0-w
 C:\Users\alexf\Downloads\applocate\tests\AppLocate.Core.Tests\obj\Debug\net8.0-windows\AppLocate.Core.Tests.pdb
 C:\Users\alexf\Downloads\applocate\tests\AppLocate.Core.Tests\obj\Debug\net8.0-windows\AppLocate.Core.Tests.genruntimeconfig.cache
 C:\Users\alexf\Downloads\applocate\tests\AppLocate.Core.Tests\obj\Debug\net8.0-windows\ref\AppLocate.Core.Tests.dll
+C:\Users\alexf\Downloads\applocate\tests\AppLocate.Core.Tests\obj\Debug\net8.0-windows\AppLocate.Core.Tests.sourcelink.json
