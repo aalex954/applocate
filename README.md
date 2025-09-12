@@ -1,5 +1,3 @@
-dotnet build
-dotnet test
 # applocate
 
 Windows 11 CLI to locate application install directories, executables, and (in progress) config/data paths. Emits deterministic JSON (plus CSV/text). Core discovery, indexing, ranking scaffold, and baseline tests are now in place.
