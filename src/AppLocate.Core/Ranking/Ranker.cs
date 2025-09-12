@@ -103,9 +103,16 @@ internal static class Ranker
             if (fileName.Equals(query, StringComparison.OrdinalIgnoreCase)) score += 0.30;
             else if (AliasEquivalent(query, fileName, out var alias))
             {
-                score += 0.20; // alias match slightly less than direct exact
+                score += 0.25; // boosted alias equivalence for stronger acceptance confidence
             }
             else if (tokenCoverage == 0 && fileName.Contains(query)) score += 0.12; // legacy partial boost if tokens missed
+        }
+
+        // 2b. For Config/Data hits, allow directory-name alias equivalence to contribute (common pattern: query 'vscode' directory 'Code')
+        if ((hit.Type == HitType.Config || hit.Type == HitType.Data) && !string.IsNullOrEmpty(dirName))
+        {
+            if (dirName.Equals(query, StringComparison.OrdinalIgnoreCase)) score += 0.20;
+            else if (AliasEquivalent(query, dirName!, out var dirAlias)) score += 0.18; // moderate boost; less than exe alias boost
         }
 
         // 3. Evidence-based boosts & synergies

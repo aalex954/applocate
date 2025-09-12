@@ -16,7 +16,7 @@ Implemented:
 - Argument parsing: Manual robust multi-word parsing + `--` sentinel, validation for numeric options, custom help text (uses `System.CommandLine` only for usage surface).
 - Output formats: text (color-aware), JSON, CSV.
 - Rules engine: lightweight YAML (subset) parser expands config/data hits (VSCode, Chrome examples) before ranking.
-- Tests: 30 passing (core + ranking + deterministic CLI + snapshot + rules parsing). Snapshots stabilized by projecting volatile fields.
+- Tests: 32 passing (core + ranking + deterministic CLI + snapshot + rules parsing + new synthetic acceptance scenarios). Snapshots stabilized by projecting volatile fields.
 
 In Progress / Next Focus:
 - Ranking refinement (alias weighting, fuzzy distance scoring, multi-source diminishing returns calibration).
@@ -73,7 +73,8 @@ Artifacts land under `./artifacts/<rid>/`.
 - [x] Ranking calibration & alias/fuzzy weighting (phase 1)
 - [x] YAML rules engine for config/data paths (phase 1 subset parser)
 - [ ] Rule pack expansion (≥50 apps)
-- [ ] Acceptance scenario tests (VSCode, Chrome, portable, MSIX, --running)
+- [x] Acceptance scenario tests (VSCode (synthetic), Portable app (synthetic) – initial subset)
+- [ ] Additional acceptance scenarios (Chrome, MSIX, --running focus)
 - [ ] Performance tuning (parallelism, profiling, R2R/trim)
 - [ ] Evidence output stabilization & selective inclusion tests
 - [ ] Plugin loading (data-only) for aliases/rules
