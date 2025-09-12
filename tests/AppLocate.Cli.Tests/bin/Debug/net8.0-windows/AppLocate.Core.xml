@@ -45,6 +45,7 @@
         </member>
         <member name="M:AppLocate.Core.Sources.RegistryUninstallSource.QueryAsync(System.String,AppLocate.Core.Abstractions.SourceOptions,System.Threading.CancellationToken)">
             <summary>Queries registry uninstall keys for apps whose DisplayName contains the normalized query.</summary>
+            <summary>Enumerates Start Menu shortcuts matching the normalized query and resolves their target executables.</summary>
         </member>
         <member name="T:AppLocate.Core.Sources.AppPathsSource">
             <summary>Placeholder: future enumeration of App Paths registry keys.</summary>
@@ -60,9 +61,6 @@
         </member>
         <member name="P:AppLocate.Core.Sources.StartMenuShortcutSource.Name">
             <summary>Source name.</summary>
-        </member>
-        <member name="M:AppLocate.Core.Sources.StartMenuShortcutSource.QueryAsync(System.String,AppLocate.Core.Abstractions.SourceOptions,System.Threading.CancellationToken)">
-            <inheritdoc />
         </member>
         <member name="T:AppLocate.Core.Sources.ProcessSource">
             <summary>Placeholder: future enumeration of running processes.</summary>

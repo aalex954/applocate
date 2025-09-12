@@ -26,6 +26,7 @@ public sealed class RegistryUninstallSource : ISource
     ];
 
     /// <summary>Queries registry uninstall keys for apps whose DisplayName contains the normalized query.</summary>
+    /// <summary>Enumerates Start Menu shortcuts matching the normalized query and resolves their target executables.</summary>
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         // Very small first pass: linear scan of uninstall keys, substring match on DisplayName.
@@ -193,9 +194,83 @@ public sealed class StartMenuShortcutSource : ISource
 {
     /// <summary>Source name.</summary>
     public string Name => nameof(StartMenuShortcutSource);
-    /// <inheritdoc />
+    private static readonly string[] StartMenuRootsUser =
+    {
+        Environment.ExpandEnvironmentVariables("%AppData%\\Microsoft\\Windows\\Start Menu\\Programs")
+    };
+    private static readonly string[] StartMenuRootsCommon =
+    {
+        Environment.ExpandEnvironmentVariables("%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs").Replace("\n", string.Empty)
+    };
+
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
-    { /* TODO: implement .lnk enumeration */ await System.Threading.Tasks.Task.CompletedTask; yield break; }
+    {
+        await System.Threading.Tasks.Task.Yield();
+        var norm = query;
+        if (!options.MachineOnly)
+        {
+            foreach (var r in Enumerate(StartMenuRootsUser, Scope.User, norm, options, ct)) yield return r;
+        }
+        if (!options.UserOnly)
+        {
+            foreach (var r in Enumerate(StartMenuRootsCommon, Scope.Machine, norm, options, ct)) yield return r;
+        }
+    }
+
+    private IEnumerable<AppHit> Enumerate(IEnumerable<string> roots, Scope scope, string query, SourceOptions options, CancellationToken ct)
+    {
+        foreach (var root in roots)
+        {
+            if (ct.IsCancellationRequested) yield break;
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
+            IEnumerable<string> files = Array.Empty<string>();
+            try
+            {
+                files = Directory.EnumerateFiles(root, "*.lnk", SearchOption.AllDirectories);
+            }
+            catch { }
+            foreach (var lnk in files)
+            {
+                if (ct.IsCancellationRequested) yield break;
+                var fileName = Path.GetFileNameWithoutExtension(lnk).ToLowerInvariant();
+                if (!fileName.Contains(query)) continue;
+                string? target = null;
+                try { target = ResolveShortcut(lnk); } catch { }
+                if (string.IsNullOrWhiteSpace(target)) continue;
+                if (!target.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
+                var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"Shortcut", lnk}} : null;
+                yield return new AppHit(HitType.Exe, scope, target, null, PackageType.EXE, new[] { Name }, 0, evidence);
+                var dir = Path.GetDirectoryName(target);
+                if (!string.IsNullOrEmpty(dir))
+                    yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, evidence);
+            }
+        }
+    }
+
+    // Minimal COM-based .lnk resolution using WScript.Shell to avoid adding dependencies at this stage.
+    private static string? ResolveShortcut(string lnk)
+    {
+        try
+        {
+            Type? shellType = Type.GetTypeFromProgID("WScript.Shell");
+            if (shellType == null) return null;
+            dynamic shell = Activator.CreateInstance(shellType)!;
+            try
+            {
+                dynamic sc = shell.CreateShortcut(lnk);
+                string? target = sc.TargetPath as string;
+                System.Runtime.InteropServices.Marshal.FinalReleaseComObject(sc);
+                System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell);
+                return target;
+            }
+            catch
+            {
+                try { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell); } catch { }
+            }
+        }
+        catch { }
+        return null;
+    }
 }
 
 /// <summary>Placeholder: future enumeration of running processes.</summary>
