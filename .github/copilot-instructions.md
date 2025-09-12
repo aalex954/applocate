@@ -214,4 +214,13 @@ AVOID: new P/Invoke signatures if an existing package solves it; global static s
 - Flesh out ranking with pooling and span-based tokenization.
 - Add YAML rules + tests.
 
+### Additional implicit follow-ups:
+
+- Replace placeholder sources with real implementations (registry, Start Menu, processes, etc. already partly done—others pending).
+- Expand XML docs for all public APIs (if treating CS1591 strictly).
+- Implement indexing layer (on-disk cache) and invalidation logic.
+- Add acceptance tests for each listed scenario (vscode, Chrome, portable app, MSIX, --running, --strict).
+- Add plugin loading for alias/rule packs.
+- CI enhancements: NuGet cache, SBOM/signing (if desired).
+
 Provide feedback if any area needs deeper guidance (e.g., ranking algorithm detail, registry abstraction design).
