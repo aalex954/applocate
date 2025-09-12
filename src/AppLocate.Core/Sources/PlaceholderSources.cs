@@ -304,9 +304,9 @@ public sealed class StartMenuShortcutSource : ISource
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await System.Threading.Tasks.Task.Yield();
-        if (string.IsNullOrWhiteSpace(query)) yield break;
-        var norm = query.ToLowerInvariant();
-        var tokens = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    if (string.IsNullOrWhiteSpace(query)) yield break;
+    var norm = query.ToLowerInvariant();
+    var tokens = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var dedup = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         if (!options.MachineOnly)
@@ -428,10 +428,13 @@ public sealed class ProcessSource : ISource
     {
         await System.Threading.Tasks.Task.Yield();
         if (string.IsNullOrWhiteSpace(query)) yield break;
-        var norm = query.ToLowerInvariant();
+    var norm = query.ToLowerInvariant();
+    var processTokens = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         System.Diagnostics.Process[] procs;
         try { procs = System.Diagnostics.Process.GetProcesses(); }
         catch { yield break; }
+
+        var dedup = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var p in procs)
         {
@@ -441,17 +444,38 @@ public sealed class ProcessSource : ISource
             try { name = p.ProcessName; } catch { }
             try { mainModulePath = p.MainModule?.FileName; } catch { }
             if (string.IsNullOrEmpty(name) && string.IsNullOrEmpty(mainModulePath)) continue;
-            var nameMatch = name != null && name.ToLowerInvariant().Contains(norm);
-            var pathMatch = mainModulePath != null && mainModulePath.ToLowerInvariant().Contains(norm);
-            if (!nameMatch && !pathMatch) continue;
+            var nameLower = name?.ToLowerInvariant();
+            bool match;
+            if (options.Strict)
+            {
+                match = nameLower != null && processTokens.All(t => nameLower.Contains(t));
+            }
+            else
+            {
+                match = (nameLower != null && nameLower.Contains(norm)) || (mainModulePath != null && mainModulePath.ToLowerInvariant().Contains(norm));
+            }
+            if (!match) continue;
             if (!string.IsNullOrEmpty(mainModulePath) && File.Exists(mainModulePath))
             {
+                if (!dedup.Add(mainModulePath)) continue;
                 var scope = InferScope(mainModulePath);
-                var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"ProcessId", p.Id.ToString()},{"ProcessName", name ?? string.Empty}} : null;
+                Dictionary<string,string>? evidence = null;
+                if (options.IncludeEvidence)
+                {
+                    evidence = new Dictionary<string,string>{{"ProcessId", p.Id.ToString()}};
+                    if (!string.IsNullOrEmpty(name)) evidence["ProcessName"] = name;
+                    var exeName = System.IO.Path.GetFileName(mainModulePath);
+                    if (!string.IsNullOrEmpty(exeName)) evidence["ExeName"] = exeName;
+                }
                 yield return new AppHit(HitType.Exe, scope, mainModulePath, null, PackageType.EXE, new[] { Name }, 0, evidence);
                 var dir = Path.GetDirectoryName(mainModulePath);
-                if (!string.IsNullOrEmpty(dir))
-                    yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, evidence);
+                if (!string.IsNullOrEmpty(dir) && dedup.Add(dir + "::install"))
+                {
+                    var dirEvidence = evidence;
+                    if (options.IncludeEvidence && dirEvidence != null && !dirEvidence.ContainsKey("DirMatch"))
+                        dirEvidence = new Dictionary<string,string>(dirEvidence) { {"DirMatch","true"} };
+                    yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, dirEvidence);
+                }
             }
         }
     }
@@ -478,7 +502,8 @@ public sealed class PathSearchSource : ISource
     {
         await System.Threading.Tasks.Task.Yield();
         if (string.IsNullOrWhiteSpace(query)) yield break;
-        var norm = query.ToLowerInvariant();
+    var norm = query.ToLowerInvariant();
+    var pathTokens = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         // Strategy:
         // 1. Invoke where.exe for the raw query (best effort) – may fail silently.
@@ -555,16 +580,22 @@ public sealed class PathSearchSource : ISource
             {
                 if (ct.IsCancellationRequested) yield break;
                 var name = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
-                if (!name.Contains(norm)) continue;
+                bool match = !options.Strict ? name.Contains(norm) : pathTokens.All(t => name.Contains(t));
+                if (!match) continue;
                 if (!File.Exists(file)) continue;
                 if (!yielded.Add(file)) continue;
                 var scope = InferScope(file);
-                var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"PATH", dir}} : null;
+                var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"PATH", dir},{"ExeName", Path.GetFileName(file)}} : null;
                 buffered ??= new List<AppHit>();
                 buffered.Add(new AppHit(HitType.Exe, scope, file, null, PackageType.EXE, new[] { Name }, 0, evidence));
                 var dirName = Path.GetDirectoryName(file);
                 if (!string.IsNullOrEmpty(dirName) && yielded.Add(dirName + "::install"))
-                    buffered.Add(new AppHit(HitType.InstallDir, scope, dirName!, null, PackageType.EXE, new[] { Name }, 0, evidence));
+                {
+                    Dictionary<string,string>? dirEvidence = evidence;
+                    if (options.IncludeEvidence && dirEvidence != null && !dirEvidence.ContainsKey("DirMatch"))
+                        dirEvidence = new Dictionary<string,string>(dirEvidence) { {"DirMatch","true"} };
+                    buffered.Add(new AppHit(HitType.InstallDir, scope, dirName!, null, PackageType.EXE, new[] { Name }, 0, dirEvidence));
+                }
             }
             if (buffered != null)
             {
