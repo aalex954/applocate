@@ -1,0 +1,25 @@
+{
+  StdOut: [
+    {
+      type: 1,
+      scope: 0
+    },
+    {
+      type: 0,
+      scope: 0
+    },
+    {
+      type: 0,
+      scope: 0
+    },
+    {
+      type: 1,
+      scope: 0
+    },
+    {
+      type: 1,
+      scope: 0
+    }
+  ],
+  StdErr: 
+}

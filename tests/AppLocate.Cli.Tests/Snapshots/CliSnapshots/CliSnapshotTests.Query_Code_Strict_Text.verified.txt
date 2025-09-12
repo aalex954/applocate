@@ -1,0 +1,14 @@
+{
+  StdOut: [
+    {
+      type: Exe
+    },
+    {
+      type: InstallDir
+    },
+    {
+      type: InstallDir
+    }
+  ],
+  StdErr: 
+}

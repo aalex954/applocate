@@ -1,14 +1,1 @@
-﻿{
-  StdOut: [
-    {
-      type: Exe
-    },
-    {
-      type: InstallDir
-    },
-    {
-      type: InstallDir
-    }
-  ],
-  StdErr: 
-}
+﻿// Obsolete: superseded by Query_Code_Strict_Text snapshot. Left intentionally empty.
