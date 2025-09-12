@@ -5,6 +5,7 @@ using AppLocate.Core.Abstractions;
 using AppLocate.Core.Sources;
 using AppLocate.Core.Ranking;
 using AppLocate.Core.Indexing;
+using AppLocate.Core.Rules;
 
 namespace AppLocate.Cli;
 
@@ -212,7 +213,7 @@ internal static class Program
         }
         catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] index load failed: {ex.Message}"); }
 
-        var hits = new List<AppHit>();
+    var hits = new List<AppHit>();
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
         foreach (var source in _sources)
@@ -229,6 +230,46 @@ internal static class Program
             catch (OperationCanceledException) when (cts.IsCancellationRequested) { break; }
             catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] {source.Name} failed: {ex.Message}"); }
         }
+
+        // Rule-based expansion (config/data heuristics)
+        try
+        {
+            var rulesPath = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "rules", "apps.default.yaml");
+            if (!File.Exists(rulesPath))
+            {
+                // fallback to relative from current working dir
+                var alt = Path.Combine(Directory.GetCurrentDirectory(), "rules", "apps.default.yaml");
+                if (File.Exists(alt)) rulesPath = alt; else rulesPath = string.Empty;
+            }
+            if (!string.IsNullOrEmpty(rulesPath))
+            {
+                var engine = new RulesEngine();
+                var loaded = await engine.LoadAsync(rulesPath, CancellationToken.None);
+                if (loaded.Count > 0)
+                {
+                    // Determine if any rule matches query tokens or existing exe/install hits
+                    var allNames = hits.Select(h => Path.GetFileNameWithoutExtension(h.Path)?.ToLowerInvariant()).Where(s => !string.IsNullOrEmpty(s)).ToHashSet();
+                    foreach (var rule in loaded)
+                    {
+                        bool match = rule.MatchAnyOf.Any(m =>
+                            string.Equals(m, query, StringComparison.OrdinalIgnoreCase) ||
+                            allNames.Contains(m.ToLowerInvariant()));
+                        if (!match) continue;
+                        foreach (var cfg in rule.Config)
+                        {
+                            var expanded = Environment.ExpandEnvironmentVariables(cfg.Replace('/', Path.DirectorySeparatorChar));
+                            hits.Add(new AppHit(HitType.Config, Scope.User, expanded, null, PackageType.Unknown, new[]{"Rules"}, 0, new System.Collections.Generic.Dictionary<string,string>{{"Rule","config"}}));
+                        }
+                        foreach (var dat in rule.Data)
+                        {
+                            var expanded = Environment.ExpandEnvironmentVariables(dat.Replace('/', Path.DirectorySeparatorChar));
+                            hits.Add(new AppHit(HitType.Data, Scope.User, expanded, null, PackageType.Unknown, new[]{"Rules"}, 0, new System.Collections.Generic.Dictionary<string,string>{{"Rule","data"}}));
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception rex) { if (verbose) Console.Error.WriteLine($"[warn] rules expansion failed: {rex.Message}"); }
 
         // De-duplicate & merge evidence/sources by (Type,Scope,Path) case-insensitive path key.
         var mergedMap = new Dictionary<string, AppHit>(StringComparer.OrdinalIgnoreCase);

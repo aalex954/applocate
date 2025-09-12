@@ -15,7 +15,8 @@ Implemented:
 - Indexing: On-disk JSON (`%LOCALAPPDATA%/AppLocate/index.json`) with environment hash invalidation + empty-cache short‑circuit (cached known-miss returns exit 1 instantly). `--index-path`, `--refresh-index` supported.
 - Argument parsing: Manual robust multi-word parsing + `--` sentinel, validation for numeric options, custom help text (uses `System.CommandLine` only for usage surface).
 - Output formats: text (color-aware), JSON, CSV.
-- Tests: 17 passing (deterministic CLI behavior, snapshot JSON/text projections, indexing short‑circuit, ranking basics). Snapshots stabilized by projecting volatile fields.
+- Rules engine: lightweight YAML (subset) parser expands config/data hits (VSCode, Chrome examples) before ranking.
+- Tests: 30 passing (core + ranking + deterministic CLI + snapshot + rules parsing). Snapshots stabilized by projecting volatile fields.
 
 In Progress / Next Focus:
 - Ranking refinement (alias weighting, fuzzy distance scoring, multi-source diminishing returns calibration).
@@ -70,7 +71,7 @@ Artifacts land under `./artifacts/<rid>/`.
 - [x] Golden snapshot tests (Verify) for core queries
 - [x] Deterministic CLI argument validation tests
 - [x] Ranking calibration & alias/fuzzy weighting (phase 1)
-- [ ] YAML rules engine for config/data paths
+- [x] YAML rules engine for config/data paths (phase 1 subset parser)
 - [ ] Rule pack expansion (≥50 apps)
 - [ ] Acceptance scenario tests (VSCode, Chrome, portable, MSIX, --running)
 - [ ] Performance tuning (parallelism, profiling, R2R/trim)

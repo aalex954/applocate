@@ -5,3 +5,10 @@
     - "%APPDATA%/Code/User/settings.json"
   data:
     - "%APPDATA%/Code/*"
+
+- match:
+    anyOf: ["Google Chrome", "chrome", "chrome.exe"]
+  config:
+    - "%LOCALAPPDATA%/Google/Chrome/User Data/Default/Preferences"
+  data:
+    - "%LOCALAPPDATA%/Google/Chrome/User Data"
