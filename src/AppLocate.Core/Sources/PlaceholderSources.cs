@@ -304,18 +304,22 @@ public sealed class StartMenuShortcutSource : ISource
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await System.Threading.Tasks.Task.Yield();
-        var norm = query;
+        if (string.IsNullOrWhiteSpace(query)) yield break;
+        var norm = query.ToLowerInvariant();
+        var tokens = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var dedup = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         if (!options.MachineOnly)
         {
-            foreach (var r in Enumerate(StartMenuRootsUser, Scope.User, norm, options, ct)) yield return r;
+            foreach (var r in Enumerate(StartMenuRootsUser, Scope.User, norm, tokens, options, dedup, ct)) yield return r;
         }
         if (!options.UserOnly)
         {
-            foreach (var r in Enumerate(StartMenuRootsCommon, Scope.Machine, norm, options, ct)) yield return r;
+            foreach (var r in Enumerate(StartMenuRootsCommon, Scope.Machine, norm, tokens, options, dedup, ct)) yield return r;
         }
     }
 
-    private IEnumerable<AppHit> Enumerate(IEnumerable<string> roots, Scope scope, string query, SourceOptions options, CancellationToken ct)
+    private IEnumerable<AppHit> Enumerate(IEnumerable<string> roots, Scope scope, string norm, string[] tokens, SourceOptions options, HashSet<string> dedup, CancellationToken ct)
     {
         foreach (var root in roots)
         {
@@ -324,6 +328,7 @@ public sealed class StartMenuShortcutSource : ISource
             IEnumerable<string> files = Array.Empty<string>();
             try
             {
+                // Shallow recursive enumeration; large trees could be expensive – rely on OS caching.
                 files = Directory.EnumerateFiles(root, "*.lnk", SearchOption.AllDirectories);
             }
             catch { }
@@ -331,18 +336,60 @@ public sealed class StartMenuShortcutSource : ISource
             {
                 if (ct.IsCancellationRequested) yield break;
                 var fileName = Path.GetFileNameWithoutExtension(lnk).ToLowerInvariant();
-                if (!fileName.Contains(query)) continue;
+                if (!Matches(fileName, norm, tokens, options.Strict)) continue;
                 string? target = null;
                 try { target = ResolveShortcut(lnk); } catch { }
-                if (string.IsNullOrWhiteSpace(target)) continue;
+                if (string.IsNullOrWhiteSpace(target))
+                {
+                    if (options.IncludeEvidence)
+                    {
+                        // Broken shortcut evidence (no target); still yield nothing (ranking penalizes elsewhere if ever used).
+                    }
+                    continue;
+                }
+                target = Environment.ExpandEnvironmentVariables(target).Trim().Trim('"');
                 if (!target.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!File.Exists(target))
+                {
+                    // Mark broken if evidence requested
+                    if (options.IncludeEvidence)
+                    {
+                        var evBroken = new Dictionary<string,string>{{"Shortcut", lnk},{"BrokenShortcut","true"}};
+                        if (dedup.Add("broken::"+lnk))
+                        {
+                            // We currently do not emit broken exe hits to avoid noise; could add HitType.Exe with low confidence later.
+                        }
+                    }
+                    continue;
+                }
+                if (!dedup.Add(target)) continue;
                 var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"Shortcut", lnk}} : null;
                 yield return new AppHit(HitType.Exe, scope, target, null, PackageType.EXE, new[] { Name }, 0, evidence);
                 var dir = Path.GetDirectoryName(target);
-                if (!string.IsNullOrEmpty(dir))
+                if (!string.IsNullOrEmpty(dir) && dedup.Add(dir + "::install"))
                     yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, evidence);
             }
         }
+    }
+
+    private static bool Matches(string fileNameLower, string norm, string[] tokens, bool strict)
+    {
+        if (!strict)
+        {
+            return fileNameLower.Contains(norm);
+        }
+        // Strict: every token must appear as a substring boundary (split on separators)
+        var parts = fileNameLower.Split(new[]{'.','-','_',' '}, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var t in tokens)
+        {
+            bool found = false;
+            foreach (var p in parts)
+            {
+                if (p.Contains(t)) { found = true; break; }
+            }
+            if (!found) return false;
+        }
+        return true;
     }
 
     // Minimal COM-based .lnk resolution using WScript.Shell to avoid adding dependencies at this stage.
