@@ -627,7 +627,105 @@ public sealed class MsixStoreSource : ISource
     public string Name => nameof(MsixStoreSource);
     /// <inheritdoc />
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
-    { await System.Threading.Tasks.Task.CompletedTask; yield break; }
+    {
+        await System.Threading.Tasks.Task.Yield();
+        if (string.IsNullOrWhiteSpace(query)) yield break;
+        var norm = query.ToLowerInvariant();
+        var tokens = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        // MSIX / Store packages are per-user (scope=user). We enumerate via PowerShell Get-AppxPackage to avoid WinRT ref.
+        // This is a first-pass implementation; future optimization could use Windows.Management.Deployment.PackageManager directly.
+        // Format: Name|PackageFamilyName|InstallLocation|Version
+        List<(string name,string family,string install,string version)> packages = new();
+        try
+        {
+            using var p = new System.Diagnostics.Process();
+            p.StartInfo.FileName = Environment.ExpandEnvironmentVariables("%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe");
+            p.StartInfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"$ErrorActionPreference='SilentlyContinue'; Get-AppxPackage | ForEach-Object { \"$($_.Name)|$($_.PackageFamilyName)|$($_.InstallLocation)|$($_.Version)\" }\"";
+            p.StartInfo.UseShellExecute = false;
+            p.StartInfo.RedirectStandardOutput = true;
+            p.StartInfo.RedirectStandardError = true;
+            p.StartInfo.CreateNoWindow = true;
+            p.Start();
+            var timeoutMs = (int)options.Timeout.TotalMilliseconds;
+            if (timeoutMs <= 0) timeoutMs = 4000; // safety default
+            var waitTask = Task.Run(() => p.WaitForExit(timeoutMs), ct);
+            var finished = await waitTask.ConfigureAwait(false);
+            if (finished)
+            {
+                while (!p.StandardOutput.EndOfStream)
+                {
+                    if (ct.IsCancellationRequested) yield break;
+                    var line = await p.StandardOutput.ReadLineAsync().ConfigureAwait(false);
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    var parts = line.Split('|');
+                    if (parts.Length < 4) continue;
+                    var name = parts[0].Trim();
+                    var family = parts[1].Trim();
+                    var install = parts[2].Trim();
+                    var version = parts[3].Trim();
+                    if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(family)) continue;
+                    packages.Add((name,family,install,version));
+                }
+            }
+            try { if (!p.HasExited) p.Kill(true); } catch { }
+        }
+        catch { }
+
+        if (packages.Count == 0) yield break;
+        var seenInstall = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenExe = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var pkg in packages)
+        {
+            if (ct.IsCancellationRequested) yield break;
+            bool match;
+            var nameLower = pkg.name.ToLowerInvariant();
+            var famLower = pkg.family.ToLowerInvariant();
+            if (options.Strict)
+            {
+                match = tokens.All(t => nameLower.Contains(t) || famLower.Contains(t));
+            }
+            else
+            {
+                match = nameLower.Contains(norm) || famLower.Contains(norm);
+            }
+            if (!match) continue;
+            var scope = Scope.User; // Treat all Appx/MSIX packages as user scope for now.
+            if (options.MachineOnly) continue; // skip since we only have user scope here.
+
+            // Install directory hit
+            if (!string.IsNullOrWhiteSpace(pkg.install) && Directory.Exists(pkg.install) && seenInstall.Add(pkg.install))
+            {
+                Dictionary<string,string>? evidence = null;
+                if (options.IncludeEvidence)
+                {
+                    evidence = new Dictionary<string,string>{{"PackageFamilyName", pkg.family},{"PackageName", pkg.name}};
+                    if (!string.IsNullOrEmpty(pkg.version)) evidence["PackageVersion"] = pkg.version;
+                }
+                yield return new AppHit(HitType.InstallDir, scope, pkg.install, pkg.version, PackageType.MSIX, new[] { Name }, 0, evidence);
+
+                // Attempt shallow exe enumeration (top-level only) to find primary executables; avoid deep traversal for perf/security.
+                IEnumerable<string> exes = Array.Empty<string>();
+                try { exes = Directory.EnumerateFiles(pkg.install, "*.exe", SearchOption.TopDirectoryOnly); } catch { }
+                foreach (var exe in exes)
+                {
+                    if (ct.IsCancellationRequested) yield break;
+                    if (!File.Exists(exe)) continue;
+                    var exeNameLower = Path.GetFileNameWithoutExtension(exe).ToLowerInvariant();
+                    bool exeMatch = options.Strict ? tokens.All(t => exeNameLower.Contains(t)) : exeNameLower.Contains(norm) || match; // inherit package match
+                    if (!exeMatch) continue;
+                    if (!seenExe.Add(exe)) continue;
+                    Dictionary<string,string>? exeEvidence = evidence;
+                    if (options.IncludeEvidence)
+                    {
+                        exeEvidence = new Dictionary<string,string>(evidence ?? new()) {{"ExeName", Path.GetFileName(exe)}};
+                    }
+                    yield return new AppHit(HitType.Exe, scope, exe, pkg.version, PackageType.MSIX, new[] { Name }, 0, exeEvidence);
+                }
+            }
+        }
+    }
 }
 
 /// <summary>Enumerates Windows Services (ImagePath) and Scheduled Tasks (actions) to find executables referencing the query.</summary>
