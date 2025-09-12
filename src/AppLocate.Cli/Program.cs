@@ -48,12 +48,63 @@ internal static class Program
             jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt,
             limitOpt, confMinOpt, timeoutOpt, indexPathOpt, refreshIndexOpt, evidenceOpt, verboseOpt, noColorOpt
         };
-        // Manual token extraction
+        // Manual token extraction (robust multi-word + -- sentinel)
         var parse = root.Parse(args);
         var tokens = parse.Tokens;
-        string? query = tokens.FirstOrDefault(t => t.Type == System.CommandLine.Parsing.TokenType.Argument && !t.Value.StartsWith('-'))?.Value
-                        ?? args.FirstOrDefault(a => !a.StartsWith('-'));
-    if (string.IsNullOrWhiteSpace(query)) { Console.Error.WriteLine("Missing <query>. Usage: applocate <query> [options]"); return 2; }
+        if (parse.Errors?.Count > 0)
+        {
+            Console.Error.WriteLine(string.Join(Environment.NewLine, parse.Errors.Select(e => e.Message)));
+            return 2;
+        }
+        bool HasRaw(string flag) => args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
+        if (HasRaw("-h") || HasRaw("--help"))
+        {
+            Console.WriteLine("applocate <query> [options]\n" +
+                              "  --json                Output JSON\n" +
+                              "  --csv                 Output CSV\n" +
+                              "  --text                Force text (default)\n" +
+                              "  --user                User-scope only\n" +
+                              "  --machine             Machine-scope only\n" +
+                              "  --strict              Exact token match (no fuzzy)\n" +
+                              "  --limit <n>           Limit results\n" +
+                              "  --confidence-min <f>  Min confidence 0-1\n" +
+                              "  --timeout <sec>       Per-source timeout (default 5)\n" +
+                              "  --index-path <file>   Custom index file path\n" +
+                              "  --refresh-index       Ignore cached results\n" +
+                              "  --evidence            Include evidence keys\n" +
+                              "  --verbose             Verbose diagnostics\n" +
+                              "  --no-color            Disable ANSI colors\n" +
+                              "  --                    Treat following tokens as literal query");
+            return 0;
+        }
+        // If user provided -- sentinel, everything after is treated as query (including dashes)
+        int sentinelIdx = Array.IndexOf(args, "--");
+        string? query = null;
+        if (sentinelIdx >= 0 && sentinelIdx < args.Length - 1)
+        {
+            query = string.Join(' ', args.Skip(sentinelIdx + 1));
+        }
+        else
+        {
+            // Collect argument tokens that are not option values
+            var valueOptions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            { "--limit","--confidence-min","--timeout","--index-path" };
+            var parts = new List<string>();
+            for (int i = 0; i < tokens.Count; i++)
+            {
+                var tk = tokens[i];
+                if (tk.Type != System.CommandLine.Parsing.TokenType.Argument) continue;
+                if (tk.Value.StartsWith('-')) continue; // flag itself
+                // Skip if this token is a value for the previous option that expects a value
+                if (i > 0 && valueOptions.Contains(tokens[i - 1].Value)) continue;
+                // Skip if this token is numeric and immediately preceded by a known numeric option name (already covered above but double-safe)
+                parts.Add(tk.Value);
+            }
+            if (parts.Count > 0) query = string.Join(' ', parts);
+            // Fallback: first non-dash arg
+            query ??= args.FirstOrDefault(a => !a.StartsWith('-'));
+        }
+        if (string.IsNullOrWhiteSpace(query)) { Console.Error.WriteLine("Missing <query>. Usage: applocate <query> [options] <name>"); return 2; }
 
         bool Has(string flag) => tokens.Any(t => string.Equals(t.Value, flag, StringComparison.OrdinalIgnoreCase));
         bool json = Has("--json");
@@ -100,13 +151,28 @@ internal static class Program
             return null;
         }
         int? limit = IntAfter("--limit");
-    double confidenceMin = DoubleAfter("--confidence-min") ?? 0;
+        if (limit.HasValue && limit.Value < 0)
+        {
+            Console.Error.WriteLine("--limit must be >= 0");
+            return 2;
+        }
+        double confidenceMin = DoubleAfter("--confidence-min") ?? 0;
         if (confidenceMin < 0 || confidenceMin > 1)
         {
             Console.Error.WriteLine("--confidence-min must be between 0 and 1");
             return 2;
         }
-    int timeout = IntAfter("--timeout") ?? 5; if (timeout <= 0) timeout = 5;
+        int timeout = IntAfter("--timeout") ?? 5;
+        if (timeout <= 0)
+        {
+            Console.Error.WriteLine("--timeout must be > 0");
+            return 2;
+        }
+        if (timeout > 300)
+        {
+            Console.Error.WriteLine("--timeout too large (max 300 seconds)");
+            return 2;
+        }
         if (!noColor && (Console.IsOutputRedirected || Console.IsErrorRedirected)) noColor = true;
         return await ExecuteAsync(query, json, csv, text, user, machine, strict, limit, confidenceMin, timeout, evidence, verbose, noColor, indexPath, refreshIndex);
     }
