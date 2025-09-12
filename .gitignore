@@ -137,6 +137,11 @@ AppData/Local/AppLocator/index.db
 # Ignore test host artifacts
 **/TestResults/
 
+# Verify snapshot transient received files
+*.received.*
+*.received.txt
+*.received.json
+
 # Rider / ReSharper
 _ReSharper*/
 *.DotSettings.user
