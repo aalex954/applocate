@@ -32,7 +32,7 @@
             <summary>Represents a single located application artifact.</summary>
         </member>
         <member name="T:AppLocate.Core.Ranking.Ranker">
-            <summary>Placeholder ranking engine. Will be replaced with full fuzzy scoring rules.</summary>
+            <summary>Heuristic ranking engine (interim). Combines path/name match quality, evidence signals, and multi-source strength.</summary>
         </member>
         <member name="T:AppLocate.Core.Rules.RulesEngine">
             <summary>Placeholder rules engine. Will parse YAML and produce config/data paths.</summary>
