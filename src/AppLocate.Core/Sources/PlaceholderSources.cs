@@ -203,6 +203,18 @@ public sealed class StartMenuShortcutSource : ISource
         Environment.ExpandEnvironmentVariables("%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs").Replace("\n", string.Empty)
     };
 
+    /// <summary>
+    /// Enumerates Start Menu <c>.lnk</c> shortcut files (per-user and common) whose file name contains the <paramref name="query"/> substring
+    /// and yields executable and install directory <see cref="AppHit"/> instances for resolved targets.
+    /// </summary>
+    /// <param name="query">Lowercase query substring (already normalized upstream).</param>
+    /// <param name="options">Execution options controlling scope, strict mode, timeout and evidence emission.</param>
+    /// <param name="ct">Cancellation token to abort enumeration early.</param>
+    /// <remarks>
+    /// Resolution uses a late–bound COM invocation via <c>WScript.Shell</c>. Errors resolving individual shortcuts are swallowed.
+    /// Only <c>.exe</c> targets are considered; non-existent or non-executable targets are ignored.
+    /// </remarks>
+    /// <returns>Asynchronous sequence of raw (unscored) <see cref="AppHit"/> values.</returns>
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await System.Threading.Tasks.Task.Yield();
