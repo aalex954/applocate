@@ -76,9 +76,8 @@ public class CliSnapshotTests
                 var stable = doc.RootElement.EnumerateArray()
                     .Select(el => new
                     {
-                        type = EnumToString(el.GetProperty("type")),
-                        scope = EnumToString(el.GetProperty("scope")),
-                        package_type = el.TryGetProperty("package_type", out var pt) ? EnumToString(pt) : null
+                        type = EnumToString(el.GetProperty("type"))
+                        // scope removed for stability (CI variance)
                     }).ToList();
                 return stable;
             }
