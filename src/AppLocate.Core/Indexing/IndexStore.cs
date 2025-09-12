@@ -28,7 +28,8 @@ public sealed class IndexStore : IIndexStore
     private readonly TimeSpan _maxAge;
 
     /// <param name="path">Full path to index JSON file.</param>
-    /// <param name="maxAge">Maximum age before a record should be considered stale (default 1 day).</param>
+    /// <param name="maxAge">Maximum age before a record should be considered stale and thus ignored (default 1 day).</param>
+    /// <param name="jsonOptions">Optional custom <see cref="JsonSerializerOptions"/>; when null a minimal options set is created.</param>
     public IndexStore(string path, TimeSpan? maxAge = null, JsonSerializerOptions? jsonOptions = null)
     {
         _path = path;
@@ -36,6 +37,10 @@ public sealed class IndexStore : IIndexStore
         _jsonOptions = jsonOptions ?? new JsonSerializerOptions { WriteIndented = false };
     }
 
+    /// <summary>
+    /// Loads and deserializes the index file from disk. If the file is absent, corrupt,
+    /// or version-mismatched a new empty index (current schema) is returned.
+    /// </summary>
     public IndexFile Load()
     {
         try
@@ -49,6 +54,10 @@ public sealed class IndexStore : IIndexStore
         catch { return IndexFile.CreateEmpty(); }
     }
 
+    /// <summary>
+    /// Persists the supplied index to disk using an atomic temp-file replace strategy.
+    /// Swallows IO exceptions silently (cache is best-effort only).
+    /// </summary>
     public void Save(IndexFile file)
     {
         try
@@ -65,6 +74,13 @@ public sealed class IndexStore : IIndexStore
         catch { /* swallow persistence errors silently */ }
     }
 
+    /// <summary>
+    /// Inserts or updates hit entries for a query. Existing entries are touched (timestamps, sources, confidence) or created.
+    /// </summary>
+    /// <param name="file">Mutable in-memory index file.</param>
+    /// <param name="normalizedQuery">Lower-case normalized query string.</param>
+    /// <param name="hits">Scored hits to merge.</param>
+    /// <param name="now">Clock value applied to updated timestamps.</param>
     public void Upsert(IndexFile file, string normalizedQuery, IEnumerable<AppHit> hits, DateTimeOffset now)
     {
         if (string.IsNullOrWhiteSpace(normalizedQuery)) return;
@@ -94,6 +110,13 @@ public sealed class IndexStore : IIndexStore
         }
     }
 
+    /// <summary>
+    /// Attempts to retrieve a non-stale cached record for a query.
+    /// </summary>
+    /// <param name="file">In-memory index file.</param>
+    /// <param name="normalizedQuery">Query key.</param>
+    /// <param name="record">Resulting record when present and fresh.</param>
+    /// <returns><c>true</c> when a fresh record exists; otherwise false.</returns>
     public bool TryGet(IndexFile file, string normalizedQuery, out IndexRecord? record)
     {
         record = file.Records.FirstOrDefault(r => string.Equals(r.Query, normalizedQuery, StringComparison.OrdinalIgnoreCase));

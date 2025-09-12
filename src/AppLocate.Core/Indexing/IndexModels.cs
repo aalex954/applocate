@@ -38,6 +38,12 @@ public sealed record IndexRecord(
     DateTimeOffset LastRefreshUtc
 )
 {
+    /// <summary>
+    /// Factory helper creating a new <see cref="IndexRecord"/> for a normalized query string with no entries.
+    /// </summary>
+    /// <param name="query">Already normalized (lower-cased, trimmed) query token string.</param>
+    /// <param name="now">Timestamp used as the initial <see cref="LastRefreshUtc"/> value.</param>
+    /// <returns>New empty record.</returns>
     public static IndexRecord Create(string query, DateTimeOffset now) => new(query, new List<IndexEntry>(), now);
 }
 
@@ -47,6 +53,12 @@ public sealed record IndexFile(
     List<IndexRecord> Records
 )
 {
+    /// <summary>
+    /// Creates an empty index with supplied <paramref name="version"/>; normally callers use default (current) version.
+    /// </summary>
+    /// <param name="version">Schema version for the file (used for forward incompatible format changes).</param>
+    /// <returns>Empty index file container.</returns>
     public static IndexFile CreateEmpty(int version = CurrentVersion) => new(version, new List<IndexRecord>());
+    /// <summary>Current on-disk schema version for <see cref="IndexFile"/> serialization.</summary>
     public const int CurrentVersion = 1;
 }
