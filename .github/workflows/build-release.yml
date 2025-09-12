@@ -22,7 +22,7 @@ jobs:
   build-test:
     name: Build & Test
     runs-on: windows-latest
-  concurrency: applocate-build-${{ github.ref }}
+    concurrency: applocate-build-${{ github.ref }}
   steps:
     - name: Checkout
       uses: actions/checkout@v4
