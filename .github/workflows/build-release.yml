@@ -100,9 +100,19 @@ jobs:
 
       - name: Generate SBOM (CycloneDX)
         run: >-
-          dotnet dotnet-CycloneDX --json --out artifacts/${{ matrix.rid }}/sbom-${{ matrix.rid }}.json
+          dotnet dotnet-CycloneDX --json ${{ env.SOLUTION_FILE }}
         env:
           DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+      - name: Rename SBOM with RID
+        shell: pwsh
+        run: |
+          $default = Join-Path $PWD 'bom.json'
+          if (Test-Path $default) {
+            $dest = "artifacts/${{ matrix.rid }}/sbom-${{ matrix.rid }}.json"
+            New-Item -ItemType Directory -Path (Split-Path $dest -Parent) -Force | Out-Null
+            Move-Item $default $dest -Force
+          } else { Write-Host 'bom.json not found' }
 
       - name: Remove Debug Symbols & Misc
         shell: pwsh
