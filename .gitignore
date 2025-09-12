@@ -119,6 +119,14 @@ rules/*.generated.yaml
 AppData/Local/AppLocator/index.db
 **/AppLocator/index.db
 
+# Temporary index folders created during local experimentation / tests
+/tempidx/
+/tempidx2/
+/tempidx*/
+
+# Root-level index cache file (if accidentally created during manual runs)
+/index.json
+
 # Packaging
 *.nupkg
 *.snupkg

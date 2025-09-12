@@ -5,20 +5,20 @@ dotnet test
 Windows 11 CLI (scaffold) to locate application install directories, executables, and future config/data paths. Output will be deterministic JSON (plus CSV/text) once sources are implemented.
 
 ## Current Status
-Early prototype – some real signals (processes, registry uninstall, PATH, heuristics, shortcuts, services/tasks) but many placeholders remain.
+Early prototype – some real signals (processes, registry uninstall, PATH, heuristics, shortcuts, services/tasks) but many sources still placeholders / stubs.
 - Core contract: `AppHit` record & enums (stable).
-- Sources: several heuristic/placeholder implementations (RegistryUninstall, AppPaths, StartMenu, Process, PATH search, Services/Tasks, heuristic FS, MSIX placeholder).
+- Sources: placeholder implementations (RegistryUninstall, AppPaths, StartMenu, Process, PATH search, Services/Tasks, heuristic FS, MSIX placeholder) – real enumeration still to be filled in.
 - Ranking: token coverage, evidence boosts (shortcut/process synergy, where, dir/exe match, alias placeholder), multi-source diminishing returns, type baselines, penalties.
-- Indexing: JSON cache per normalized query (`%LOCALAPPDATA%/AppLocate/index.json`) with `--index-path` and `--refresh-index` options (cache always refreshed currently; future optimization will short‑circuit when fresh).
+- Indexing: JSON cache per normalized query (`%LOCALAPPDATA%/AppLocate/index.json`) with `--index-path` & `--refresh-index`. Partial short‑circuit now implemented: cached non-empty hits above confidence threshold are reused; empty cached records still trigger refresh (planned improvement).
 - CLI uses `System.CommandLine` (RC) for help, manual token extraction for stability.
-- Tests: 13 passing xUnit tests (CLI options + ranking + indexing create test).
+- Tests: 15 passing xUnit tests (CLI options, ranking, indexing creation, cache short‑circuit). Count will grow with acceptance scenarios.
 
 ## Project Layout
 ```
-src/AppLocate.Core    # Domain models, abstractions, placeholder sources, ranking & rules stubs
+src/AppLocate.Core    # Domain models, abstractions, placeholder sources, ranking (rules now heuristic/in-code)
 src/AppLocate.Cli     # CLI entry point (manual parsing placeholder)
 tests/*.Tests         # xUnit test projects
-rules/apps.default.yaml  # Sample rule file (placeholder)
+rules/apps.default.yaml  # (legacy placeholder – YAML rules deprecated; may be removed later)
 build/publish.ps1     # Single-file publish script (win-x64 / win-arm64)
 ```
 
@@ -46,9 +46,9 @@ Artifacts land under `./artifacts/<rid>/`.
 - [x] Initial ranking heuristics & evidence model.
 - [x] Basic JSON indexing cache (write-through).
 - [ ] Implement sources: deepen Registry, StartMenu, Processes; complete MSIX & heuristics.
-- [ ] Index read short‑circuit (reuse fresh cache unless --refresh-index).
+- [ ] Index read short‑circuit (empty-cache reuse + staleness heuristics; non-empty hit reuse implemented).
 - [ ] Aggregation refinement (improved evidence merging & weighting rules).
-- [ ] YAML rules engine → derive Config/Data hits.
+	<!-- Removed: YAML rules engine requirement (replaced by built-in heuristic pattern registry) -->
 - [ ] Golden JSON tests (Verify) + ranking tests.
 - [ ] Performance: parallel source execution, timeouts, trimming & ReadyToRun tuning.
 - [ ] Alias dictionary and fuzzy synonym expansion.

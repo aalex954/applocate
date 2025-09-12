@@ -115,19 +115,32 @@ internal static class Program
     {
         if (string.IsNullOrWhiteSpace(query)) return 2;
         var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
-        // Index initialization (load). Future: attempt cache hit unless refreshIndex.
+        var normalized = Normalize(query);
+
+        // Index load + short-circuit
         string defaultIndexPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLocate", "index.json");
-        var effectiveIndexPath = string.IsNullOrWhiteSpace(indexPath) ? defaultIndexPath : indexPath;
-        IndexStore? indexStore = null;
-        IndexFile? indexFile = null;
+        string effectiveIndexPath = string.IsNullOrWhiteSpace(indexPath) ? defaultIndexPath : indexPath;
+        IndexStore? indexStore = null; IndexFile? indexFile = null; bool servedFromCache = false;
         try
         {
             indexStore = new IndexStore(effectiveIndexPath);
             indexFile = indexStore.Load();
+            if (!refreshIndex && indexStore.TryGet(indexFile, normalized, out var rec) && rec != null)
+            {
+                var cachedHits = rec.Entries.Select(e => new AppHit(e.Type, e.Scope, e.Path, e.Version, e.PackageType, e.Source, e.Confidence, null)).ToList();
+                var filteredCached = cachedHits.Where(h => h.Confidence >= confidenceMin).OrderByDescending(h => h.Confidence).ToList();
+                if (limit.HasValue) filteredCached = filteredCached.Take(limit.Value).ToList();
+                if (filteredCached.Count > 0)
+                {
+                    EmitResults(filteredCached, json, csv, text, noColor);
+                    servedFromCache = true;
+                    return 0;
+                }
+            }
         }
-        catch { /* ignore index load errors */ }
+        catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] index load failed: {ex.Message}"); }
+
         var hits = new List<AppHit>();
-        var normalized = Normalize(query);
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
         foreach (var source in _sources)
@@ -191,50 +204,45 @@ internal static class Program
             // Keep existing for now; will rescore after loop.
             mergedMap[key] = existing with { Source = srcSet.ToArray(), Evidence = evidenceMerged };
         }
-        // Apply ranking scores now on merged hits.
         var scored = mergedMap.Values.Select(h => h with { Confidence = Ranker.Score(normalized, h) }).ToList();
         var filtered = scored.Where(h => h.Confidence >= confidenceMin).OrderByDescending(h => h.Confidence).ToList();
-
-        // Persist into index (upsert) after scoring.
-        try
+        if (limit.HasValue) filtered = filtered.Take(limit.Value).ToList();
+        if (filtered.Count == 0)
         {
-            if (indexStore != null && indexFile != null)
+            // Persist an empty record to establish index presence for the query if not cached already.
+            try
+            {
+                if (!servedFromCache && indexStore != null && indexFile != null)
+                {
+                    indexStore.Upsert(indexFile, normalized, Array.Empty<AppHit>(), DateTimeOffset.UtcNow);
+                    indexStore.Save(indexFile);
+                }
+                // Fallback: if save silently failed (file still missing) attempt minimal manual write.
+                if (!File.Exists(effectiveIndexPath))
+                {
+                    var minimal = new IndexFile(IndexFile.CurrentVersion, new List<IndexRecord>{ IndexRecord.Create(normalized, DateTimeOffset.UtcNow) });
+                    Directory.CreateDirectory(Path.GetDirectoryName(effectiveIndexPath)!);
+                    File.WriteAllText(effectiveIndexPath, System.Text.Json.JsonSerializer.Serialize(minimal));
+                }
+            }
+            catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] index save failed: {ex.Message}"); }
+            return 1;
+        }
+        EmitResults(filtered, json, csv, text, noColor);
+        if (!servedFromCache && indexStore != null && indexFile != null)
+        {
+            try
             {
                 indexStore.Upsert(indexFile, normalized, filtered, DateTimeOffset.UtcNow);
                 indexStore.Save(indexFile);
-            }
-        }
-        catch { /* ignore persistence errors */ }
-        if (limit.HasValue) filtered = filtered.Take(limit.Value).ToList();
-        if (filtered.Count == 0) return 1;
-        if (json)
-        {
-            var jsonOut = JsonSerializer.Serialize(filtered, AppLocateJsonContext.Default.IReadOnlyListAppHit);
-            Console.Out.WriteLine(jsonOut);
-        }
-        else if (csv)
-        {
-            Console.Out.WriteLine("Type,Scope,Path,Version,PackageType,Confidence");
-            foreach (var h in filtered)
-                Console.Out.WriteLine($"{h.Type},{h.Scope},\"{h.Path}\",{h.Version},{h.PackageType},{h.Confidence:0.###}");
-        }
-        else if (text)
-        {
-            foreach (var h in filtered)
-            {
-                if (noColor)
+                if (!File.Exists(effectiveIndexPath))
                 {
-                    Console.Out.WriteLine($"[{h.Confidence:0.00}] {h.Type} {h.Path}");
-                    continue;
+                    // Defensive ensure
+                    Directory.CreateDirectory(Path.GetDirectoryName(effectiveIndexPath)!);
+                    File.WriteAllText(effectiveIndexPath, System.Text.Json.JsonSerializer.Serialize(indexFile));
                 }
-                var prevColor = Console.ForegroundColor;
-                Console.ForegroundColor = ConfidenceColor(h.Confidence);
-                Console.Out.Write($"[{h.Confidence:0.00}]");
-                Console.ForegroundColor = ConsoleColor.Cyan;
-                Console.Out.Write($" {h.Type}");
-                Console.ForegroundColor = prevColor;
-                Console.Out.WriteLine($" {h.Path}");
             }
+            catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] index save failed: {ex.Message}"); }
         }
         return 0;
     }
@@ -253,5 +261,39 @@ internal static class Program
         return ConsoleColor.DarkGray;
     }
 
-    // Wrap helper removed (obsolete with generated help)
+    private static void EmitResults(List<AppHit> filtered, bool json, bool csv, bool text, bool noColor)
+    {
+        if (filtered.Count == 0) return;
+        if (json)
+        {
+            var jsonOut = JsonSerializer.Serialize(filtered, AppLocateJsonContext.Default.IReadOnlyListAppHit);
+            Console.Out.WriteLine(jsonOut);
+            return;
+        }
+        if (csv)
+        {
+            Console.Out.WriteLine("Type,Scope,Path,Version,PackageType,Confidence");
+            foreach (var h in filtered)
+                Console.Out.WriteLine($"{h.Type},{h.Scope},\"{h.Path}\",{h.Version},{h.PackageType},{h.Confidence:0.###}");
+            return;
+        }
+        if (text)
+        {
+            foreach (var h in filtered)
+            {
+                if (noColor)
+                {
+                    Console.Out.WriteLine($"[{h.Confidence:0.00}] {h.Type} {h.Path}");
+                    continue;
+                }
+                var prevColor = Console.ForegroundColor;
+                Console.ForegroundColor = ConfidenceColor(h.Confidence);
+                Console.Out.Write($"[{h.Confidence:0.00}]");
+                Console.ForegroundColor = ConsoleColor.Cyan;
+                Console.Out.Write($" {h.Type}");
+                Console.ForegroundColor = prevColor;
+                Console.Out.WriteLine($" {h.Path}");
+            }
+        }
+    }
 }
