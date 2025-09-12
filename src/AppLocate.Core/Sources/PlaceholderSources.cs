@@ -461,5 +461,103 @@ public sealed class HeuristicFsSource : ISource
     public string Name => nameof(HeuristicFsSource);
     /// <inheritdoc />
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
-    { await System.Threading.Tasks.Task.CompletedTask; yield break; }
+    {
+        await System.Threading.Tasks.Task.Yield();
+        if (string.IsNullOrWhiteSpace(query)) yield break;
+        var norm = query.ToLowerInvariant();
+
+        // Heuristic roots: user-scoped and machine-scoped
+        var userRoots = new List<(string path, Scope scope)>()
+        {
+            (Environment.ExpandEnvironmentVariables("%LOCALAPPDATA%\\Programs"), Scope.User),
+            (Environment.ExpandEnvironmentVariables("%LOCALAPPDATA%"), Scope.User),
+            (Environment.ExpandEnvironmentVariables("%APPDATA%"), Scope.User)
+        };
+        var machineRoots = new List<(string path, Scope scope)>()
+        {
+            (Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), Scope.Machine),
+            (Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), Scope.Machine),
+            (Environment.ExpandEnvironmentVariables("%PROGRAMDATA%"), Scope.Machine)
+        };
+
+        if (options.UserOnly) machineRoots.Clear();
+        if (options.MachineOnly) userRoots.Clear();
+
+        // Limit directory depth to avoid huge traversals. We'll cap at depth 3 from each root.
+        const int MaxDepth = 3;
+        var yieldedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var yieldedExe = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (root, scope) in userRoots.Concat(machineRoots))
+        {
+            if (ct.IsCancellationRequested) yield break;
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
+            foreach (var hit in EnumerateRoot(root, scope, norm, options, MaxDepth, yieldedDirs, yieldedExe, ct))
+            {
+                if (ct.IsCancellationRequested) yield break;
+                yield return hit;
+            }
+        }
+    }
+
+    private IEnumerable<AppHit> EnumerateRoot(string root, Scope scope, string norm, SourceOptions options, int maxDepth, HashSet<string> yieldedDirs, HashSet<string> yieldedExe, CancellationToken ct)
+    {
+        var stack = new Stack<(string path, int depth)>();
+        stack.Push((root, 0));
+        while (stack.Count > 0)
+        {
+            if (ct.IsCancellationRequested) yield break;
+            var (current, depth) = stack.Pop();
+            string? namePart = null;
+            try { namePart = Path.GetFileName(current); } catch { }
+            if (!string.IsNullOrEmpty(namePart) && namePart.ToLowerInvariant().Contains(norm))
+            {
+                // Directory name match → InstallDir heuristic
+                if (yieldedDirs.Add(current))
+                {
+                    var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"DirMatch", namePart}} : null;
+                    yield return new AppHit(HitType.InstallDir, scope, current, null, PackageType.Unknown, new[] { Name }, 0, evidence);
+                }
+            }
+
+            // Enumerate executables in this directory (top-level only) if within depth
+            if (depth <= maxDepth)
+            {
+                IEnumerable<string> exes = Array.Empty<string>();
+                try { exes = Directory.EnumerateFiles(current, "*.exe", SearchOption.TopDirectoryOnly); } catch { }
+                foreach (var exe in exes)
+                {
+                    if (ct.IsCancellationRequested) yield break;
+                    string? fileName = null;
+                    try { fileName = Path.GetFileNameWithoutExtension(exe); } catch { }
+                    if (string.IsNullOrEmpty(fileName)) continue;
+                    if (!fileName.ToLowerInvariant().Contains(norm)) continue;
+                    if (!File.Exists(exe)) continue;
+                    if (yieldedExe.Add(exe))
+                    {
+                        var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"ExeName", fileName}} : null;
+                        yield return new AppHit(HitType.Exe, scope, exe, null, PackageType.Unknown, new[] { Name }, 0, evidence);
+                        var dir = Path.GetDirectoryName(exe);
+                        if (!string.IsNullOrEmpty(dir) && yieldedDirs.Add(dir))
+                        {
+                            var dirEvidence = options.IncludeEvidence ? new Dictionary<string,string>{{"FromExeDir", fileName}} : null;
+                            yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.Unknown, new[] { Name }, 0, dirEvidence);
+                        }
+                    }
+                }
+            }
+
+            // Recurse into subdirectories if depth < maxDepth
+            if (depth < maxDepth)
+            {
+                IEnumerable<string> subs = Array.Empty<string>();
+                try { subs = Directory.EnumerateDirectories(current); } catch { }
+                foreach (var sub in subs)
+                {
+                    if (ct.IsCancellationRequested) yield break;
+                    stack.Push((sub, depth + 1));
+                }
+            }
+        }
+    }
 }
