@@ -13,6 +13,8 @@ permissions:
   actions: read
   checks: read
 
+concurrency: applocate-${{ github.ref }}
+
 env:
   SOLUTION_FILE: AppLocate.sln
   PROJECT_PATH: src/AppLocate.Cli/AppLocate.Cli.csproj
@@ -22,8 +24,7 @@ jobs:
   build-test:
     name: Build & Test
     runs-on: windows-latest
-    concurrency: applocate-build-${{ github.ref }}
-  steps:
+    steps:
     - name: Checkout
       uses: actions/checkout@v4
 
