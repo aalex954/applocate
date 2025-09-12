@@ -136,6 +136,12 @@ internal static class Program
                     servedFromCache = true;
                     return 0;
                 }
+                // Empty-cache short-circuit: if record exists, has zero entries and we are not refreshing, treat as a known miss.
+                if (rec.Entries.Count == 0)
+                {
+                    if (verbose) Console.Error.WriteLine("[info] cache short-circuit: known empty result set");
+                    return 1; // no matches (cached)
+                }
             }
         }
         catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] index load failed: {ex.Message}"); }

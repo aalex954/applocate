@@ -26,6 +26,8 @@ public sealed class IndexStore : IIndexStore
     private readonly string _path;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly TimeSpan _maxAge;
+    // Simple invalidation: optional external hash (e.g., registry + start menu snapshot) persisted in file future (placeholder for expansion)
+    // For now we only expose a hook method that callers could use once file schema extended.
 
     /// <param name="path">Full path to index JSON file.</param>
     /// <param name="maxAge">Maximum age before a record should be considered stale and thus ignored (default 1 day).</param>
@@ -126,4 +128,10 @@ public sealed class IndexStore : IIndexStore
             return false;
         return true;
     }
+
+    /// <summary>
+    /// Placeholder for external invalidation integration (e.g. comparing Start Menu or registry snapshot hashes).
+    /// Currently always returns false (no external invalidation triggered).
+    /// </summary>
+    public bool IsExternallyInvalidated() => false;
 }
