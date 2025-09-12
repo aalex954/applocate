@@ -9,7 +9,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
   <ItemGroup>
-    <!-- External packages will be added later when implementations require them. -->
+    <!-- No external packages currently required. -->
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="AppLocate.Core.Tests" />

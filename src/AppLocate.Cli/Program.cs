@@ -66,14 +66,41 @@ internal static class Program
                 srcCts.CancelAfter(options.Timeout);
                 await foreach (var hit in source.QueryAsync(normalized, options, srcCts.Token))
                 {
-                    var score = Ranker.Score(normalized, hit);
-                    hits.Add(hit with { Confidence = score });
+                    hits.Add(hit); // defer scoring until after de-dup
                 }
             }
             catch (OperationCanceledException) when (cts.IsCancellationRequested) { break; }
             catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] {source.Name} failed: {ex.Message}"); }
         }
-        var filtered = hits.Where(h => h.Confidence >= confidenceMin).OrderByDescending(h => h.Confidence).ToList();
+
+        // De-duplicate & merge evidence/sources by (Type,Scope,Path) case-insensitive path key.
+        var mergedMap = new Dictionary<string, AppHit>(StringComparer.OrdinalIgnoreCase);
+        foreach (var h in hits)
+        {
+            var key = $"{h.Type}|{h.Scope}|{h.Path}";
+            if (!mergedMap.TryGetValue(key, out var existing))
+            {
+                mergedMap[key] = h with { Source = (string[])h.Source.Clone() };
+                continue;
+            }
+            // Merge: combine unique sources; merge evidence keys (later wins) and take highest confidence after scoring.
+            var srcSet = new HashSet<string>(existing.Source, StringComparer.OrdinalIgnoreCase);
+            foreach (var s in h.Source) srcSet.Add(s);
+            Dictionary<string,string>? evidenceMerged = null;
+            if (existing.Evidence != null || h.Evidence != null)
+            {
+                evidenceMerged = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                if (existing.Evidence != null)
+                    foreach (var kv in existing.Evidence) evidenceMerged[kv.Key] = kv.Value;
+                if (h.Evidence != null)
+                    foreach (var kv in h.Evidence) evidenceMerged[kv.Key] = kv.Value; // override duplicates
+            }
+            // Keep existing for now; will rescore after loop.
+            mergedMap[key] = existing with { Source = srcSet.ToArray(), Evidence = evidenceMerged };
+        }
+        // Apply ranking scores now on merged hits.
+        var scored = mergedMap.Values.Select(h => h with { Confidence = Ranker.Score(normalized, h) }).ToList();
+        var filtered = scored.Where(h => h.Confidence >= confidenceMin).OrderByDescending(h => h.Confidence).ToList();
         if (limit.HasValue) filtered = filtered.Take(limit.Value).ToList();
         if (filtered.Count == 0) return 1;
         if (json)
