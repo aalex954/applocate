@@ -32,7 +32,7 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restore
-  run: dotnet restore ${{ env.SOLUTION_FILE }} --runtime ${{ matrix.rid }}
+        run: dotnet restore ${{ env.SOLUTION_FILE }}
 
       - name: Build
         run: dotnet build ${{ env.SOLUTION_FILE }} -c ${{ env.CONFIGURATION }} --no-restore /nowarn:1591
@@ -66,7 +66,7 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restore
-        run: dotnet restore ${{ env.SOLUTION_FILE }}
+  run: dotnet restore ${{ env.SOLUTION_FILE }} --runtime ${{ matrix.rid }}
 
       - name: Publish Single File
         run: >-
