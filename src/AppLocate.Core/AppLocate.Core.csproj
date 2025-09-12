@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <RootNamespace>AppLocate.Core</RootNamespace>
+    <AssemblyName>AppLocate.Core</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- External packages will be added later when implementations require them. -->
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="AppLocate.Core.Tests" />
+    <InternalsVisibleTo Include="AppLocate.Cli" />
+    <InternalsVisibleTo Include="applocate" />
+  </ItemGroup>
+</Project>

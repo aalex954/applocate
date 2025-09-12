@@ -1,0 +1,104 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>AppLocate.Core</name>
+    </assembly>
+    <members>
+        <member name="T:AppLocate.Core.Abstractions.IRegistry">
+            <summary>Abstractions for external environment (registry, file system, processes, Win32) to aid testability.</summary>
+        </member>
+        <member name="T:AppLocate.Core.Abstractions.SourceOptions">
+            <summary>Options controlling source execution.</summary>
+        </member>
+        <member name="M:AppLocate.Core.Abstractions.SourceOptions.#ctor(System.Boolean,System.Boolean,System.TimeSpan,System.Boolean,System.Boolean)">
+            <summary>Options controlling source execution.</summary>
+        </member>
+        <member name="T:AppLocate.Core.Abstractions.ISource">
+            <summary>Contract for all data sources that can produce <see cref="T:AppLocate.Core.Models.AppHit"/> values.</summary>
+        </member>
+        <member name="T:AppLocate.Core.Models.HitType">
+            <summary>Type of artifact returned for an application.</summary>
+        </member>
+        <member name="T:AppLocate.Core.Models.Scope">
+            <summary>Installation scope of the artifact.</summary>
+        </member>
+        <member name="T:AppLocate.Core.Models.PackageType">
+            <summary>Package / distribution mechanism type.</summary>
+        </member>
+        <member name="T:AppLocate.Core.Models.AppHit">
+            <summary>Represents a single located application artifact.</summary>
+        </member>
+        <member name="M:AppLocate.Core.Models.AppHit.#ctor(AppLocate.Core.Models.HitType,AppLocate.Core.Models.Scope,System.String,System.String,AppLocate.Core.Models.PackageType,System.String[],System.Double,System.Collections.Generic.Dictionary{System.String,System.String})">
+            <summary>Represents a single located application artifact.</summary>
+        </member>
+        <member name="T:AppLocate.Core.Ranking.Ranker">
+            <summary>Placeholder ranking engine. Will be replaced with full fuzzy scoring rules.</summary>
+        </member>
+        <member name="T:AppLocate.Core.Rules.RulesEngine">
+            <summary>Placeholder rules engine. Will parse YAML and produce config/data paths.</summary>
+        </member>
+        <member name="T:AppLocate.Core.Sources.RegistryUninstallSource">
+            <summary>Enumerates uninstall registry keys to infer install directories and primary executables.</summary>
+        </member>
+        <member name="P:AppLocate.Core.Sources.RegistryUninstallSource.Name">
+            <summary>Source name.</summary>
+        </member>
+        <member name="M:AppLocate.Core.Sources.RegistryUninstallSource.QueryAsync(System.String,AppLocate.Core.Abstractions.SourceOptions,System.Threading.CancellationToken)">
+            <summary>Queries registry uninstall keys for apps whose DisplayName contains the normalized query.</summary>
+        </member>
+        <member name="T:AppLocate.Core.Sources.AppPathsSource">
+            <summary>Placeholder: future enumeration of App Paths registry keys.</summary>
+        </member>
+        <member name="P:AppLocate.Core.Sources.AppPathsSource.Name">
+            <summary>Source name.</summary>
+        </member>
+        <member name="M:AppLocate.Core.Sources.AppPathsSource.QueryAsync(System.String,AppLocate.Core.Abstractions.SourceOptions,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:AppLocate.Core.Sources.StartMenuShortcutSource">
+            <summary>Placeholder: future enumeration of Start Menu .lnk shortcuts.</summary>
+        </member>
+        <member name="P:AppLocate.Core.Sources.StartMenuShortcutSource.Name">
+            <summary>Source name.</summary>
+        </member>
+        <member name="M:AppLocate.Core.Sources.StartMenuShortcutSource.QueryAsync(System.String,AppLocate.Core.Abstractions.SourceOptions,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:AppLocate.Core.Sources.ProcessSource">
+            <summary>Placeholder: future enumeration of running processes.</summary>
+        </member>
+        <member name="P:AppLocate.Core.Sources.ProcessSource.Name">
+            <summary>Source name.</summary>
+        </member>
+        <member name="M:AppLocate.Core.Sources.ProcessSource.QueryAsync(System.String,AppLocate.Core.Abstractions.SourceOptions,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:AppLocate.Core.Sources.PathSearchSource">
+            <summary>Placeholder: future PATH search using where.exe and directory scan.</summary>
+        </member>
+        <member name="P:AppLocate.Core.Sources.PathSearchSource.Name">
+            <summary>Source name.</summary>
+        </member>
+        <member name="M:AppLocate.Core.Sources.PathSearchSource.QueryAsync(System.String,AppLocate.Core.Abstractions.SourceOptions,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:AppLocate.Core.Sources.MsixStoreSource">
+            <summary>Placeholder: future MSIX/Store package enumeration.</summary>
+        </member>
+        <member name="P:AppLocate.Core.Sources.MsixStoreSource.Name">
+            <summary>Source name.</summary>
+        </member>
+        <member name="M:AppLocate.Core.Sources.MsixStoreSource.QueryAsync(System.String,AppLocate.Core.Abstractions.SourceOptions,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+        <member name="T:AppLocate.Core.Sources.HeuristicFsSource">
+            <summary>Placeholder: future heuristic filesystem scanning of known install locations.</summary>
+        </member>
+        <member name="P:AppLocate.Core.Sources.HeuristicFsSource.Name">
+            <summary>Source name.</summary>
+        </member>
+        <member name="M:AppLocate.Core.Sources.HeuristicFsSource.QueryAsync(System.String,AppLocate.Core.Abstractions.SourceOptions,System.Threading.CancellationToken)">
+            <inheritdoc />
+        </member>
+    </members>
+</doc>
