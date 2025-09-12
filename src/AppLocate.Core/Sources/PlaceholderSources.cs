@@ -290,7 +290,118 @@ public sealed class PathSearchSource : ISource
     public string Name => nameof(PathSearchSource);
     /// <inheritdoc />
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
-    { await System.Threading.Tasks.Task.CompletedTask; yield break; }
+    {
+        await System.Threading.Tasks.Task.Yield();
+        if (string.IsNullOrWhiteSpace(query)) yield break;
+        var norm = query.ToLowerInvariant();
+
+        // Strategy:
+        // 1. Invoke where.exe for the raw query (best effort) – may fail silently.
+        // 2. Enumerate PATH directories; for each *.exe whose file name contains the query substring emit hits.
+        // 3. De-duplicate by full path (case-insensitive).
+
+        var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Step 1: where.exe invocation (only if query looks like a single token without spaces)
+        if (!query.Contains(' '))
+        {
+            List<AppHit>? buffered = null;
+            try
+            {
+                using var p = new System.Diagnostics.Process();
+                p.StartInfo.FileName = Environment.ExpandEnvironmentVariables("%SystemRoot%\\System32\\where.exe");
+                p.StartInfo.Arguments = ' ' + query;
+                p.StartInfo.CreateNoWindow = true;
+                p.StartInfo.UseShellExecute = false;
+                p.StartInfo.RedirectStandardOutput = true;
+                p.StartInfo.RedirectStandardError = true;
+                p.Start();
+                var to = options.Timeout;
+                var waitTask = Task.Run(() => p.WaitForExit((int)to.TotalMilliseconds), ct);
+                var finished = await waitTask.ConfigureAwait(false);
+                if (finished)
+                {
+                    while (!p.StandardOutput.EndOfStream)
+                    {
+                        if (ct.IsCancellationRequested) break;
+                        var line = (await p.StandardOutput.ReadLineAsync().ConfigureAwait(false))?.Trim();
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+                        if (!line.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
+                        if (!File.Exists(line)) continue;
+                        if (!yielded.Add(line)) continue;
+                        var scope = InferScope(line);
+                        var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"where","true"}} : null;
+                        buffered ??= new List<AppHit>();
+                        buffered.Add(new AppHit(HitType.Exe, scope, line, null, PackageType.EXE, new[] { Name }, 0, evidence));
+                        var dir = Path.GetDirectoryName(line);
+                        if (!string.IsNullOrEmpty(dir) && yielded.Add(dir + "::install"))
+                            buffered.Add(new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, evidence));
+                    }
+                }
+                try { if (!p.HasExited) p.Kill(true); } catch { }
+            }
+            catch { }
+            if (buffered != null)
+            {
+                foreach (var h in buffered)
+                {
+                    if (ct.IsCancellationRequested) yield break;
+                    yield return h;
+                }
+            }
+        }
+
+        // Step 2: PATH directory scan
+        var pathEnv = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        if (pathEnv.Length == 0) yield break;
+        var parts = pathEnv.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var dir in parts)
+        {
+            if (ct.IsCancellationRequested) yield break;
+            if (!Directory.Exists(dir)) continue;
+            IEnumerable<string> files = Array.Empty<string>();
+            try
+            {
+                files = Directory.EnumerateFiles(dir, "*.exe", SearchOption.TopDirectoryOnly);
+            }
+            catch { }
+            List<AppHit>? buffered = null;
+            foreach (var file in files)
+            {
+                if (ct.IsCancellationRequested) yield break;
+                var name = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
+                if (!name.Contains(norm)) continue;
+                if (!File.Exists(file)) continue;
+                if (!yielded.Add(file)) continue;
+                var scope = InferScope(file);
+                var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"PATH", dir}} : null;
+                buffered ??= new List<AppHit>();
+                buffered.Add(new AppHit(HitType.Exe, scope, file, null, PackageType.EXE, new[] { Name }, 0, evidence));
+                var dirName = Path.GetDirectoryName(file);
+                if (!string.IsNullOrEmpty(dirName) && yielded.Add(dirName + "::install"))
+                    buffered.Add(new AppHit(HitType.InstallDir, scope, dirName!, null, PackageType.EXE, new[] { Name }, 0, evidence));
+            }
+            if (buffered != null)
+            {
+                foreach (var h in buffered)
+                {
+                    if (ct.IsCancellationRequested) yield break;
+                    yield return h;
+                }
+            }
+        }
+    }
+
+    private static Scope InferScope(string path)
+    {
+        try
+        {
+            var lower = path.ToLowerInvariant();
+            if (lower.Contains("\\users\\")) return Scope.User;
+            return Scope.Machine;
+        }
+        catch { return Scope.Machine; }
+    }
 }
 
 /// <summary>Placeholder: future MSIX/Store package enumeration.</summary>
