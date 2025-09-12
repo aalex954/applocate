@@ -9,7 +9,7 @@ Baseline only – no real hits yet.
 - Core contract: `AppHit` record & enums (stable).
 - Placeholder sources in `Sources/` all return zero results.
 - Ranking & rules engines are stubs.
-- CLI uses a minimal manual argument parser (will migrate to `System.CommandLine`).
+- CLI uses `System.CommandLine` (RC) tokenization with stable manual extraction (finalized option set).
 - Tests: 2 passing placeholder xUnit tests.
 
 ## Project Layout
@@ -28,11 +28,11 @@ dotnet build
 dotnet test
 ```
 
-Run (will currently produce no hits):
+Run (may produce limited or no hits depending on environment):
 ```pwsh
 dotnet run --project src/AppLocate.Cli -- vscode --json
 ```
-Exit codes (scaffold): 0 (reserved for future hits), 1 (no hits), 2 (bad args).
+Exit codes: 0 (results found), 1 (no matches), 2 (bad arguments/validation error).
 
 ## Publish Single-File
 ```pwsh
@@ -41,10 +41,10 @@ pwsh ./build/publish.ps1 -X64 -Arm64 -Configuration Release
 Artifacts land under `./artifacts/<rid>/`.
 
 ## Roadmap (abridged)
-- [ ] Reintroduce `System.CommandLine` with full option set.
-- [ ] Implement sources: RegistryUninstall, AppPaths, StartMenuShortcut, Process, PathSearch, MsixStore, HeuristicFs.
-- [ ] Aggregation + de-dup + evidence accumulation.
-- [ ] Fuzzy token-set ranking & scoring bonuses/penalties.
+- [x] Reintroduce `System.CommandLine` with full option set.
+- [ ] Implement sources: deepen Registry, StartMenu, Processes; complete MSIX & heuristics.
+- [ ] Aggregation refinement (current de-dup present; improve evidence merging & weighting).
+- [ ] Fuzzy token-set ranking enhancements & penalty tuning.
 - [ ] YAML rules engine → derive Config/Data hits.
 - [ ] Golden JSON tests (Verify) + ranking tests.
 - [ ] Performance: parallel source execution, timeouts, trimming & ReadyToRun tuning.
@@ -58,4 +58,4 @@ See `.github/copilot-instructions.md` for design/extension guidance. Keep `AppHi
 - Add XML docs gradually (warnings currently suppressed only by omission).
 
 ---
-This README reflects the scaffold state; update alongside each milestone.
+This README reflects the CLI refactor milestone; update alongside each future milestone.
