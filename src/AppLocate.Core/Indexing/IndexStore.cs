@@ -51,6 +51,10 @@ public sealed class IndexStore : IIndexStore
             using var fs = File.OpenRead(_path);
             var file = JsonSerializer.Deserialize<IndexFile>(fs, _jsonOptions);
             if (file == null || file.Version != IndexFile.CurrentVersion) return IndexFile.CreateEmpty();
+            // If environment hash mismatched, drop cache (rebuild). For first version with hash, empty indicates legacy.
+            var currentHash = ComputeEnvironmentHash();
+            if (!string.IsNullOrEmpty(file.EnvironmentHash) && !string.Equals(file.EnvironmentHash, currentHash, StringComparison.Ordinal))
+                return IndexFile.CreateEmpty();
             return file;
         }
         catch { return IndexFile.CreateEmpty(); }
@@ -65,6 +69,12 @@ public sealed class IndexStore : IIndexStore
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+            // Ensure environment hash present before save
+            var currentHash = ComputeEnvironmentHash();
+            if (!string.Equals(file.EnvironmentHash, currentHash, StringComparison.Ordinal))
+            {
+                file = file with { EnvironmentHash = currentHash };
+            }
             var tmp = _path + ".tmp";
             using (var fs = File.Create(tmp))
             {
@@ -134,4 +144,29 @@ public sealed class IndexStore : IIndexStore
     /// Currently always returns false (no external invalidation triggered).
     /// </summary>
     public bool IsExternallyInvalidated() => false;
+
+    private static string ComputeEnvironmentHash()
+    {
+        try
+        {
+            // Cheap hash inputs: day stamp + ProgramData start menu last write + LocalAppData last write (coarse heuristic)
+            var sb = new System.Text.StringBuilder();
+            sb.Append(DateTime.UtcNow.Date.ToString("yyyyMMdd"));
+            string? sm = Environment.ExpandEnvironmentVariables("%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs");
+            if (!string.IsNullOrEmpty(sm) && Directory.Exists(sm))
+            {
+                try { sb.Append(new DirectoryInfo(sm).LastWriteTimeUtc.Ticks.ToString()); } catch { }
+            }
+            string? la = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrEmpty(la) && Directory.Exists(la))
+            {
+                try { sb.Append(new DirectoryInfo(la).LastWriteTimeUtc.Ticks.ToString()); } catch { }
+            }
+            // Hash
+            var data = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
+            var hash = System.Security.Cryptography.SHA1.HashData(data);
+            return Convert.ToHexString(hash);
+        }
+        catch { return "0"; }
+    }
 }

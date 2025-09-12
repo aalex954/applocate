@@ -50,7 +50,8 @@ public sealed record IndexRecord(
 /// <summary>Root persisted index file containing versioning and records by query.</summary>
 public sealed record IndexFile(
     int Version,
-    List<IndexRecord> Records
+    List<IndexRecord> Records,
+    string? EnvironmentHash = null
 )
 {
     /// <summary>
@@ -58,7 +59,7 @@ public sealed record IndexFile(
     /// </summary>
     /// <param name="version">Schema version for the file (used for forward incompatible format changes).</param>
     /// <returns>Empty index file container.</returns>
-    public static IndexFile CreateEmpty(int version = CurrentVersion) => new(version, new List<IndexRecord>());
+    public static IndexFile CreateEmpty(int version = CurrentVersion) => new(version, new List<IndexRecord>(), null);
     /// <summary>Current on-disk schema version for <see cref="IndexFile"/> serialization.</summary>
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 }

@@ -226,7 +226,7 @@ internal static class Program
                 // Fallback: if save silently failed (file still missing) attempt minimal manual write.
                 if (!File.Exists(effectiveIndexPath))
                 {
-                    var minimal = new IndexFile(IndexFile.CurrentVersion, new List<IndexRecord>{ IndexRecord.Create(normalized, DateTimeOffset.UtcNow) });
+                    var minimal = new IndexFile(IndexFile.CurrentVersion, new List<IndexRecord>{ IndexRecord.Create(normalized, DateTimeOffset.UtcNow) }, null);
                     Directory.CreateDirectory(Path.GetDirectoryName(effectiveIndexPath)!);
                     File.WriteAllText(effectiveIndexPath, System.Text.Json.JsonSerializer.Serialize(minimal));
                 }
