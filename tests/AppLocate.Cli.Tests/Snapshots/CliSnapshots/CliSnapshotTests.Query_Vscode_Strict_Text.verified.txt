@@ -1,1 +1,0 @@
-﻿// Obsolete: superseded by Query_Code_Strict_Text snapshot. Left intentionally empty.
