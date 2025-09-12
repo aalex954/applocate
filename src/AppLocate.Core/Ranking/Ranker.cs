@@ -3,9 +3,13 @@ using AppLocate.Core.Models;
 
 namespace AppLocate.Core.Ranking;
 
-/// <summary>Heuristic ranking engine (interim). Combines path/name match quality, evidence signals, and multi-source strength.</summary>
+/// <summary>
+/// Heuristic ranking engine combining token coverage, evidence signals, multi-source strength, and type weighting.
+/// Scores are clamped to [0,1]. Intent: monotonic improvements from stronger evidence; diminishing returns on source count.
+/// </summary>
 internal static class Ranker
 {
+    /// <summary>Scores an <see cref="AppHit"/> against a normalized (lowercase) query.</summary>
     public static double Score(string normalizedQuery, AppHit hit)
     {
         if (string.IsNullOrEmpty(normalizedQuery)) return 0;
@@ -14,55 +18,93 @@ internal static class Ranker
         var query = normalizedQuery.ToLowerInvariant();
         double score = 0;
 
-        // Base match: substring in path or evidence-provided name.
-        if (lowerPath.Contains(query))
+        // 1. Token set similarity over filename & parent directory names (limited depth)
+        var fileName = Safe(() => System.IO.Path.GetFileNameWithoutExtension(path)?.ToLowerInvariant());
+        var dirName = Safe(() => System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(path) ?? string.Empty)?.ToLowerInvariant());
+        var tokensQ = Tokenize(query);
+        var tokensCand = Tokenize(string.Join(' ', new[]{fileName, dirName}));
+        double tokenCoverage = 0;
+        if (tokensQ.Count > 0 && tokensCand.Count > 0)
         {
-            score += 0.35; // base path presence
+            int match = 0;
+            foreach (var t in tokensQ) if (tokensCand.Contains(t)) match++;
+            tokenCoverage = (double)match / tokensQ.Count; // 0..1
+            score += tokenCoverage * 0.25; // up to +0.25 replacing older substring/partial boosts
+        }
+        else if (lowerPath.Contains(query))
+        {
+            score += 0.15; // fallback simple substring when tokenization gives nothing
         }
 
-        // Filename exact (without extension) match boost.
-        try
+        // 2. Exact filename match (strong) – additive but within reasonable cap
+        if (!string.IsNullOrEmpty(fileName))
         {
-            var fileName = System.IO.Path.GetFileNameWithoutExtension(path)?.ToLowerInvariant();
-            if (!string.IsNullOrEmpty(fileName))
-            {
-                if (fileName.Equals(query, StringComparison.OrdinalIgnoreCase)) score += 0.35; // strong exact
-                else if (fileName.Contains(query)) score += 0.15; // partial name
-            }
+            if (fileName.Equals(query, StringComparison.OrdinalIgnoreCase)) score += 0.30;
+            else if (tokenCoverage == 0 && fileName.Contains(query)) score += 0.12; // legacy partial boost if tokens missed
         }
-        catch { }
 
-        // Evidence-based boosts.
+        // 3. Evidence-based boosts & synergies
         var ev = hit.Evidence;
         if (ev != null)
         {
-            if (ev.ContainsKey("Shortcut")) score += 0.10; // Start Menu shortcut
-            if (ev.ContainsKey("ProcessId")) score += 0.08; // actively running
-            if (ev.ContainsKey("where")) score += 0.05; // resolved via PATH/where
-            if (ev.ContainsKey("DirMatch")) score += 0.06; // directory name matched
-            if (ev.ContainsKey("ExeName")) score += 0.04; // exe-name matched in heuristic search
+            bool shortcut = ev.ContainsKey("Shortcut");
+            bool process = ev.ContainsKey("ProcessId");
+            if (shortcut) score += 0.10;
+            if (process) score += 0.08;
+            if (shortcut && process) score += 0.05; // synergy: user launched + Start Menu presence
+            if (ev.ContainsKey("where")) score += 0.05;
+            if (ev.ContainsKey("DirMatch")) score += 0.06;
+            if (ev.ContainsKey("ExeName")) score += 0.04;
+            if (ev.ContainsKey("AliasMatched")) score += 0.12; // planned alias dictionary
+            if (ev.ContainsKey("BrokenShortcut")) score -= 0.15; // penalty
         }
 
-        // Multi-source strength: diminishing returns after first.
+        // 4. Path quality penalties
+        if (lowerPath.Contains("\\temp\\") || lowerPath.Contains("%temp%")) score -= 0.10; // ephemeral
+
+        // 5. Multi-source diminishing returns (ln scaling, cap +0.18)
         var sourceCount = hit.Source?.Length ?? 0;
         if (sourceCount > 1)
         {
-            // Add up to +0.15 distributed logarithmically.
-            score += Math.Min(0.15, Math.Log10(sourceCount + 1) * 0.10);
+            var multiBoost = Math.Log(sourceCount, Math.E) / Math.Log(6, Math.E); // normalized ~0..1 for ~1..6 sources
+            if (multiBoost < 0) multiBoost = 0;
+            if (multiBoost > 1) multiBoost = 1;
+            score += multiBoost * 0.18;
         }
 
-        // Type weighting: exe slightly higher than install dir; config/data will later have different baselines.
-        switch (hit.Type)
+        // 6. Type baseline weighting
+        score += hit.Type switch
         {
-            case HitType.Exe: score += 0.07; break;
-            case HitType.InstallDir: score += 0.02; break;
-            case HitType.Config: score += 0.03; break;
-            case HitType.Data: score += 0.01; break;
-        }
+            HitType.Exe => 0.08,
+            HitType.Config => 0.05,
+            HitType.InstallDir => 0.04,
+            HitType.Data => 0.03,
+            _ => 0
+        };
 
-        // Clamp and normalize upper bound.
+        // 7. Post adjustments: mild reward for deeper token coverage precision (all tokens matched and exact file)
+        if (tokenCoverage == 1 && !string.IsNullOrEmpty(fileName) && fileName.Equals(query, StringComparison.OrdinalIgnoreCase))
+            score += 0.05;
+
+        // Clamp
         if (score > 1.0) score = 1.0;
         if (score < 0) score = 0;
         return score;
+    }
+
+    private static string? Safe(Func<string?> f) { try { return f(); } catch { return null; } }
+
+    private static System.Collections.Generic.HashSet<string> Tokenize(string? value)
+    {
+        var set = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(value)) return set;
+        var parts = value.Split(new[]{' ','-','_','.'}, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var p in parts)
+        {
+            var t = p.Trim();
+            if (t.Length == 0) continue;
+            set.Add(t);
+        }
+        return set;
     }
 }

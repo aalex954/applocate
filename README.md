@@ -56,6 +56,7 @@ See `.github/copilot-instructions.md` for design/extension guidance. Keep `AppHi
 - No network I/O, no executing discovered binaries.
 - Keep JSON camelCase & deterministic ordering via source generator (`JsonContext`).
 - Add XML docs gradually (warnings currently suppressed only by omission).
+- Ranking: token coverage (+ up to 0.25), exact filename (+0.30), evidence boosts (shortcut/process synergy, alias, where, dir/exe matches), multi-source diminishing returns (cap +0.18), type baselines, and penalties (broken shortcut, temp paths). Scores clamped to [0,1].
 
 ---
 This README reflects the CLI refactor milestone; update alongside each future milestone.
