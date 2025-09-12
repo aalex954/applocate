@@ -23,43 +23,43 @@ jobs:
     name: Build & Test
     runs-on: windows-latest
   concurrency: applocate-build-${{ github.ref }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
 
-      - name: Restore
-        run: dotnet restore ${{ env.SOLUTION_FILE }}
+    - name: Restore
+      run: dotnet restore ${{ env.SOLUTION_FILE }}
 
-      - name: Build (deterministic)
-        run: >-
-          dotnet build ${{ env.SOLUTION_FILE }} -c ${{ env.CONFIGURATION }} --no-restore /nowarn:1591
-          -p:ContinuousIntegrationBuild=true -p:Deterministic=true
-          -p:PathMap="C:\\Users\\runneradmin=/_src_" -p:UseSourceLink=true
+    - name: Build (deterministic)
+      run: >-
+        dotnet build ${{ env.SOLUTION_FILE }} -c ${{ env.CONFIGURATION }} --no-restore /nowarn:1591
+        -p:ContinuousIntegrationBuild=true -p:Deterministic=true
+        -p:PathMap="C:\\Users\\runneradmin=/_src_" -p:UseSourceLink=true
 
-      - name: Cleanup obsolete snapshots
-        shell: pwsh
-        run: |
-          $obsolete = Get-ChildItem -Path tests/AppLocate.Cli.Tests/Snapshots/CliSnapshots -Filter 'CliSnapshotTests.Query_Vscode_*.verified.txt' -ErrorAction SilentlyContinue
-          if ($obsolete) { $obsolete | Remove-Item -Force }
+    - name: Cleanup obsolete snapshots
+      shell: pwsh
+      run: |
+        $obsolete = Get-ChildItem -Path tests/AppLocate.Cli.Tests/Snapshots/CliSnapshots -Filter 'CliSnapshotTests.Query_Vscode_*.verified.txt' -ErrorAction SilentlyContinue
+        if ($obsolete) { $obsolete | Remove-Item -Force }
 
-      - name: Test
-        run: >-
-          dotnet test ${{ env.SOLUTION_FILE }} -c ${{ env.CONFIGURATION }} --no-build
-          --logger trx --results-directory TestResults /nowarn:1591
-          -p:ContinuousIntegrationBuild=true -p:Deterministic=true
+    - name: Test
+      run: >-
+        dotnet test ${{ env.SOLUTION_FILE }} -c ${{ env.CONFIGURATION }} --no-build
+        --logger trx --results-directory TestResults /nowarn:1591
+        -p:ContinuousIntegrationBuild=true -p:Deterministic=true
 
-      - name: Upload Test Results (internal only)
-        if: always() && github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: TestResults/*.trx
-          if-no-files-found: ignore
+    - name: Upload Test Results (internal only)
+      if: always() && github.event_name != 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: TestResults/*.trx
+        if-no-files-found: ignore
 
   publish:
     name: Publish (matrix)
