@@ -9,6 +9,42 @@ namespace AppLocate.Core.Ranking;
 /// </summary>
 internal static class Ranker
 {
+    // Simple built-in alias dictionary (will later be externalized via plugin/rule pack)
+    private static readonly System.Collections.Generic.Dictionary<string,string[]> _aliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "vscode", new[]{"code","visual studio code"} },
+        { "code", new[]{"vscode","visual studio code"} },
+        { "chrome", new[]{"google chrome"} },
+        { "google chrome", new[]{"chrome"} },
+        { "edge", new[]{"microsoft edge"} },
+        { "notepad++", new[]{"notepadpp","npp"} },
+        { "powershell", new[]{"pwsh"} },
+        { "pwsh", new[]{"powershell"} }
+    };
+
+    private static bool AliasEquivalent(string query, string candidateFileName, out string? aliasMatched)
+    {
+        aliasMatched = null;
+        foreach (var kv in _aliases)
+        {
+            if (string.Equals(kv.Key, query, StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var a in kv.Value)
+                {
+                    if (string.Equals(a, candidateFileName, StringComparison.OrdinalIgnoreCase)) { aliasMatched = a; return true; }
+                }
+            }
+            // reverse direction
+            if (string.Equals(kv.Key, candidateFileName, StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var a in kv.Value)
+                {
+                    if (string.Equals(a, query, StringComparison.OrdinalIgnoreCase)) { aliasMatched = a; return true; }
+                }
+            }
+        }
+        return false;
+    }
     /// <summary>Scores an <see cref="AppHit"/> against a normalized (lowercase) query.</summary>
     public static double Score(string normalizedQuery, AppHit hit)
     {
@@ -18,7 +54,7 @@ internal static class Ranker
         var query = normalizedQuery.ToLowerInvariant();
         double score = 0;
 
-        // 1. Token set similarity over filename & parent directory names (limited depth)
+        // 1. Token set similarity (Jaccard) over filename & parent directory names
         var fileName = Safe(() => System.IO.Path.GetFileNameWithoutExtension(path)?.ToLowerInvariant());
         var dirName = Safe(() => System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(path) ?? string.Empty)?.ToLowerInvariant());
         var tokensQ = Tokenize(query);
@@ -36,10 +72,39 @@ internal static class Ranker
             score += 0.15; // fallback simple substring when tokenization gives nothing
         }
 
-        // 2. Exact filename match (strong) – additive but within reasonable cap
+        // 1c. Collapsed substring fuzzy: if no token coverage and no direct substring (with spaces), try space-stripped comparison
+        if (tokenCoverage == 0)
+        {
+            var collapsedQuery = query.Replace(" ", string.Empty);
+            var collapsedName = (fileName ?? string.Empty).Replace(" ", string.Empty);
+            if (!string.IsNullOrEmpty(collapsedQuery) && collapsedName.Contains(collapsedQuery) && !fileName!.Equals(query, StringComparison.OrdinalIgnoreCase))
+            {
+                score += 0.08; // moderate fuzzy boost
+            }
+        }
+
+        // 1b. Fuzzy token ratio (very lightweight): token overlap over union (if partial mismatch) – adds up to +0.10
+        if (tokensQ.Count > 0 && tokensCand.Count > 0)
+        {
+            var union = new System.Collections.Generic.HashSet<string>(tokensCand, StringComparer.OrdinalIgnoreCase);
+            foreach (var t in tokensQ) union.Add(t);
+            int inter = 0; foreach (var t in tokensQ) if (tokensCand.Contains(t)) inter++;
+            if (union.Count > 0)
+            {
+                var jaccard = (double)inter / union.Count; // 0..1
+                if (jaccard > 0 && jaccard < 1) // only partial matches
+                    score += jaccard * 0.10;
+            }
+        }
+
+        // 2. Exact filename match (strong) – additive but within reasonable cap. Alias equivalence considered.
         if (!string.IsNullOrEmpty(fileName))
         {
             if (fileName.Equals(query, StringComparison.OrdinalIgnoreCase)) score += 0.30;
+            else if (AliasEquivalent(query, fileName, out var alias))
+            {
+                score += 0.20; // alias match slightly less than direct exact
+            }
             else if (tokenCoverage == 0 && fileName.Contains(query)) score += 0.12; // legacy partial boost if tokens missed
         }
 
@@ -47,6 +112,7 @@ internal static class Ranker
         var ev = hit.Evidence;
         if (ev != null)
         {
+            // Map encoded alias evidence to a consistent boost (may have been added by source layer)
             bool shortcut = ev.ContainsKey("Shortcut");
             bool process = ev.ContainsKey("ProcessId");
             if (shortcut) score += 0.10;
@@ -59,8 +125,9 @@ internal static class Ranker
             if (ev.ContainsKey("BrokenShortcut")) score -= 0.15; // penalty
         }
 
-        // 4. Path quality penalties
-        if (lowerPath.Contains("\\temp\\") || lowerPath.Contains("%temp%")) score -= 0.10; // ephemeral
+    // 4. Path quality penalties (extend to installer caches)
+    if (lowerPath.Contains("\\temp\\") || lowerPath.Contains("/temp/") || lowerPath.Contains("%temp%")) score -= 0.10; // ephemeral (handles mixed separators)
+    if (lowerPath.Contains("\\installer\\") || lowerPath.EndsWith(".tmp.exe", StringComparison.OrdinalIgnoreCase)) score -= 0.08;
 
         // 5. Multi-source diminishing returns (ln scaling, cap +0.18)
         var sourceCount = hit.Source?.Length ?? 0;

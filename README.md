@@ -11,7 +11,7 @@ Implemented:
 - Core contract: `AppHit` record & enums (stable, JSON source generator context in `JsonContext`).
 - Sources (real): Registry Uninstall (HKLM/HKCU, WOW6432Node), App Paths, Start Menu shortcuts (.lnk resolution), Running Processes, PATH search (`where` fallback), Services & Scheduled Tasks (image path extraction), MSIX/Store packages (Appx), Heuristic filesystem scan (bounded depth/timeout, curated token filters).
 - Evidence & Merge: Dedup + union of `Source` arrays and merged evidence key/value sets.
-- Ranking scaffold: normalization, token coverage, exact exe/dir boosts, source synergy placeholders, penalties; final score clamped [0,1].
+- Ranking: token & fuzzy coverage (Jaccard + collapsed substring), exact exe/dir boosts, alias equivalence (embedded dictionary), evidence synergy (shortcut+process), diminishing returns on multi-source, path quality penalties; final score clamped [0,1].
 - Indexing: On-disk JSON (`%LOCALAPPDATA%/AppLocate/index.json`) with environment hash invalidation + empty-cache short‑circuit (cached known-miss returns exit 1 instantly). `--index-path`, `--refresh-index` supported.
 - Argument parsing: Manual robust multi-word parsing + `--` sentinel, validation for numeric options, custom help text (uses `System.CommandLine` only for usage surface).
 - Output formats: text (color-aware), JSON, CSV.
@@ -69,7 +69,7 @@ Artifacts land under `./artifacts/<rid>/`.
 - [x] Implement discovery sources (registry, start menu, processes, PATH, services/tasks, MSIX, heuristic FS)
 - [x] Golden snapshot tests (Verify) for core queries
 - [x] Deterministic CLI argument validation tests
-- [ ] Ranking calibration & alias/fuzzy weighting
+- [x] Ranking calibration & alias/fuzzy weighting (phase 1)
 - [ ] YAML rules engine for config/data paths
 - [ ] Rule pack expansion (≥50 apps)
 - [ ] Acceptance scenario tests (VSCode, Chrome, portable, MSIX, --running)
