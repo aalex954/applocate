@@ -62,6 +62,8 @@ pwsh ./build/publish.ps1 -X64 -Arm64 -Configuration Release
 ```
 Artifacts land under `./artifacts/<rid>/`.
 
+Each published RID artifact now includes a CycloneDX SBOM file (`sbom-<rid>.json`) listing dependency components for supply-chain transparency.
+
 ## Roadmap (abridged – updated)
 - [x] Reintroduce `System.CommandLine` + full option set
 - [x] Initial ranking heuristics scaffold
