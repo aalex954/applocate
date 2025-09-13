@@ -17,7 +17,8 @@ Windows 11 CLI to locate application install directories, executables, and (in p
 | Heuristic FS scan | Yes | Bounded depth/time roots |
 | Index cache | Yes | Known-miss short‑circuit |
 | Ranking | Phase 1 | Heuristics + synergy; calibration pending |
-| Config/Data rules | Seed | YAML subset; expansion planned |
+| Config/Data rules | Yes | YAML rule pack (≥50 apps) |
+| Existence filtering | Yes | Drops non-existent paths (live + cache sanitize) |
 | Evidence emission | Yes | Optional via --evidence |
 | Snapshot tests | Yes | Verify deterministic outputs |
 | Single-file publish | Yes | Win x64/ARM64 + SBOM |
@@ -205,6 +206,7 @@ In Progress / Near Term:
 - [ ] Benchmark harness (cold vs warm index, thread scaling, source timing)
 
 Backlog / Later:
+- [ ] Existence filtering layer (live + cache sanitize)
 - [ ] Rule pack ≥50 apps finalized with tests
 - [ ] Advanced ranking ML/learned weights experiment (optional)
 - [ ] CI matrix (x64/ARM64), optional code signing & SBOM pipeline polish
@@ -216,7 +218,7 @@ Backlog / Later:
 
 ## Tests
 
-Current summary: 65 total (64 passing, 1 skipped).
+Current summary: 68 total (67 passing, 1 skipped) – includes existence filtering & rule pack expansion tests.
 
 Categories:
 - Core & Models: Validate `AppHit` serialization and JSON determinism.

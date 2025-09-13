@@ -272,6 +272,31 @@ public static class Program
             if (!refreshIndex && indexStore.TryGet(indexFile, compositeKey, out var rec) && rec != null)
             {
                 var cachedHits = rec.Entries.Select(e => new AppHit(e.Type, e.Scope, e.Path, e.Version, e.PackageType, e.Source, e.Confidence, null)).ToList();
+                // Existence validation on cached hits; remove stale entries and persist sanitized record.
+                int beforeExist = cachedHits.Count;
+                cachedHits = cachedHits.Where(h => SafePathExists(h.Path)).ToList();
+                int removedExist = beforeExist - cachedHits.Count;
+                if (removedExist > 0 && verbose)
+                {
+                    Console.Error.WriteLine($"[verbose] cache sanitized: removed {removedExist} non-existent paths");
+                }
+                if (removedExist > 0 && rec.Entries.Count > 0)
+                {
+                    // mutate underlying record entries to reflect removals and persist (best-effort)
+                    var existingSet = new HashSet<string>(cachedHits.Select(h => h.Path), StringComparer.OrdinalIgnoreCase);
+                    for (int i = rec.Entries.Count - 1; i >= 0; i--)
+                    {
+                        if (!existingSet.Contains(rec.Entries[i].Path)) rec.Entries.RemoveAt(i);
+                    }
+                    try { indexStore.Save(indexFile); } catch { }
+                }
+                // If all cached hits vanished, treat as cache miss (allow rebuild); do not short-circuit.
+                if (cachedHits.Count == 0 && beforeExist > 0)
+                {
+                    if (verbose) Console.Error.WriteLine("[verbose] cache stale: all paths missing; bypassing short-circuit");
+                }
+                else
+                {
                 var working = cachedHits.Where(h => h.Confidence >= confidenceMin).OrderByDescending(h => h.Confidence).ToList();
                 // Respect type filters on cached path
                 if (onlyExe || onlyInstall || onlyConfig || onlyData)
@@ -313,6 +338,7 @@ public static class Program
                 {
                     if (verbose) Console.Error.WriteLine("[info] cache short-circuit: known empty result set");
                     return 1; // no matches (cached)
+                }
                 }
             }
         }
@@ -442,7 +468,13 @@ public static class Program
             }
             catch { return p.Replace('/', Path.DirectorySeparatorChar); }
         }
-        var mergedMap = new Dictionary<string, AppHit>(StringComparer.OrdinalIgnoreCase);
+    // Existence filtering (drop any hits whose file/dir no longer exists) BEFORE merge/ranking to avoid noise.
+    int preExistCount = hits.Count;
+    hits = hits.Where(h => SafePathExists(h.Path)).ToList();
+    int removed = preExistCount - hits.Count;
+    if (removed > 0 && verbose) { Console.Error.WriteLine($"[verbose] filtered {removed} non-existent paths (pre-merge)"); }
+
+    var mergedMap = new Dictionary<string, AppHit>(StringComparer.OrdinalIgnoreCase);
         foreach (var h in hits)
         {
             var normPath = NormalizePath(h.Path);
@@ -683,5 +715,15 @@ public static class Program
                 }
             }
         }
+    }
+
+    private static bool SafePathExists(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+        try
+        {
+            return File.Exists(path) || Directory.Exists(path);
+        }
+        catch { return false; }
     }
 }
