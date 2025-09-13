@@ -1,5 +1,8 @@
 # PowerShell module wrapper for applocate
 # Exposes: Invoke-AppLocate, Find-App, Get-AppLocateJson
+# PSScriptAnalyzer: PSAvoidAssignmentToAutomaticVariable warnings were reported referencing lines with no $args assignments.
+# Suppressing rule at file scope as we only *read* remaining arguments via a custom parameter array.
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidAssignmentToAutomaticVariable','')]
 
 $script:ApplocatePath = $null
 
