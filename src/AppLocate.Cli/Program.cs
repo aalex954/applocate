@@ -51,6 +51,7 @@ public static class Program
     var timeoutOpt = new Option<int>("--timeout") { Description = "Per-source timeout seconds (default 5)" };
         var indexPathOpt = new Option<string>("--index-path") { Description = "Custom index file path (default %LOCALAPPDATA%/AppLocate/index.json)" };
         var refreshIndexOpt = new Option<bool>("--refresh-index") { Description = "Force refresh index for this query (ignore cached)" };
+        var clearCacheOpt = new Option<bool>("--clear-cache") { Description = "Delete the on-disk index file before running (cache reset)" };
         var evidenceOpt = new Option<bool>("--evidence") { Description = "Include evidence keys when available" };
         var verboseOpt = new Option<bool>("--verbose") { Description = "Verbose diagnostics (warnings)" };
         var noColorOpt = new Option<bool>("--no-color") { Description = "Disable ANSI colors" };
@@ -59,7 +60,7 @@ public static class Program
             queryArg,
             jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt, allOpt,
             exeOpt, installDirOpt, configOpt, dataOpt, runningOpt, pidOpt, packageSourceOpt, threadsOpt, traceOpt,
-            limitOpt, confMinOpt, timeoutOpt, indexPathOpt, refreshIndexOpt, evidenceOpt, verboseOpt, noColorOpt
+            limitOpt, confMinOpt, timeoutOpt, indexPathOpt, refreshIndexOpt, clearCacheOpt, evidenceOpt, verboseOpt, noColorOpt
         };
         // Manual token extraction (robust multi-word + -- sentinel)
         var parse = root.Parse(args);
@@ -94,6 +95,7 @@ public static class Program
                               "  --timeout <sec>       Per-source timeout (default 5)\n" +
                               "  --index-path <file>   Custom index file path\n" +
                               "  --refresh-index       Ignore cached results\n" +
+                              "  --clear-cache         Delete index file before query (forces full rebuild)\n" +
                               "  --evidence            Include evidence keys\n" +
                               "  --verbose             Verbose diagnostics\n" +
                               "  --no-color            Disable ANSI colors\n" +
@@ -161,6 +163,7 @@ public static class Program
         bool verbose = Has("--verbose");
         bool noColor = Has("--no-color");
         bool refreshIndex = Has("--refresh-index");
+    bool clearCache = Has("--clear-cache");
         string? indexPath = null;
         // Extract index path argument manually
         for (int i = 0; i < tokens.Count - 1; i++)
@@ -218,17 +221,17 @@ public static class Program
             return 2;
         }
         if (!noColor && (Console.IsOutputRedirected || Console.IsErrorRedirected)) noColor = true;
-        return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, verbose, trace, noColor, indexPath, refreshIndex);
+        return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, verbose, trace, noColor, indexPath, refreshIndex, clearCache);
     }
 
-    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose, bool trace, bool noColor, string? indexPath, bool refreshIndex)
+    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose, bool trace, bool noColor, string? indexPath, bool refreshIndex, bool clearCache)
     {
         if (string.IsNullOrWhiteSpace(query)) return 2;
         if (verbose)
         {
             try
             {
-                Console.Error.WriteLine($"[verbose] query='{query}' strict={strict} all={all} onlyExe={onlyExe} onlyInstall={onlyInstall} onlyConfig={onlyConfig} onlyData={onlyData} running={running} pid={(pid?.ToString() ?? "-")} pkgSrc={showPackageSources} evidence={evidence} json={json} csv={csv} text={text} confMin={confidenceMin} limit={(limit?.ToString() ?? "-")} threads={(threads?.ToString() ?? "-" )} idxPath={(indexPath ?? "(default)")} refreshIndex={refreshIndex}");
+                Console.Error.WriteLine($"[verbose] query='{query}' strict={strict} all={all} onlyExe={onlyExe} onlyInstall={onlyInstall} onlyConfig={onlyConfig} onlyData={onlyData} running={running} pid={(pid?.ToString() ?? "-")} pkgSrc={showPackageSources} evidence={evidence} json={json} csv={csv} text={text} confMin={confidenceMin} limit={(limit?.ToString() ?? "-")} threads={(threads?.ToString() ?? "-")} idxPath={(indexPath ?? "(default)")} refreshIndex={refreshIndex} clearCache={clearCache}");
             }
             catch { }
         }
@@ -244,6 +247,18 @@ public static class Program
         try
         {
             indexStore = new IndexStore(effectiveIndexPath);
+            if (clearCache)
+            {
+                try
+                {
+                    if (File.Exists(effectiveIndexPath))
+                    {
+                        File.Delete(effectiveIndexPath);
+                        if (verbose) Console.Error.WriteLine("[verbose] cleared cache file");
+                    }
+                }
+                catch (Exception dx) { if (verbose) Console.Error.WriteLine($"[warn] clear-cache failed: {dx.Message}"); }
+            }
             indexFile = indexStore.Load();
             try
             {
