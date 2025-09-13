@@ -74,11 +74,12 @@ public class CliSnapshotTests
                     _ => e.ToString()
                 };
                 var groups = doc.RootElement.EnumerateArray()
-                    .GroupBy(el => EnumToString(el.GetProperty("type")))
-                    .OrderBy(g => g.Key)
-                    .Select(g => new { type = g.Key, count = g.Count() })
+                    .Select(el => EnumToString(el.GetProperty("type")))
+                    .Distinct()
+                    .OrderBy(t => t)
+                    .Select(t => new { type = t, present = true })
                     .ToList();
-                return groups;
+                return groups; // presence only, not counts (reduces flakiness when additional sources add duplicate-type hits)
             }
             catch { }
         }

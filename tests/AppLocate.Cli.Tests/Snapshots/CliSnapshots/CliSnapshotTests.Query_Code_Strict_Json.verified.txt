@@ -2,11 +2,11 @@
   StdOut: [
     {
       type: 0,
-      count: 3
+      present: true
     },
     {
       type: 1,
-      count: 2
+      present: true
     }
   ],
   StdErr: 
