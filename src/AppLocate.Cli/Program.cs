@@ -11,17 +11,18 @@ namespace AppLocate.Cli;
 
 public static class Program
 {
-    private static readonly ISource[] _sources =
-    [
-        new RegistryUninstallSource(),
-        new AppPathsSource(),
-        new StartMenuShortcutSource(),
-        new ProcessSource(),
-        new PathSearchSource(),
-        new ServicesTasksSource(),
-        new MsixStoreSource(),
-        new HeuristicFsSource()
-    ];
+    private static ISourceRegistry BuildRegistry()
+        => new SourceRegistry(new ISource[]
+        {
+            new RegistryUninstallSource(),
+            new AppPathsSource(),
+            new StartMenuShortcutSource(),
+            new ProcessSource(),
+            new PathSearchSource(),
+            new ServicesTasksSource(),
+            new MsixStoreSource(),
+            new HeuristicFsSource()
+        });
 
     public static async Task<int> Main(string[] args) => await RunAsync(args);
 
@@ -259,7 +260,8 @@ public static class Program
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
         // Parallel source execution with bounded degree
-    var activeSources = _sources.Where(s => !(s is ProcessSource) || running).ToList();
+    var registry = BuildRegistry();
+    var activeSources = registry.GetSources().Where(s => !(s is ProcessSource) || running).ToList();
     var traceRecords = trace ? new System.Collections.Concurrent.ConcurrentBag<(string name,int count,long ms,bool error)>() : null;
         int maxDegree = threads ?? Math.Min(Environment.ProcessorCount, 16);
         if (maxDegree < 1) maxDegree = 1;
