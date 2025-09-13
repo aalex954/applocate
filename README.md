@@ -44,6 +44,7 @@ Options (implemented CLI surface):
 	--running                  Include running process enumeration
 	--pid <n>                  Target specific process id (implies --running)
 	--package-source           Show package type & source list in text/CSV output
+	--threads <n>              Max parallel source queries (default=min(logical CPU,16))
 	--evidence                 Include evidence dictionary (if available)
 	--refresh-index            Ignore cached record
 	--index-path <file>        Override index file path
@@ -56,7 +57,7 @@ Options (implemented CLI surface):
 
 Default behavior (without `--all`): results are collapsed to the single best hit per type (`exe`, `install_dir`, `config`, `data`) using confidence, then tie‑broken by scope (machine over user) and evidence richness. Use `--all` to inspect every distinct hit (useful for debugging ranking or seeing alternate install roots).
 
-Planned / not yet implemented flags from original design (roadmap): `--threads`, `--fuzzy` (explicit enable), `--elevate` / `--no-elevate`, `--trace` (timings). These remain on the backlog and are intentionally absent from current binary.
+Planned / not yet implemented flags from original design (roadmap): `--fuzzy` (explicit enable), `--elevate` / `--no-elevate`, `--trace` (timings). These remain on the backlog and are intentionally absent from current binary.
 
 Exit codes: 0 (results), 1 (no matches), 2 (argument error), 3 (permission), 4 (internal).
 
