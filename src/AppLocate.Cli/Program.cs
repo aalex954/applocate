@@ -9,7 +9,7 @@ using AppLocate.Core.Rules;
 
 namespace AppLocate.Cli;
 
-internal static class Program
+public static class Program
 {
     private static readonly ISource[] _sources =
     [
