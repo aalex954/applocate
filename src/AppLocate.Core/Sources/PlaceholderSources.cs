@@ -281,11 +281,11 @@ public sealed class StartMenuShortcutSource : ISource
 {
     /// <summary>Source name.</summary>
     public string Name => nameof(StartMenuShortcutSource);
-    private static readonly string[] StartMenuRootsUser =
+    private static string[] GetUserRoots() => new[]
     {
         Environment.ExpandEnvironmentVariables("%AppData%\\Microsoft\\Windows\\Start Menu\\Programs")
     };
-    private static readonly string[] StartMenuRootsCommon =
+    private static string[] GetCommonRoots() => new[]
     {
         Environment.ExpandEnvironmentVariables("%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs").Replace("\n", string.Empty)
     };
@@ -312,11 +312,11 @@ public sealed class StartMenuShortcutSource : ISource
 
         if (!options.MachineOnly)
         {
-            foreach (var r in Enumerate(StartMenuRootsUser, Scope.User, norm, tokens, options, dedup, ct)) yield return r;
+            foreach (var r in Enumerate(GetUserRoots(), Scope.User, norm, tokens, options, dedup, ct)) yield return r;
         }
         if (!options.UserOnly)
         {
-            foreach (var r in Enumerate(StartMenuRootsCommon, Scope.Machine, norm, tokens, options, dedup, ct)) yield return r;
+            foreach (var r in Enumerate(GetCommonRoots(), Scope.Machine, norm, tokens, options, dedup, ct)) yield return r;
         }
     }
 
@@ -377,7 +377,22 @@ public sealed class StartMenuShortcutSource : ISource
     {
         if (!strict)
         {
-            return fileNameLower.Contains(norm);
+            // Non-strict: allow either full normalized substring OR all individual tokens appearing in order (collapsed spaces)
+            if (fileNameLower.Contains(norm)) return true;
+            if (tokens.Length > 1)
+            {
+                // Join tokens without spaces for cases where shortcut omits spaces ("Test App" query vs "TestApp.lnk")
+                var collapsed = string.Concat(tokens);
+                if (fileNameLower.Contains(collapsed)) return true;
+                // Fallback: all tokens appear somewhere (any order) as substrings
+                bool all = true;
+                foreach (var t in tokens)
+                {
+                    if (!fileNameLower.Contains(t)) { all = false; break; }
+                }
+                if (all) return true;
+            }
+            return false;
         }
         // Strict: every token must appear as a substring boundary (split on separators)
         var parts = fileNameLower.Split(new[]{'.','-','_',' '}, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

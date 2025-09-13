@@ -98,6 +98,24 @@ public class AcceptanceTests
         return (root, localAppData, roaming, progDir);
     }
 
+    private static void CreateShellLink(string targetPath, string linkPath, string description)
+    {
+        try
+        {
+            var shellType = Type.GetTypeFromProgID("WScript.Shell");
+            if (shellType == null) return; // silently skip if COM not available
+            dynamic shell = Activator.CreateInstance(shellType)!;
+            dynamic sc = shell.CreateShortcut(linkPath);
+            sc.TargetPath = targetPath;
+            sc.Description = description;
+            sc.WorkingDirectory = Path.GetDirectoryName(targetPath);
+            sc.Save();
+            System.Runtime.InteropServices.Marshal.FinalReleaseComObject(sc);
+            System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell);
+        }
+        catch { }
+    }
+
     [Fact]
     public void PortableAppScenario_InstallDirAndExe()
     {
@@ -147,6 +165,42 @@ public class AcceptanceTests
     // Config detection may rely on future rule expansion; for now we assert exe presence only to avoid flakiness.
     bool hasExe = hits.Any(h => IsType(h, "exe", 1) && h.GetProperty("path").GetString()!.EndsWith("chrome.exe", StringComparison.OrdinalIgnoreCase));
         Assert.True(hasExe, "Expected chrome.exe hit in synthetic Chrome scenario");
+    }
+
+    [Fact]
+    public void ShortcutScenario_StartMenuExe()
+    {
+        // Synthetic Start Menu layout
+    var root = Path.Combine(Path.GetTempPath(), "applocate_accept_shortcut_" + Guid.NewGuid().ToString("N"));
+        if (Directory.Exists(root)) Directory.Delete(root, true);
+        var appData = Path.Combine(root, "Roaming");
+        var programs = Path.Combine(appData, "Microsoft", "Windows", "Start Menu", "Programs");
+        Directory.CreateDirectory(programs);
+        var appDir = Path.Combine(programs, "ShortcutApp");
+        Directory.CreateDirectory(appDir);
+        var exePath = CreateDummyExe(appDir, "ShortcutApp.exe");
+        var lnkPath = Path.Combine(appDir, "ShortcutApp.lnk");
+        CreateShellLink(exePath, lnkPath, "Shortcut App");
+        var originalAppData = Environment.GetEnvironmentVariable("APPDATA");
+        Environment.SetEnvironmentVariable("APPDATA", appData);
+        try
+        {
+            var (code, stdout, stderr) = RunWithEnv(new[]{"shortcut app","--json","--limit","10","--refresh-index"}, ("PATH", appDir));
+            Assert.Equal(0, code);
+            Assert.True(string.IsNullOrWhiteSpace(stderr), $"stderr: {stderr}");
+            var doc = JsonDocument.Parse(stdout);
+            var hits = doc.RootElement.EnumerateArray().ToList();
+            Assert.NotEmpty(hits);
+            bool hasExe = hits.Any(h => IsType(h, "exe", 1) && h.GetProperty("path").GetString()!.EndsWith("ShortcutApp.exe", StringComparison.OrdinalIgnoreCase));
+            Assert.True(hasExe, "Expected exe from Start Menu shortcut resolution");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("APPDATA", originalAppData);
+            // Allow brief time slice for any COM release finalizers (rare) before cleanup
+            try { System.Threading.Thread.Sleep(10); } catch { }
+            try { Directory.Delete(root, true); } catch { }
+        }
     }
 
     [Fact(Skip="MSIX deterministic fixture pending – requires abstraction seam for MsixStoreSource to inject fake packages without PowerShell.")]
