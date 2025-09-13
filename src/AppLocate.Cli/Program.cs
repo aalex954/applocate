@@ -40,6 +40,9 @@ public static class Program
     var installDirOpt = new Option<bool>("--install-dir") { Description = "Include only install directory hits" };
     var configOpt = new Option<bool>("--config") { Description = "Include only config hits" };
     var dataOpt = new Option<bool>("--data") { Description = "Include only data hits" };
+    var runningOpt = new Option<bool>("--running") { Description = "Include running process exe (enables ProcessSource)" };
+    var pidOpt = new Option<int?>("--pid") { Description = "Restrict to a specific process id (implies --running)" };
+    var packageSourceOpt = new Option<bool>("--package-source") { Description = "Include package type and raw source list in text/CSV output" };
         var limitOpt = new Option<int?>("--limit") { Description = "Maximum number of results to return" };
     var confMinOpt = new Option<double>("--confidence-min") { Description = "Minimum confidence threshold (0-1)" };
     var timeoutOpt = new Option<int>("--timeout") { Description = "Per-source timeout seconds (default 5)" };
@@ -52,7 +55,7 @@ public static class Program
         {
             queryArg,
             jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt, allOpt,
-            exeOpt, installDirOpt, configOpt, dataOpt,
+            exeOpt, installDirOpt, configOpt, dataOpt, runningOpt, pidOpt, packageSourceOpt,
             limitOpt, confMinOpt, timeoutOpt, indexPathOpt, refreshIndexOpt, evidenceOpt, verboseOpt, noColorOpt
         };
         // Manual token extraction (robust multi-word + -- sentinel)
@@ -78,6 +81,9 @@ public static class Program
                               "  --install-dir         Filter to install_dir hits (can combine)\n" +
                               "  --config              Filter to config hits (can combine)\n" +
                               "  --data                Filter to data hits (can combine)\n" +
+                              "  --running             Include running processes (process source)\n" +
+                              "  --pid <n>             Target specific process id (adds its exe even if name mismatch)\n" +
+                              "  --package-source      Show package type & sources in text/CSV output\n" +
                               "  --limit <n>           Limit results\n" +
                               "  --confidence-min <f>  Min confidence 0-1\n" +
                               "  --timeout <sec>       Per-source timeout (default 5)\n" +
@@ -130,6 +136,15 @@ public static class Program
     bool onlyInstall = Has("--install-dir");
     bool onlyConfig = Has("--config");
     bool onlyData = Has("--data");
+        bool running = Has("--running");
+        int? pid = IntAfter("--pid");
+        if (pid.HasValue && pid.Value <= 0)
+        {
+            Console.Error.WriteLine("--pid must be > 0");
+            return 2;
+        }
+        if (pid.HasValue) running = true; // imply
+    bool showPackageSources = Has("--package-source");
         bool evidence = Has("--evidence");
         bool verbose = Has("--verbose");
         bool noColor = Has("--no-color");
@@ -191,10 +206,10 @@ public static class Program
             return 2;
         }
         if (!noColor && (Console.IsOutputRedirected || Console.IsErrorRedirected)) noColor = true;
-        return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, limit, confidenceMin, timeout, evidence, verbose, noColor, indexPath, refreshIndex);
+        return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, limit, confidenceMin, timeout, evidence, verbose, noColor, indexPath, refreshIndex);
     }
 
-    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose, bool noColor, string? indexPath, bool refreshIndex)
+    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose, bool noColor, string? indexPath, bool refreshIndex)
     {
         if (string.IsNullOrWhiteSpace(query)) return 2;
         var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
@@ -234,6 +249,7 @@ public static class Program
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
         foreach (var source in _sources)
         {
+            if (source is ProcessSource && !running) continue; // gate process enumeration behind --running / --pid
             try
             {
                 var srcCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
@@ -245,6 +261,26 @@ public static class Program
             }
             catch (OperationCanceledException) when (cts.IsCancellationRequested) { break; }
             catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] {source.Name} failed: {ex.Message}"); }
+        }
+
+        // PID-targeted enrichment (direct, bypassing name match) – adds process exe & its directory (if exists)
+        if (pid.HasValue)
+        {
+            try
+            {
+                var proc = System.Diagnostics.Process.GetProcessById(pid.Value);
+                string? procPath = null;
+                try { procPath = proc.MainModule?.FileName; } catch { }
+                if (!string.IsNullOrWhiteSpace(procPath) && File.Exists(procPath))
+                {
+                    var ev = evidence ? new Dictionary<string,string>{{"ProcessId", pid.Value.ToString()},{"ProcessName", proc.ProcessName}} : null;
+                    hits.Add(new AppHit(HitType.Exe, Scope.Machine, procPath, null, PackageType.Unknown, new[]{"Process"}, 0, ev));
+                    var dir = Path.GetDirectoryName(procPath);
+                    if (!string.IsNullOrWhiteSpace(dir))
+                        hits.Add(new AppHit(HitType.InstallDir, Scope.Machine, dir!, null, PackageType.Unknown, new[]{"Process"}, 0, ev));
+                }
+            }
+            catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] pid lookup failed: {ex.Message}"); }
         }
 
         // Rule-based expansion (config/data heuristics)
@@ -406,7 +442,7 @@ public static class Program
             catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] index save failed: {ex.Message}"); }
             return 1;
         }
-        EmitResults(filtered, json, csv, text, noColor);
+    EmitResults(filtered, json, csv, text, noColor, showPackageSources);
         if (!servedFromCache && indexStore != null && indexFile != null)
         {
             try
@@ -439,7 +475,7 @@ public static class Program
         return ConsoleColor.DarkGray;
     }
 
-    private static void EmitResults(List<AppHit> filtered, bool json, bool csv, bool text, bool noColor)
+    private static void EmitResults(List<AppHit> filtered, bool json, bool csv, bool text, bool noColor, bool showPackageSources = false)
     {
         if (filtered.Count == 0) return;
         if (json)
@@ -450,9 +486,21 @@ public static class Program
         }
         if (csv)
         {
-            Console.Out.WriteLine("Type,Scope,Path,Version,PackageType,Confidence");
-            foreach (var h in filtered)
-                Console.Out.WriteLine($"{h.Type},{h.Scope},\"{h.Path}\",{h.Version},{h.PackageType},{h.Confidence:0.###}");
+            if (showPackageSources)
+            {
+                Console.Out.WriteLine("Type,Scope,Path,Version,PackageType,Sources,Confidence");
+                foreach (var h in filtered)
+                {
+                    var src = string.Join('|', h.Source);
+                    Console.Out.WriteLine($"{h.Type},{h.Scope},\"{h.Path}\",{h.Version},{h.PackageType},\"{src}\",{h.Confidence:0.###}");
+                }
+            }
+            else
+            {
+                Console.Out.WriteLine("Type,Scope,Path,Version,PackageType,Confidence");
+                foreach (var h in filtered)
+                    Console.Out.WriteLine($"{h.Type},{h.Scope},\"{h.Path}\",{h.Version},{h.PackageType},{h.Confidence:0.###}");
+            }
             return;
         }
         if (text)
@@ -461,7 +509,14 @@ public static class Program
             {
                 if (noColor)
                 {
-                    Console.Out.WriteLine($"[{h.Confidence:0.00}] {h.Type} {h.Path}");
+                    if (showPackageSources)
+                    {
+                        Console.Out.WriteLine($"[{h.Confidence:0.00}] {h.Type} {h.Path} (pkg={h.PackageType}; src={string.Join('+', h.Source)})");
+                    }
+                    else
+                    {
+                        Console.Out.WriteLine($"[{h.Confidence:0.00}] {h.Type} {h.Path}");
+                    }
                     continue;
                 }
                 var prevColor = Console.ForegroundColor;
@@ -470,7 +525,14 @@ public static class Program
                 Console.ForegroundColor = ConsoleColor.Cyan;
                 Console.Out.Write($" {h.Type}");
                 Console.ForegroundColor = prevColor;
-                Console.Out.WriteLine($" {h.Path}");
+                if (showPackageSources)
+                {
+                    Console.Out.WriteLine($" {h.Path} (pkg={h.PackageType}; src={string.Join('+', h.Source)})");
+                }
+                else
+                {
+                    Console.Out.WriteLine($" {h.Path}");
+                }
             }
         }
     }
