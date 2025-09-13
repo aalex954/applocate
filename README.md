@@ -192,9 +192,9 @@ Completed / Phase 1 Foundation:
 - [x] `--clear-cache` flag (index reset)
 - [x] Acceptance scenario scaffolding (VSCode, Chrome, portable app; MSIX placeholder)
 - [x] PowerShell module wrapper (Invoke-AppLocate / Get-AppLocateJson)
+- [x] Rule pack expansion (≥50 apps coverage)
 
 In Progress / Near Term:
-- [ ] Rule pack expansion (≥50 apps coverage)
 - [ ] Additional acceptance scenarios (`--running` live process capture, expanded config/data heuristics)
 - [ ] Ranking refinement (phase 2: distance weighting, diminishing returns tuning, span scoring)
 - [ ] Performance tuning (parallel scheduling, cold vs warm benchmarks)

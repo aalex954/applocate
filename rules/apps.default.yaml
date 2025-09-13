@@ -165,3 +165,270 @@
     anyOf: ["ssh", "ssh.exe", "openssh"]
   data:
     - "%USERPROFILE%/.ssh"
+
+# Visual Studio (Community)
+- match:
+    anyOf: ["Visual Studio", "devenv.exe", "vs" ]
+  config:
+    - "%APPDATA%/Microsoft/VisualStudio/*/ActivityLog.xml"
+  data:
+    - "%USERPROFILE%/Documents/Visual Studio */Projects"
+
+# GitHub Desktop
+- match:
+    anyOf: ["GitHub Desktop", "githubdesktop.exe", "github desktop"]
+  data:
+    - "%APPDATA%/GitHub Desktop/*"
+
+# Azure Data Studio
+- match:
+    anyOf: ["Azure Data Studio", "azuredatastudio.exe", "azdata studio"]
+  data:
+    - "%APPDATA%/azuredatastudio/User/*"
+
+# SQL Server Management Studio (SSMS)
+- match:
+    anyOf: ["SQL Server Management Studio", "ssms.exe", "ssms"]
+  data:
+    - "%APPDATA%/Microsoft/SQL Server Management Studio/*"
+
+# MySQL Workbench
+- match:
+    anyOf: ["MySQL Workbench", "mysqlworkbench.exe", "mysql wb"]
+  data:
+    - "%APPDATA%/MySQL/Workbench/*"
+
+# PostgreSQL (psql)
+- match:
+    anyOf: ["PostgreSQL", "psql.exe", "psql"]
+  data:
+    - "%PROGRAMFILES%/PostgreSQL/*/data"
+
+# MongoDB Compass
+- match:
+    anyOf: ["MongoDB Compass", "mongodb compass", "mongodb-compass.exe"]
+  data:
+    - "%APPDATA%/MongoDB Compass/*"
+
+# Redis Desktop Manager
+- match:
+    anyOf: ["Redis Desktop Manager", "rdm.exe", "redis desktop"]
+  data:
+    - "%APPDATA%/redis-desktop-manager/*"
+
+# Insomnia REST client
+- match:
+    anyOf: ["Insomnia", "insomnia.exe"]
+  data:
+    - "%APPDATA%/Insomnia/*"
+
+# Fiddler Everywhere
+- match:
+    anyOf: ["Fiddler", "fiddler everywhere", "fiddler.exe"]
+  data:
+    - "%APPDATA%/Fiddler Everywhere/*"
+
+# Wireshark
+- match:
+    anyOf: ["Wireshark", "wireshark.exe"]
+  data:
+    - "%APPDATA%/Wireshark/profiles"
+
+# PuTTY
+- match:
+    anyOf: ["PuTTY", "putty.exe", "putty"]
+  data:
+    - "%APPDATA%/PuTTY/*"
+
+# WinSCP
+- match:
+    anyOf: ["WinSCP", "winscp.exe"]
+  data:
+    - "%APPDATA%/WinSCP.ini"
+
+# Azure Storage Explorer
+- match:
+    anyOf: ["Azure Storage Explorer", "storageexplorer.exe", "storage explorer"]
+  data:
+    - "%APPDATA%/StorageExplorer/*"
+
+# .NET SDK (NuGet global packages)
+- match:
+    anyOf: ["dotnet", "dotnet.exe", "net sdk"]
+  data:
+    - "%USERPROFILE%/.nuget/packages"
+
+# Java (Adoptium / JVM)
+- match:
+    anyOf: ["Java", "java.exe", "openjdk"]
+  data:
+    - "%PROGRAMFILES%/Java/*"
+
+# Gradle
+- match:
+    anyOf: ["Gradle", "gradle", "gradle.bat"]
+  data:
+    - "%USERPROFILE%/.gradle"
+
+# Maven
+- match:
+    anyOf: ["Maven", "mvn", "mvn.cmd", "mvn.bat"]
+  data:
+    - "%USERPROFILE%/.m2/repository"
+
+# Go
+- match:
+    anyOf: ["Go", "go.exe", "golang"]
+  data:
+    - "%USERPROFILE%/go"
+
+# Rust (cargo)
+- match:
+    anyOf: ["Rust", "cargo.exe", "cargo"]
+  data:
+    - "%USERPROFILE%/.cargo"
+
+# Deno
+- match:
+    anyOf: ["Deno", "deno.exe", "deno"]
+  data:
+    - "%USERPROFILE%/.deno"
+
+# Bun
+- match:
+    anyOf: ["Bun", "bun.exe", "bun"]
+  data:
+    - "%USERPROFILE%/.bun"
+
+# Yarn
+- match:
+    anyOf: ["Yarn", "yarn", "yarn.cmd"]
+  data:
+    - "%APPDATA%/Yarn/*"
+
+# PNPM
+- match:
+    anyOf: ["pnpm", "pnpm.cmd", "pnpm.exe"]
+  data:
+    - "%APPDATA%/pnpm/store/v3"
+
+# PowerToys
+- match:
+    anyOf: ["PowerToys", "powertoys.exe", "powertoys"]
+  data:
+    - "%LOCALAPPDATA%/Microsoft/PowerToys/*"
+
+# WSL (config folder)
+- match:
+    anyOf: ["WSL", "wsl.exe", "windows subsystem for linux"]
+  data:
+    - "%USERPROFILE%/AppData/Local/Packages/MicrosoftCorporationII.WindowsSubsystemForLinux_*/LocalState"
+
+# Anaconda / Miniconda
+- match:
+    anyOf: ["Anaconda", "conda.exe", "miniconda"]
+  data:
+    - "%USERPROFILE%/anaconda3"
+    - "%USERPROFILE%/miniconda3"
+
+# AWS CLI
+- match:
+    anyOf: ["AWS CLI", "aws.exe", "aws"]
+  data:
+    - "%USERPROFILE%/.aws"
+
+# Google Cloud SDK
+- match:
+    anyOf: ["Google Cloud SDK", "gcloud", "gcloud.cmd"]
+  data:
+    - "%USERPROFILE%/AppData/Local/Google/Cloud SDK/logs"
+
+# Azure Functions Core Tools
+- match:
+    anyOf: ["Azure Functions Core Tools", "func.exe", "func"]
+  data:
+    - "%USERPROFILE%/AppData/Local/AzureFunctionsTools/*"
+
+# Docker Compose V2
+- match:
+    anyOf: ["docker compose", "docker-compose", "docker compose v2"]
+  data:
+    - "%USERPROFILE%/.docker/cli-plugins"
+
+# Helm
+- match:
+    anyOf: ["Helm", "helm.exe", "helm"]
+  data:
+    - "%USERPROFILE%/.helm"
+
+# k9s
+- match:
+    anyOf: ["k9s", "k9s.exe"]
+  data:
+    - "%USERPROFILE%/AppData/Roaming/k9s"
+
+# OpenSSL
+- match:
+    anyOf: ["OpenSSL", "openssl.exe", "openssl"]
+  data:
+    - "%PROGRAMFILES%/OpenSSL*"
+
+# CMake
+- match:
+    anyOf: ["CMake", "cmake.exe", "cmake"]
+  data:
+    - "%PROGRAMFILES%/CMake*/share/cmake*"
+
+# Ninja build
+- match:
+    anyOf: ["Ninja", "ninja.exe", "ninja"]
+  data:
+    - "%USERPROFILE%/.ninja_log"
+
+# Bazel
+- match:
+    anyOf: ["Bazel", "bazel.exe", "bazel"]
+  data:
+    - "%USERPROFILE%/_bazel_*"
+
+# Erlang / Elixir (mix)
+- match:
+    anyOf: ["Elixir", "mix", "mix.bat"]
+  data:
+    - "%USERPROFILE%/.mix"
+
+# Ruby (gem)
+- match:
+    anyOf: ["Ruby", "ruby.exe", "gem"]
+  data:
+    - "%USERPROFILE%/.gem"
+
+# PHP Composer
+- match:
+    anyOf: ["Composer", "composer", "composer.phar"]
+  data:
+    - "%APPDATA%/Composer/repo"
+
+# Perl (cpan)
+- match:
+    anyOf: ["Perl", "perl.exe", "cpan"]
+  data:
+    - "%USERPROFILE%/.cpan"
+
+# Git LFS
+- match:
+    anyOf: ["Git LFS", "git-lfs.exe", "git lfs"]
+  data:
+    - "%USERPROFILE%/.git-lfs"
+
+# Graphviz
+- match:
+    anyOf: ["Graphviz", "dot.exe", "graphviz"]
+  data:
+    - "%PROGRAMFILES%/Graphviz*/bin"
+
+# MiKTeX (LaTeX)
+- match:
+    anyOf: ["MiKTeX", "miktex", "miktex-console.exe"]
+  data:
+    - "%APPDATA%/MiKTeX/*"
