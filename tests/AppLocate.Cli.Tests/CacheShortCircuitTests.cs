@@ -18,7 +18,10 @@ public class CacheShortCircuitTests
         var idxPath = Path.Combine(tempDir, "index.json");
         try
         {
-            var record = IndexRecord.Create("testapp", DateTimeOffset.UtcNow);
+            string Composite(string q) => string.Join('|', new[]{
+                q, // normalized query already lower-case
+                "u0","m0","s0","r0","p0","te0","ti0","tc0","td0","c0.00"});
+            var record = IndexRecord.Create(Composite("testapp"), DateTimeOffset.UtcNow);
             record.Entries.Add(new IndexEntry(HitType.Exe, Scope.User, "C:/Fake/Path/TestApp.exe", null, PackageType.EXE, new[]{"ProcessSource"}, 0.9, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
             var file = IndexFile.CreateEmpty();
             file.Records.Add(record);

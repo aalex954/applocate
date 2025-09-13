@@ -224,6 +224,14 @@ public static class Program
     private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose, bool trace, bool noColor, string? indexPath, bool refreshIndex)
     {
         if (string.IsNullOrWhiteSpace(query)) return 2;
+        if (verbose)
+        {
+            try
+            {
+                Console.Error.WriteLine($"[verbose] query='{query}' strict={strict} all={all} onlyExe={onlyExe} onlyInstall={onlyInstall} onlyConfig={onlyConfig} onlyData={onlyData} running={running} pid={(pid?.ToString() ?? "-")} pkgSrc={showPackageSources} evidence={evidence} json={json} csv={csv} text={text} confMin={confidenceMin} limit={(limit?.ToString() ?? "-")} threads={(threads?.ToString() ?? "-" )} idxPath={(indexPath ?? "(default)")} refreshIndex={refreshIndex}");
+            }
+            catch { }
+        }
         var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
         var normalized = Normalize(query);
 
@@ -231,22 +239,52 @@ public static class Program
         string defaultIndexPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLocate", "index.json");
         string effectiveIndexPath = string.IsNullOrWhiteSpace(indexPath) ? defaultIndexPath : indexPath;
         IndexStore? indexStore = null; IndexFile? indexFile = null; bool servedFromCache = false;
+        // Composite key: query + flags that affect result shape (scope filters, strictness, running, type filters, confidence min rounding)
+        string compositeKey = BuildCompositeKey(normalized, user, machine, strict, running, pid, onlyExe, onlyInstall, onlyConfig, onlyData, confidenceMin);
         try
         {
             indexStore = new IndexStore(effectiveIndexPath);
             indexFile = indexStore.Load();
-            if (!refreshIndex && indexStore.TryGet(indexFile, normalized, out var rec) && rec != null)
+            if (!refreshIndex && indexStore.TryGet(indexFile, compositeKey, out var rec) && rec != null)
             {
                 var cachedHits = rec.Entries.Select(e => new AppHit(e.Type, e.Scope, e.Path, e.Version, e.PackageType, e.Source, e.Confidence, null)).ToList();
-                var filteredCached = cachedHits.Where(h => h.Confidence >= confidenceMin).OrderByDescending(h => h.Confidence).ToList();
-                if (limit.HasValue) filteredCached = filteredCached.Take(limit.Value).ToList();
-                if (filteredCached.Count > 0)
+                var working = cachedHits.Where(h => h.Confidence >= confidenceMin).OrderByDescending(h => h.Confidence).ToList();
+                // Respect type filters on cached path
+                if (onlyExe || onlyInstall || onlyConfig || onlyData)
                 {
-                    EmitResults(filteredCached, json, csv, text, noColor);
+                    var allow = new HashSet<HitType>();
+                    if (onlyExe) allow.Add(HitType.Exe);
+                    if (onlyInstall) allow.Add(HitType.InstallDir);
+                    if (onlyConfig) allow.Add(HitType.Config);
+                    if (onlyData) allow.Add(HitType.Data);
+                    working = working.Where(h => allow.Contains(h.Type)).ToList();
+                }
+                if (!all)
+                {
+                    var best = new Dictionary<HitType, AppHit>();
+                    foreach (var h in working)
+                    {
+                        if (!best.TryGetValue(h.Type, out var exist)) { best[h.Type] = h; continue; }
+                        if (h.Confidence > exist.Confidence + 1e-9) best[h.Type] = h;
+                        else if (Math.Abs(h.Confidence - exist.Confidence) < 1e-9)
+                        {
+                            if (exist.Scope != Scope.Machine && h.Scope == Scope.Machine) best[h.Type] = h;
+                            else if (h.Source.Length > exist.Source.Length) best[h.Type] = h;
+                        }
+                    }
+                    working = best.Values.OrderByDescending(h => h.Confidence).ThenBy(h => h.Type.ToString()).ToList();
+                }
+                if (limit.HasValue) working = working.Take(limit.Value).ToList();
+                if (verbose)
+                {
+                    Console.Error.WriteLine($"[verbose] cache-hit entries={cachedHits.Count} after-filters={working.Count} types={string.Join(',', working.GroupBy(h=>h.Type).Select(g=>$"{g.Key}={g.Count()}"))}");
+                }
+                if (working.Count > 0)
+                {
+                    EmitResults(working, json, csv, text, noColor, showPackageSources);
                     servedFromCache = true;
                     return 0;
                 }
-                // Empty-cache short-circuit: if record exists, has zero entries and we are not refreshing, treat as a known miss.
                 if (rec.Entries.Count == 0)
                 {
                     if (verbose) Console.Error.WriteLine("[info] cache short-circuit: known empty result set");
@@ -462,6 +500,17 @@ public static class Program
             filtered = bestMap.Values.OrderByDescending(h => h.Confidence).ThenBy(h => h.Type.ToString()).ToList();
         }
         if (limit.HasValue) filtered = filtered.Take(limit.Value).ToList();
+
+        // Final enforcement pass for explicit type filters (guards against any later additions before emit)
+        if (onlyExe || onlyInstall || onlyConfig || onlyData)
+        {
+            var allow = new HashSet<HitType>();
+            if (onlyExe) allow.Add(HitType.Exe);
+            if (onlyInstall) allow.Add(HitType.InstallDir);
+            if (onlyConfig) allow.Add(HitType.Config);
+            if (onlyData) allow.Add(HitType.Data);
+            filtered = filtered.Where(h => allow.Contains(h.Type)).ToList();
+        }
         if (filtered.Count == 0)
         {
             // Persist an empty record to establish index presence for the query if not cached already.
@@ -469,7 +518,7 @@ public static class Program
             {
                 if (!servedFromCache && indexStore != null && indexFile != null)
                 {
-                    indexStore.Upsert(indexFile, normalized, Array.Empty<AppHit>(), DateTimeOffset.UtcNow);
+                    indexStore.Upsert(indexFile, compositeKey, Array.Empty<AppHit>(), DateTimeOffset.UtcNow);
                     indexStore.Save(indexFile);
                 }
                 // Fallback: if save silently failed (file still missing) attempt minimal manual write.
@@ -483,12 +532,27 @@ public static class Program
             catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] index save failed: {ex.Message}"); }
             return 1;
         }
-    EmitResults(filtered, json, csv, text, noColor, showPackageSources);
-        if (!servedFromCache && indexStore != null && indexFile != null)
+    if (verbose)
         {
             try
             {
-                indexStore.Upsert(indexFile, normalized, filtered, DateTimeOffset.UtcNow);
+                var typeCounts = filtered.GroupBy(h => h.Type).Select(g => $"{g.Key}={g.Count()}");
+        Console.Error.WriteLine($"[verbose] pre-emit counts: {string.Join(",", typeCounts)} showPackageSources={showPackageSources}");
+                if (filtered.Count > 0)
+                {
+                    var sample = string.Join(" | ", filtered.Take(5).Select(h => h.Type+":"+System.IO.Path.GetFileName(h.Path)));
+                    Console.Error.WriteLine($"[verbose] sample: {sample}");
+                }
+        Console.Error.WriteLine("[verbose] marker-before-emit");
+            }
+            catch { }
+        }
+        EmitResults(filtered, json, csv, text, noColor, showPackageSources);
+    if (!servedFromCache && indexStore != null && indexFile != null)
+        {
+            try
+            {
+        indexStore.Upsert(indexFile, compositeKey, filtered, DateTimeOffset.UtcNow);
                 indexStore.Save(indexFile);
                 if (!File.Exists(effectiveIndexPath))
                 {
@@ -500,6 +564,25 @@ public static class Program
             catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] index save failed: {ex.Message}"); }
         }
         return 0;
+    }
+
+    private static string BuildCompositeKey(string normalizedQuery, bool user, bool machine, bool strict, bool running, int? pid, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, double confidenceMin)
+    {
+        // Round confidenceMin to 2 decimals to avoid key explosion for tiny float differences
+        var conf = Math.Round(confidenceMin, 2, MidpointRounding.AwayFromZero);
+        return string.Join('|', new[]{
+            normalizedQuery,
+            user ? "u1" : "u0",
+            machine ? "m1" : "m0",
+            strict ? "s1" : "s0",
+            running ? "r1" : "r0",
+            pid.HasValue ? ("p"+pid.Value) : "p0",
+            onlyExe ? "te" : "te0",
+            onlyInstall ? "ti" : "ti0",
+            onlyConfig ? "tc" : "tc0",
+            onlyData ? "td" : "td0",
+            $"c{conf:0.00}"
+        });
     }
 
     private static string Normalize(string query)
