@@ -245,6 +245,15 @@ public static class Program
         {
             indexStore = new IndexStore(effectiveIndexPath);
             indexFile = indexStore.Load();
+            try
+            {
+                if (indexStore.Prune(indexFile, DateTimeOffset.UtcNow))
+                {
+                    if (verbose) Console.Error.WriteLine("[verbose] pruned legacy/invalid cache records");
+                    indexStore.Save(indexFile);
+                }
+            }
+            catch (Exception px) { if (verbose) Console.Error.WriteLine($"[warn] prune failed: {px.Message}"); }
             if (!refreshIndex && indexStore.TryGet(indexFile, compositeKey, out var rec) && rec != null)
             {
                 var cachedHits = rec.Entries.Select(e => new AppHit(e.Type, e.Scope, e.Path, e.Version, e.PackageType, e.Source, e.Confidence, null)).ToList();

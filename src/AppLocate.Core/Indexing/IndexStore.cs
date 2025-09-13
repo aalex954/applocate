@@ -145,6 +145,62 @@ public sealed class IndexStore : IIndexStore
     /// </summary>
     public bool IsExternallyInvalidated() => false;
 
+    /// <summary>
+    /// Removes legacy or invalid records whose query key does not match the current composite key pattern.
+    /// Returns true if any records were removed.
+    /// </summary>
+    public bool Prune(IndexFile file, DateTimeOffset now, bool removeLegacy = true)
+    {
+        if (file.Records.Count == 0) return false;
+        // Composite key pattern segments (11 parts separated by '|'). Relaxed first segment (query tokens).
+        // Example: code|u0|m0|s0|r0|p0|te0|ti0|tc0|td0|c0.00
+        const int ExpectedSegments = 11;
+        bool removed = false;
+        var kept = new List<IndexRecord>(file.Records.Count);
+        foreach (var r in file.Records)
+        {
+            bool keep = true;
+            if (removeLegacy)
+            {
+                var segs = r.Query.Split('|');
+                if (segs.Length != ExpectedSegments)
+                {
+                    keep = false;
+                }
+                else
+                {
+                    // Basic segment validation
+                    // seg[1] u0/u1, seg[2] m0/m1, seg[3] s0/s1, seg[4] r0/r1, seg[5] p<digits>, seg[6..9] te*/ti*/tc*/td*, seg[10] c<float>
+                    bool ok = segs[1] is "u0" or "u1"
+                        && segs[2] is "m0" or "m1"
+                        && segs[3] is "s0" or "s1"
+                        && segs[4] is "r0" or "r1"
+                        && segs[5].StartsWith("p") && segs[5].Length > 1 && segs[5].Skip(1).All(char.IsDigit)
+                        && segs[6].StartsWith("te")
+                        && segs[7].StartsWith("ti")
+                        && segs[8].StartsWith("tc")
+                        && segs[9].StartsWith("td")
+                        && segs[10].StartsWith("c");
+                    // Additional minimal numeric validation for confidence segment (after 'c')
+                    if (ok && segs[10].Length > 1)
+                    {
+                        var confPart = segs[10].Substring(1);
+                        // Accept parsable double; if not parsable mark invalid.
+                        if (!double.TryParse(confPart, out _)) ok = false;
+                    }
+                    if (!ok) keep = false;
+                }
+            }
+            if (keep) kept.Add(r); else removed = true;
+        }
+        if (removed)
+        {
+            file.Records.Clear();
+            file.Records.AddRange(kept);
+        }
+        return removed;
+    }
+
     private static string ComputeEnvironmentHash()
     {
         try
