@@ -17,12 +17,12 @@ public sealed class RegistryUninstallSource : ISource
 
     private static readonly string[] UninstallRootsMachine =
     [
-        @"HKEY_LOCAL_MACHINE\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
-        @"HKEY_LOCAL_MACHINE\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
+        @"HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Uninstall",
+        @"HKEY_LOCAL_MACHINE\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
     ];
     private static readonly string[] UninstallRootsUser =
     [
-        @"HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"
+        @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall"
     ];
 
     /// <summary>
@@ -38,16 +38,17 @@ public sealed class RegistryUninstallSource : ISource
         if (string.IsNullOrWhiteSpace(query)) yield break;
         // Collect then yield to keep cancellation responsiveness predictable.
         var list = new List<AppHit>();
+        var normalized = query.ToLowerInvariant();
         if (!options.MachineOnly)
-            EnumerateRoots(UninstallRootsUser, Scope.User, query, options, list, ct);
+            EnumerateRoots(UninstallRootsUser, Scope.User, normalized, options, list, ct);
         if (!options.UserOnly)
-            EnumerateRoots(UninstallRootsMachine, Scope.Machine, query, options, list, ct);
+            EnumerateRoots(UninstallRootsMachine, Scope.Machine, normalized, options, list, ct);
         foreach (var h in list) yield return h;
     }
 
-    private void EnumerateRoots(IEnumerable<string> roots, Scope scope, string query, SourceOptions options, List<AppHit> sink, CancellationToken ct)
+    private void EnumerateRoots(IEnumerable<string> roots, Scope scope, string normalizedQuery, SourceOptions options, List<AppHit> sink, CancellationToken ct)
     {
-        var queryTokens = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var queryTokens = normalizedQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         foreach (var root in roots)
         {
             if (ct.IsCancellationRequested) return;
@@ -77,7 +78,7 @@ public sealed class RegistryUninstallSource : ISource
                         }
                         else
                         {
-                            if (!dnLower!.Contains(query) && !keyLower.Contains(query)) continue;
+                            if (!dnLower!.Contains(normalizedQuery) && !keyLower.Contains(normalizedQuery)) continue;
                         }
 
                         var installLocation = (subKey.GetValue("InstallLocation") as string)?.Trim().Trim('"');
