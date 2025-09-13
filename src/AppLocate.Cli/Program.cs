@@ -44,6 +44,7 @@ public static class Program
     var pidOpt = new Option<int?>("--pid") { Description = "Restrict to a specific process id (implies --running)" };
     var packageSourceOpt = new Option<bool>("--package-source") { Description = "Include package type and raw source list in text/CSV output" };
     var threadsOpt = new Option<int?>("--threads") { Description = "Maximum parallel source tasks (default = logical processors, cap 16)" };
+    var traceOpt = new Option<bool>("--trace") { Description = "Emit per-source timing diagnostics" };
         var limitOpt = new Option<int?>("--limit") { Description = "Maximum number of results to return" };
     var confMinOpt = new Option<double>("--confidence-min") { Description = "Minimum confidence threshold (0-1)" };
     var timeoutOpt = new Option<int>("--timeout") { Description = "Per-source timeout seconds (default 5)" };
@@ -56,7 +57,7 @@ public static class Program
         {
             queryArg,
             jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt, allOpt,
-            exeOpt, installDirOpt, configOpt, dataOpt, runningOpt, pidOpt, packageSourceOpt, threadsOpt,
+            exeOpt, installDirOpt, configOpt, dataOpt, runningOpt, pidOpt, packageSourceOpt, threadsOpt, traceOpt,
             limitOpt, confMinOpt, timeoutOpt, indexPathOpt, refreshIndexOpt, evidenceOpt, verboseOpt, noColorOpt
         };
         // Manual token extraction (robust multi-word + -- sentinel)
@@ -86,6 +87,7 @@ public static class Program
                               "  --pid <n>             Target specific process id (adds its exe even if name mismatch)\n" +
                               "  --package-source      Show package type & sources in text/CSV output\n" +
                               "  --threads <n>         Max parallel source queries (default logical CPU, cap 16)\n" +
+                              "  --trace               Show per-source timing diagnostics\n" +
                               "  --limit <n>           Limit results\n" +
                               "  --confidence-min <f>  Min confidence 0-1\n" +
                               "  --timeout <sec>       Per-source timeout (default 5)\n" +
@@ -148,6 +150,7 @@ public static class Program
         if (pid.HasValue) running = true; // imply
     bool showPackageSources = Has("--package-source");
         int? threads = IntAfter("--threads");
+    bool trace = Has("--trace");
         if (threads.HasValue)
         {
             if (threads.Value <= 0) { Console.Error.WriteLine("--threads must be > 0"); return 2; }
@@ -214,10 +217,10 @@ public static class Program
             return 2;
         }
         if (!noColor && (Console.IsOutputRedirected || Console.IsErrorRedirected)) noColor = true;
-        return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, verbose, noColor, indexPath, refreshIndex);
+        return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, verbose, trace, noColor, indexPath, refreshIndex);
     }
 
-    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose, bool noColor, string? indexPath, bool refreshIndex)
+    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose, bool trace, bool noColor, string? indexPath, bool refreshIndex)
     {
         if (string.IsNullOrWhiteSpace(query)) return 2;
         var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
@@ -256,7 +259,8 @@ public static class Program
         using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
         // Parallel source execution with bounded degree
-        var activeSources = _sources.Where(s => !(s is ProcessSource) || running).ToList();
+    var activeSources = _sources.Where(s => !(s is ProcessSource) || running).ToList();
+    var traceRecords = trace ? new System.Collections.Concurrent.ConcurrentBag<(string name,int count,long ms,bool error)>() : null;
         int maxDegree = threads ?? Math.Min(Environment.ProcessorCount, 16);
         if (maxDegree < 1) maxDegree = 1;
         var sem = new SemaphoreSlim(maxDegree, maxDegree);
@@ -266,21 +270,37 @@ public static class Program
             await sem.WaitAsync(cts.Token);
             tasks.Add(Task.Run(async () =>
             {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                int localCount = 0; bool error = false;
                 try
                 {
                     var srcCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
                     srcCts.CancelAfter(options.Timeout);
                     await foreach (var hit in source.QueryAsync(normalized, options, srcCts.Token))
                     {
-                        lock (hits) hits.Add(hit);
+                        lock (hits) hits.Add(hit); localCount++;
                     }
                 }
                 catch (OperationCanceledException) when (cts.IsCancellationRequested) { }
-                catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] {source.Name} failed: {ex.Message}"); }
-                finally { sem.Release(); }
+                catch (Exception ex) { error = true; if (verbose) Console.Error.WriteLine($"[warn] {source.Name} failed: {ex.Message}"); }
+                finally
+                {
+                    sw.Stop();
+                    if (traceRecords != null) traceRecords.Add((source.Name, localCount, sw.ElapsedMilliseconds, error));
+                }
+                sem.Release();
             }, cts.Token));
         }
         try { await Task.WhenAll(tasks); } catch (OperationCanceledException) { }
+        if (traceRecords != null)
+        {
+            var totalMs = traceRecords.Sum(r => r.ms);
+            foreach (var rec in traceRecords.OrderByDescending(r => r.ms))
+            {
+                Console.Error.WriteLine($"[trace] {rec.name,-22} {rec.ms,5} ms  hits={rec.count} {(rec.error ? "(error)" : string.Empty)}");
+            }
+            Console.Error.WriteLine($"[trace] total-sources-ms={totalMs}");
+        }
 
         // PID-targeted enrichment (direct, bypassing name match) – adds process exe & its directory (if exists)
         if (pid.HasValue)
