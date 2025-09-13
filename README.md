@@ -1,8 +1,106 @@
-# applocate 
+# applocate
 
 [![build-test-release](https://github.com/aalex954/applocate/actions/workflows/build-release.yml/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/build-release.yml)
 
 Windows 11 CLI to locate application install directories, executables, and (in progress) config/data paths. Emits deterministic JSON (plus CSV/text). Core discovery, indexing, ranking scaffold, and baseline tests are now in place.
+
+## Features (Snapshot)
+| Area | Implemented | Notes |
+|------|-------------|-------|
+| Registry uninstall | Yes | HKLM/HKCU + WOW6432Node |
+| App Paths | Yes | HKLM/HKCU App Paths; exe + optional Path dir |
+| Start Menu shortcuts | Yes | .lnk resolution (COM) user + common |
+| Processes | Yes | Running processes; synergy evidence |
+| PATH search | Yes | where.exe + PATH scan |
+| MSIX / Store | Yes | PowerShell enumeration + env fake provider |
+| Services & Tasks | Yes | ImagePath + scheduled task parsing |
+| Heuristic FS scan | Yes | Bounded depth/time roots |
+| Index cache | Yes | Known-miss short‑circuit |
+| Ranking | Phase 1 | Heuristics + synergy; calibration pending |
+| Config/Data rules | Seed | YAML subset; expansion planned |
+| Evidence emission | Yes | Optional via --evidence |
+| Snapshot tests | Yes | Verify deterministic outputs |
+| Single-file publish | Yes | Win x64/ARM64 + SBOM |
+| Plugin system | Pending | Data-only aliases/rules planned |
+
+## Usage
+Basic:
+```pwsh
+applocate code
+applocate "visual studio code" --json --limit 5
+applocate chrome --csv --confidence-min 0.75 --evidence
+```
+
+Options (current surface – additive safe):
+```
+	<query>                    App name / alias / partial tokens
+	--json | --csv | --text    Output (default text)
+	--limit <N>                Max hits after ranking
+	--confidence-min <f>       Filter threshold (0-1)
+	--strict                   Require all tokens (source semantics)
+	--user | --machine         Scope filters
+	--exe | --install-dir | --config | --data  Type filters
+	--all                      Emit every raw hit
+	--evidence                 Include evidence dictionary
+	--package-source           Include raw source names
+	--running                  Add running process evidence
+	--pid <n>                  Restrict process source
+	--refresh-index            Ignore cached record
+	--index-path <file>        Override index file path
+	--timeout <sec>            Per-source soft timeout
+	--no-color                 Disable ANSI color (text)
+	--verbose / --trace        Diagnostics / timings
+```
+
+Exit codes: 0 (results), 1 (no matches), 2 (argument error), 3 (permission), 4 (internal).
+
+## Evidence & Confidence
+`--evidence` adds key/value provenance. Examples:
+```jsonc
+{"Shortcut":"C:/Users/u/.../Code.lnk"}
+{"ProcessId":"1234","ExeName":"Code.exe"}
+{"DisplayName":"Google Chrome","HasInstallLocation":"true"}
+```
+Confidence heuristic (phase 1): token & fuzzy coverage, exact exe/dir boosts, alias equivalence, evidence synergy (shortcut+process), multi-source diminishing returns, penalties (temp/broken). Scores ∈ [0,1].
+
+## Environment Overrides
+For deterministic tests:
+* `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`
+* `PATH`
+* `APPLOCATE_MSIX_FAKE` (JSON array of fake MSIX packages)
+
+Example:
+```pwsh
+$env:APPLOCATE_MSIX_FAKE='[{"name":"SampleApp","family":"Sample.App_123","install":"C:/tmp/sample","version":"1.0.0.0"}]'
+applocate sample --json --refresh-index
+```
+
+## Minimal JSON Hit Example
+```jsonc
+{
+	"type": 1,
+	"scope": 0,
+	"path": "C:/Users/u/AppData/Local/Programs/Code/Code.exe",
+	"version": null,
+	"packageType": 3,
+	"source": ["StartMenuShortcutSource","RegistryUninstallSource"],
+	"confidence": 0.92,
+	"evidence": {"Shortcut":"...Code.lnk","DisplayName":"Visual Studio Code"}
+}
+```
+Fields are append-only; enum values only extend at tail.
+
+## Versioning / Compatibility
+* Pre-1.0: additive only (no breaking schema changes)
+* 1.0+: semantic versioning
+* Deterministic JSON ordering (source generator)
+* Enum numeric values stable
+
+## Security & Privacy
+* No network or telemetry
+* Does not execute discovered binaries
+* Least privilege by default
+
 
 <img width="537" height="413" alt="image" src="https://github.com/user-attachments/assets/45fe8756-6988-4091-af84-7097a45b2916" />
 
