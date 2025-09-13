@@ -17,3 +17,11 @@ if($Arm64){
 }
 
 Write-Host "Done." -ForegroundColor Green
+
+# Copy PowerShell module files to artifacts root for distribution/import convenience
+$moduleDest = Join-Path (Resolve-Path './artifacts').Path '.'
+foreach($f in 'AppLocate.psm1','AppLocate.psd1'){
+  $src = Join-Path (Resolve-Path '.').Path $f
+  if(Test-Path $src){ Copy-Item $src $moduleDest -Force }
+}
+Write-Host "Module files copied to artifacts" -ForegroundColor Yellow
