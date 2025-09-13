@@ -12,3 +12,156 @@
     - "%LOCALAPPDATA%/Google/Chrome/User Data/Default/Preferences"
   data:
     - "%LOCALAPPDATA%/Google/Chrome/User Data"
+
+# Microsoft Edge (Chromium)
+- match:
+    anyOf: ["Microsoft Edge", "msedge.exe", "edge"]
+  config:
+    - "%LOCALAPPDATA%/Microsoft/Edge/User Data/Default/Preferences"
+  data:
+    - "%LOCALAPPDATA%/Microsoft/Edge/User Data"
+
+# Notepad++
+- match:
+    anyOf: ["Notepad++", "notepad++", "notepadpp", "npp"]
+  config:
+    - "%APPDATA%/Notepad++/config.xml"
+  data:
+    - "%APPDATA%/Notepad++/*"
+
+# PowerShell 7 (pwsh)
+- match:
+    anyOf: ["PowerShell", "pwsh", "powershell.exe"]
+  config:
+    - "%USERPROFILE%/Documents/PowerShell/profile.ps1"
+  data:
+    - "%USERPROFILE%/Documents/PowerShell/Modules"
+
+# Git
+- match:
+    anyOf: ["Git", "git.exe"]
+  config:
+    - "%PROGRAMDATA%/Git/config"
+  data:
+    - "%USERPROFILE%/.gitconfig"
+
+# Node.js (npm global)
+- match:
+    anyOf: ["node", "node.exe", "nodejs"]
+  data:
+    - "%APPDATA%/npm/node_modules"
+
+# Python (user site, pipx)
+- match:
+    anyOf: ["python", "python.exe"]
+  data:
+    - "%APPDATA%/Python/Python*/site-packages"
+    - "%USERPROFILE%/.local/pipx/venvs"
+
+# 7-Zip
+- match:
+    anyOf: ["7-Zip", "7zFM.exe", "7z.exe", "7zip"]
+  config:
+    - "%APPDATA%/7zip/7z.xml"
+
+# VLC Media Player
+- match:
+    anyOf: ["VLC media player", "vlc.exe", "vlc"]
+  data:
+    - "%APPDATA%/vlc/vlc-qt-interface.ini"
+
+# Docker Desktop
+- match:
+    anyOf: ["Docker Desktop", "docker desktop", "docker.exe", "com.docker.cli"]
+  data:
+    - "%APPDATA%/Docker/settings.json"
+
+# Slack
+- match:
+    anyOf: ["Slack", "slack.exe"]
+  data:
+    - "%APPDATA%/Slack/*"
+
+# Discord
+- match:
+    anyOf: ["Discord", "discord.exe"]
+  data:
+    - "%APPDATA%/Discord/*"
+
+# Microsoft Teams (new)
+- match:
+    anyOf: ["Microsoft Teams", "ms-teams", "teams.exe", "ms teams"]
+  data:
+    - "%APPDATA%/Microsoft/Teams/*"
+
+# Steam
+- match:
+    anyOf: ["Steam", "steam.exe"]
+  data:
+    - "%PROGRAMFILES(X86)%/Steam"
+
+# Epic Games Launcher
+- match:
+    anyOf: ["Epic Games Launcher", "epicgameslauncher.exe", "epic games"]
+  data:
+    - "%PROGRAMDATA%/Epic/EpicGamesLauncher/Data"
+
+# Spotify
+- match:
+    anyOf: ["Spotify", "spotify.exe"]
+  data:
+    - "%APPDATA%/Spotify/*"
+
+# Firefox
+- match:
+    anyOf: ["Mozilla Firefox", "firefox", "firefox.exe"]
+  config:
+    - "%APPDATA%/Mozilla/Firefox/profiles.ini"
+  data:
+    - "%APPDATA%/Mozilla/Firefox/Profiles"
+
+# IntelliJ IDEA
+- match:
+    anyOf: ["IntelliJ IDEA", "idea64.exe", "idea.exe"]
+  config:
+    - "%APPDATA%/JetBrains/Idea*/options"
+  data:
+    - "%APPDATA%/JetBrains/Idea*"
+
+# JetBrains Rider
+- match:
+    anyOf: ["JetBrains Rider", "rider64.exe", "rider.exe", "rider"]
+  config:
+    - "%APPDATA%/JetBrains/Rider*/options"
+  data:
+    - "%APPDATA%/JetBrains/Rider*"
+
+# Postman
+- match:
+    anyOf: ["Postman", "postman.exe"]
+  data:
+    - "%APPDATA%/Postman/*"
+
+# Terraform
+- match:
+    anyOf: ["terraform", "terraform.exe"]
+  data:
+    - "%APPDATA%/terraform.d/plugins"
+
+# Azure CLI
+- match:
+    anyOf: ["Azure CLI", "az.exe", "azure"]
+  data:
+    - "%USERPROFILE%/.azure"
+
+# Kubernetes kubectl
+- match:
+    anyOf: ["kubectl", "kubectl.exe"]
+  data:
+    - "%USERPROFILE%/.kube/config"
+
+# OpenSSH
+- match:
+    anyOf: ["ssh", "ssh.exe", "openssh"]
+  data:
+    - "%USERPROFILE%/.ssh"
