@@ -275,7 +275,7 @@ See `.github/copilot-instructions.md` for design/extension guidance. Keep `AppHi
 - No network I/O, no executing discovered binaries.
 - Keep JSON camelCase & deterministic ordering via source generator (`JsonContext`).
 - Add XML docs gradually (warnings currently suppressed only by omission).
-- Ranking: token coverage (+ up to 0.25), exact filename (+0.30), evidence boosts (shortcut/process synergy, alias placeholder, where, dir/exe matches), multi-source diminishing returns (cap +0.18), type baselines, and penalties (broken shortcut, temp paths). Scores clamped to [0,1].
+- Ranking: token coverage (+ up to 0.25), partial token Jaccard (+ up to 0.08), contiguous token span (+0.08), exact filename (+0.30), alias equivalence (+0.22) vs evidence alias (+0.14), fuzzy filename similarity (Levenshtein scaled + up to 0.06), evidence boosts (shortcut/process + synergy, where, dir/exe matches), harmonic multi-source diminishing returns (cap +0.18), type baselines, and penalties (broken shortcut, temp/installer/cache paths). Scores clamped to [0,1].
 
 ---
 This README reflects the discovery + indexing + baseline test milestone; update with each subsequent milestone (ranking calibration, rules, performance, packaging).
