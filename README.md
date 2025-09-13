@@ -48,6 +48,7 @@ Options (implemented CLI surface):
 	--trace                    Per-source timing diagnostics (stderr; prefix [trace])
 	--evidence                 Include evidence dictionary (if available)
 	--refresh-index            Ignore cached record
+	--clear-cache              Delete index file before running (rebuild cache)
 	--index-path <file>        Override index file path
 	--timeout <sec>            Per-source soft timeout (default 5)
 	--no-color                 Disable ANSI color in text output
@@ -173,31 +174,49 @@ Artifacts land under `./artifacts/<rid>/`.
 
 Each published RID artifact now includes a CycloneDX SBOM file (`sbom-<rid>.json`) listing dependency components for supply-chain transparency.
 
-## Roadmap (abridged – updated)
+## Roadmap (abridged – current)
+Completed / Phase 1 Foundation:
 - [x] Reintroduce `System.CommandLine` + full option set
-- [x] Initial ranking heuristics scaffold
+- [x] Initial ranking heuristics (phase 1)
 - [x] JSON indexing cache (write-through)
 - [x] Environment hash invalidation & empty-cache short‑circuit
-- [x] Implement discovery sources (registry, start menu, processes, PATH, services/tasks, MSIX, heuristic FS)
+- [x] Discovery sources (registry uninstall, App Paths, start menu shortcuts, processes, PATH, services/tasks, MSIX/Store, heuristic FS)
 - [x] Golden snapshot tests (Verify) for core queries
 - [x] Deterministic CLI argument validation tests
-- [x] Ranking calibration & alias/fuzzy weighting (phase 1)
-- [x] YAML rules engine for config/data paths (phase 1 subset parser)
-- [ ] Rule pack expansion (≥50 apps)
-- [x] Acceptance scenario tests (VSCode (synthetic), Portable app (synthetic), Chrome synthetic, MSIX fake provider)
-- [ ] Additional acceptance scenarios (--running live process capture, more config/data rule coverage)
-- [ ] Performance tuning (parallelism, profiling, R2R/trim)
-- [ ] Evidence output stabilization & selective inclusion tests
-- [ ] Plugin loading (data-only) for aliases/rules
-- [ ] DI/refactor of source registration
-- [ ] PowerShell module export & packaging polish
-- [ ] CI matrix (x64/ARM64), artifact signing (optional)
-- [ ] JSON schema contract & versioning doc
-- [ ] Benchmark suite (cold vs warm index, thread scaling)
+- [x] YAML rules engine (phase 1 subset) for config/data expansion
+- [x] Ranking calibration pass (alias & fuzzy weighting baseline)
+- [x] Composite cache key (query + flags) variant separation
+- [x] Legacy cache pruning (removal of pre-composite keys)
+- [x] Cache short-circuit path applies type filters & package-source formatting
+- [x] `--package-source` output integration
+- [x] `--clear-cache` flag (index reset)
+- [x] Acceptance scenario scaffolding (VSCode, Chrome, portable app; MSIX placeholder)
+- [x] PowerShell module wrapper (Invoke-AppLocate / Get-AppLocateJson)
+
+In Progress / Near Term:
+- [ ] Rule pack expansion (≥50 apps coverage)
+- [ ] Additional acceptance scenarios (`--running` live process capture, expanded config/data heuristics)
+- [ ] Ranking refinement (phase 2: distance weighting, diminishing returns tuning, span scoring)
+- [ ] Performance tuning (parallel scheduling, cold vs warm benchmarks)
+- [ ] Evidence output stabilization & selective evidence emission tests
+- [ ] Plugin loading (data-only alias & rule packs)
+- [ ] DI/registration refactor for sources (clean injection seams)
+- [ ] JSON schema contract & versioning documentation
+- [ ] Benchmark harness (cold vs warm index, thread scaling, source timing)
+
+Backlog / Later:
+- [ ] Rule pack ≥50 apps finalized with tests
+- [ ] Advanced ranking ML/learned weights experiment (optional)
+- [ ] CI matrix (x64/ARM64), optional code signing & SBOM pipeline polish
+- [ ] PowerShell module publishing & gallery packaging
+- [ ] Trimming / single-file size optimization, ReadyToRun evaluation
+- [ ] Plugin pack distribution format (zip/yaml catalog)
+- [ ] Elevation strategy (`--elevate` / `--no-elevate`) & privileged source gating
+- [ ] Additional package manager adapters (Chocolatey, Scoop, Winget integration improvements)
 
 ## Tests
 
-Current summary: 53 passing, 1 skipped.
+Current summary: 65 total (64 passing, 1 skipped).
 
 Categories:
 - Core & Models: Validate `AppHit` serialization and JSON determinism.
@@ -207,6 +226,7 @@ Categories:
 - Rules Parsing: YAML subset correctness & expansion.
 - Synthetic Acceptance: VSCode (query "code"), Portable app, Chrome, MSIX fake provider.
 - Skipped: One placeholder scenario reserved for future expansion.
+- Cache & Index Variants: Composite key separation, short-circuit behavior, pruning, clear cache flag.
 
 Run all tests:
 ```pwsh
@@ -252,21 +272,32 @@ Planned test expansions:
 - Performance regression timing harness.
 
 ## Indexing
-The tool maintains a lightweight JSON cache at `%LOCALAPPDATA%/AppLocate/index.json`. Each normalized query string stores:
+The tool maintains a lightweight JSON cache at `%LOCALAPPDATA%/AppLocate/index.json` using a composite key including query + relevant flag state. Each record stores:
 - Timestamp of last refresh.
 - List of scored entries with first/last seen timestamps.
 
+Composite key format example:
+```
+code|u0|m0|s0|r0|p0|te0|ti0|tc0|td0|c0.00
+```
+Segments: query | user flag | machine flag | strict | running | pid | exe filter | install filter | config filter | data filter | confidence threshold.
+
+Pruning removes legacy single-segment keys on load (logged with `--verbose`).
+
 Current behavior:
-1. Load index & compute environment hash (schema + env factors). If mismatched, invalidate.
-2. If non-empty cached record and not `--refresh-index`, emit immediately (score filtering still applied).
-3. If empty cached record (known miss) and not `--refresh-index`, exit 1 without querying sources.
-4. Otherwise query sources in sequence (parallel fan-out pending), rank, persist snapshot record.
+1. (Optional) `--clear-cache` deletes index file before any load.
+2. Load index & compute environment hash; invalidate if mismatch.
+3. Prune legacy keys; persist if mutations.
+4. If composite key record exists and not `--refresh-index`, apply confidence & type filters then emit (short‑circuit).
+5. If cached empty record (known miss) and not `--refresh-index`, exit 1.
+6. Otherwise query sources (parallel bounded), rank, apply filters, persist composite record.
 
 Options:
 `--index-path <file>` Override default index location.
-`--refresh-index` Force ignoring any cached record for this query (even if fresh).
+`--refresh-index` Ignore any cached record for this query (even if fresh).
+`--clear-cache` Remove the entire index file before running (full rebuild).
 
-The cache is opportunistic; failures to load/save are non-fatal (logged with `--verbose`).
+The cache is opportunistic; load/save failures are non-fatal (diagnosed with `--verbose`).
 
 ## Contributing
 See `.github/copilot-instructions.md` for design/extension guidance. Keep `AppHit` schema backward compatible.
