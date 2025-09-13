@@ -35,6 +35,11 @@ public static class Program
         var userOpt = new Option<bool>("--user") { Description = "Limit to user-scope results" };
         var machineOpt = new Option<bool>("--machine") { Description = "Limit to machine-scope results" };
         var strictOpt = new Option<bool>("--strict") { Description = "Disable fuzzy/alias matching (exact tokens only)" };
+    var allOpt = new Option<bool>("--all") { Description = "Return all hits (default returns best per type)" };
+    var exeOpt = new Option<bool>("--exe") { Description = "Include only executable hits (can combine with others)" };
+    var installDirOpt = new Option<bool>("--install-dir") { Description = "Include only install directory hits" };
+    var configOpt = new Option<bool>("--config") { Description = "Include only config hits" };
+    var dataOpt = new Option<bool>("--data") { Description = "Include only data hits" };
         var limitOpt = new Option<int?>("--limit") { Description = "Maximum number of results to return" };
     var confMinOpt = new Option<double>("--confidence-min") { Description = "Minimum confidence threshold (0-1)" };
     var timeoutOpt = new Option<int>("--timeout") { Description = "Per-source timeout seconds (default 5)" };
@@ -46,7 +51,8 @@ public static class Program
         var root = new RootCommand("Locate application installation directories, executables, and config/data paths")
         {
             queryArg,
-            jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt,
+            jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt, allOpt,
+            exeOpt, installDirOpt, configOpt, dataOpt,
             limitOpt, confMinOpt, timeoutOpt, indexPathOpt, refreshIndexOpt, evidenceOpt, verboseOpt, noColorOpt
         };
         // Manual token extraction (robust multi-word + -- sentinel)
@@ -67,6 +73,11 @@ public static class Program
                               "  --user                User-scope only\n" +
                               "  --machine             Machine-scope only\n" +
                               "  --strict              Exact token match (no fuzzy)\n" +
+                              "  --all                 Do not collapse to best per type; return all hits\n" +
+                              "  --exe                 Filter to exe hits (can combine)\n" +
+                              "  --install-dir         Filter to install_dir hits (can combine)\n" +
+                              "  --config              Filter to config hits (can combine)\n" +
+                              "  --data                Filter to data hits (can combine)\n" +
                               "  --limit <n>           Limit results\n" +
                               "  --confidence-min <f>  Min confidence 0-1\n" +
                               "  --timeout <sec>       Per-source timeout (default 5)\n" +
@@ -114,6 +125,11 @@ public static class Program
         bool user = Has("--user");
         bool machine = Has("--machine");
         bool strict = Has("--strict");
+    bool all = Has("--all");
+    bool onlyExe = Has("--exe");
+    bool onlyInstall = Has("--install-dir");
+    bool onlyConfig = Has("--config");
+    bool onlyData = Has("--data");
         bool evidence = Has("--evidence");
         bool verbose = Has("--verbose");
         bool noColor = Has("--no-color");
@@ -175,10 +191,10 @@ public static class Program
             return 2;
         }
         if (!noColor && (Console.IsOutputRedirected || Console.IsErrorRedirected)) noColor = true;
-        return await ExecuteAsync(query, json, csv, text, user, machine, strict, limit, confidenceMin, timeout, evidence, verbose, noColor, indexPath, refreshIndex);
+        return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, limit, confidenceMin, timeout, evidence, verbose, noColor, indexPath, refreshIndex);
     }
 
-    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose, bool noColor, string? indexPath, bool refreshIndex)
+    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose, bool noColor, string? indexPath, bool refreshIndex)
     {
         if (string.IsNullOrWhiteSpace(query)) return 2;
         var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
@@ -335,6 +351,39 @@ public static class Program
         }
         var scored = mergedMap.Values.Select(h => h with { Confidence = Ranker.Score(normalized, h) }).ToList();
         var filtered = scored.Where(h => h.Confidence >= confidenceMin).OrderByDescending(h => h.Confidence).ToList();
+        // Type filtering if any explicit type flags specified
+        if (onlyExe || onlyInstall || onlyConfig || onlyData)
+        {
+            var allow = new HashSet<HitType>();
+            if (onlyExe) allow.Add(HitType.Exe);
+            if (onlyInstall) allow.Add(HitType.InstallDir);
+            if (onlyConfig) allow.Add(HitType.Config);
+            if (onlyData) allow.Add(HitType.Data);
+            filtered = filtered.Where(h => allow.Contains(h.Type)).ToList();
+        }
+        if (!all)
+        {
+            // Collapse to best per HitType (keeping highest confidence). If multiple scopes for same type, prefer machine over user if confidence ties.
+            var bestMap = new Dictionary<HitType, AppHit>();
+            foreach (var h in filtered)
+            {
+                if (!bestMap.TryGetValue(h.Type, out var existing))
+                {
+                    bestMap[h.Type] = h;
+                    continue;
+                }
+                bool replace = false;
+                if (h.Confidence > existing.Confidence + 1e-9) replace = true; // strictly higher
+                else if (Math.Abs(h.Confidence - existing.Confidence) < 1e-9)
+                {
+                    // Tie-break: prefer machine scope over user; else prefer one with more sources (evidence synergy)
+                    if (existing.Scope != Scope.Machine && h.Scope == Scope.Machine) replace = true;
+                    else if (h.Source.Length > existing.Source.Length) replace = true;
+                }
+                if (replace) bestMap[h.Type] = h;
+            }
+            filtered = bestMap.Values.OrderByDescending(h => h.Confidence).ThenBy(h => h.Type.ToString()).ToList();
+        }
         if (limit.HasValue) filtered = filtered.Take(limit.Value).ToList();
         if (filtered.Count == 0)
         {

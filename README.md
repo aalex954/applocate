@@ -31,26 +31,29 @@ applocate "visual studio code" --json --limit 5
 applocate chrome --csv --confidence-min 0.75 --evidence
 ```
 
-Options (current surface – additive safe):
+Options (implemented CLI surface):
 ```
 	<query>                    App name / alias / partial tokens
 	--json | --csv | --text    Output (default text)
-	--limit <N>                Max hits after ranking
+	--limit <N>                Max hits after filtering (applied after optional collapse)
 	--confidence-min <f>       Filter threshold (0-1)
-	--strict                   Require all tokens (source semantics)
+	--strict                   Disable fuzzy / alias matching
 	--user | --machine         Scope filters
-	--exe | --install-dir | --config | --data  Type filters
-	--all                      Emit every raw hit
-	--evidence                 Include evidence dictionary
-	--package-source           Include raw source names
-	--running                  Add running process evidence
-	--pid <n>                  Restrict process source
+	--all                      Return ALL hits (no per-type collapsing)
+	--exe | --install-dir | --config | --data  Type filters (any combination)
+	--evidence                 Include evidence dictionary (if available)
 	--refresh-index            Ignore cached record
 	--index-path <file>        Override index file path
-	--timeout <sec>            Per-source soft timeout
-	--no-color                 Disable ANSI color (text)
-	--verbose / --trace        Diagnostics / timings
+	--timeout <sec>            Per-source soft timeout (default 5)
+	--no-color                 Disable ANSI color in text output
+	--verbose                  Verbose diagnostics (warnings)
+	--help                     Show help
+	--                         Treat following tokens as literal query
 ```
+
+Default behavior (without `--all`): results are collapsed to the single best hit per type (`exe`, `install_dir`, `config`, `data`) using confidence, then tie‑broken by scope (machine over user) and evidence richness. Use `--all` to inspect every distinct hit (useful for debugging ranking or seeing alternate install roots).
+
+Planned / not yet implemented flags from original design (roadmap): `--package-source`, `--running`, `--pid`, `--threads`, `--fuzzy` (explicit enable), `--elevate` / `--no-elevate`, `--trace` (timings). These remain on the backlog and are intentionally absent from current binary.
 
 Exit codes: 0 (results), 1 (no matches), 2 (argument error), 3 (permission), 4 (internal).
 
