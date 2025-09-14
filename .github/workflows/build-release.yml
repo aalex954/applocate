@@ -224,30 +224,31 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path release -Force | Out-Null
           $distRoot = (Resolve-Path dist).Path
-          foreach ($ridDir in Get-ChildItem dist -Directory) {
+          $ridDirs = Get-ChildItem dist -Directory
+          $perRidChecksums = @()
+          foreach ($ridDir in $ridDirs) {
             $ridName = $ridDir.Name -replace '^applocate-',''
-            $targetDir = Join-Path release $ridName
-            New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
-            Get-ChildItem $ridDir.FullName -Recurse -File | ForEach-Object {
-              Copy-Item $_.FullName -Destination (Join-Path $targetDir $_.Name) -Force
-            }
-            # Per-RID checksum file
-            $ridChecksum = Join-Path release "SHA256SUMS-$ridName.txt"
-            if (Test-Path $ridChecksum) { Remove-Item $ridChecksum -Force }
-            Get-ChildItem $targetDir -File | ForEach-Object {
-              $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
-              "$hash  $ridName/$( $_.Name )" | Out-File $ridChecksum -Append -Encoding ascii
-            }
+            $stagingDir = Join-Path release $ridName
+            New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
+            Get-ChildItem $ridDir.FullName -Recurse -File | ForEach-Object { Copy-Item $_.FullName -Destination (Join-Path $stagingDir $_.Name) -Force }
+            $zipPath = Join-Path release "applocate-$ridName.zip"
+            if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+            Compress-Archive -Path (Join-Path $stagingDir '*') -DestinationPath $zipPath -Force
+            # Per-RID checksum over the zip only
+            $zipHash = (Get-FileHash $zipPath -Algorithm SHA256).Hash
+            $ridChecksumFile = Join-Path release "SHA256SUMS-$ridName.txt"
+            "$zipHash  $(Split-Path -Leaf $zipPath)" | Out-File $ridChecksumFile -Encoding ascii
+            $perRidChecksums += $ridChecksumFile
           }
-          # Combined checksum with relative paths (rid/filename)
+          # Combined checksum for all distributable assets (zips + sbom + reports)
           $checksumAll = Join-Path release 'SHA256SUMS-all.txt'
           if (Test-Path $checksumAll) { Remove-Item $checksumAll -Force }
-          Get-ChildItem release -Recurse -File | Where-Object { $_.Name -notmatch '^SHA256SUMS-' -and $_.Name -ne 'SHA256SUMS-all.txt' } | ForEach-Object {
-            if ($_.DirectoryName -eq (Resolve-Path release).Path) { return } # skip root files if any
-            $rel = (Resolve-Path $_.FullName).Path.Substring((Resolve-Path release).Path.Length + 1)
+          Get-ChildItem release -File | Where-Object { $_.Name -notmatch '^SHA256SUMS-' -and $_.Name -ne 'SHA256SUMS-all.txt' } | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
-            "$hash  $rel" | Out-File $checksumAll -Append -Encoding ascii
+            "$hash  $($_.Name)" | Out-File $checksumAll -Append -Encoding ascii
           }
+          # Remove unzipped per-RID staging directories to avoid duplicate asset names
+          foreach ($ridDir in $ridDirs) { $ridName = $ridDir.Name -replace '^applocate-',''; Remove-Item (Join-Path release $ridName) -Recurse -Force }
 
       - name: Generate Release Notes (basic)
         id: notes
@@ -265,7 +266,12 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           files: |
-            release/**
+            release/*.zip
+            release/SHA256SUMS-all.txt
+            release/SHA256SUMS-*.txt
+            release/RELEASE_NOTES.md
+            release/test-report.*
+            release/sbom-*.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
