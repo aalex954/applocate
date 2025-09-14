@@ -196,7 +196,8 @@ Completed / Phase 1 Foundation:
 - [x] Rule pack expansion (≥50 apps coverage)
 
 In Progress / Near Term:
-- [ ] Additional acceptance scenarios (`--running` live process capture, expanded config/data heuristics)
+- [x] Running process acceptance scenario (`--running` live capture)
+- [ ] Expanded config/data heuristics acceptance scenarios
 - [ ] Ranking refinement (phase 2: distance weighting, diminishing returns tuning, span scoring)
 - [ ] Performance tuning (parallel scheduling, cold vs warm benchmarks)
 - [ ] Evidence output stabilization & selective evidence emission tests
@@ -218,7 +219,7 @@ Backlog / Later:
 
 ## Tests
 
-Current summary: 68 total (67 passing, 1 skipped) – includes existence filtering & rule pack expansion tests.
+Current summary: 69 total (68 passing, 1 skipped) – includes running process acceptance test.
 
 Categories:
 - Core & Models: Validate `AppHit` serialization and JSON determinism.
