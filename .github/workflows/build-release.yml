@@ -205,7 +205,7 @@ jobs:
 
   release:
     name: Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    #if: startsWith(github.ref, 'refs/tags/v')
     needs: publish
     runs-on: windows-latest
     permissions:
@@ -223,44 +223,12 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path release -Force | Out-Null
-          $distRoot = (Resolve-Path dist).Path
-          $ridDirs = Get-ChildItem dist -Directory
-          $perRidChecksums = @()
-          foreach ($ridDir in $ridDirs) {
+          foreach ($ridDir in Get-ChildItem dist -Directory) {
             $ridName = $ridDir.Name -replace '^applocate-',''
-            $stagingDir = Join-Path release $ridName
-            New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
-            Get-ChildItem $ridDir.FullName -Recurse -File | ForEach-Object { Copy-Item $_.FullName -Destination (Join-Path $stagingDir $_.Name) -Force }
             $zipPath = Join-Path release "applocate-$ridName.zip"
             if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-            Compress-Archive -Path (Join-Path $stagingDir '*') -DestinationPath $zipPath -Force
-            # Per-RID checksum over the zip only
-            $zipHash = (Get-FileHash $zipPath -Algorithm SHA256).Hash
-            $ridChecksumFile = Join-Path release "SHA256SUMS-$ridName.txt"
-            "$zipHash  $(Split-Path -Leaf $zipPath)" | Out-File $ridChecksumFile -Encoding ascii
-            $perRidChecksums += $ridChecksumFile
+            Compress-Archive -Path (Join-Path $ridDir.FullName '*') -DestinationPath $zipPath -Force
           }
-          # Copy test report artifact if downloaded (artifact name: test-report)
-          if (Test-Path dist/test-report) {
-            $report = Get-ChildItem dist/test-report -Filter test-report.html -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($report) {
-              Copy-Item $report.FullName (Join-Path release 'test-report.html') -Force
-              $testZip = Join-Path release 'applocate-test-report.zip'
-              if (Test-Path $testZip) { Remove-Item $testZip -Force }
-              Compress-Archive -Path (Join-Path release 'test-report.html') -DestinationPath $testZip -Force
-              $testHash = (Get-FileHash $testZip -Algorithm SHA256).Hash
-              "$testHash  applocate-test-report.zip" | Out-File (Join-Path release 'SHA256SUMS-test-report.txt') -Encoding ascii
-            }
-          }
-          # Combined checksum for all distributable assets (zips + sbom + reports)
-          $checksumAll = Join-Path release 'SHA256SUMS-all.txt'
-          if (Test-Path $checksumAll) { Remove-Item $checksumAll -Force }
-          Get-ChildItem release -File | Where-Object { $_.Name -notmatch '^SHA256SUMS-' -and $_.Name -ne 'SHA256SUMS-all.txt' -and $_.Name -ne 'test-report.html' } | ForEach-Object {
-            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
-            "$hash  $($_.Name)" | Out-File $checksumAll -Append -Encoding ascii
-          }
-          # Remove unzipped per-RID staging directories to avoid duplicate asset names
-          foreach ($ridDir in $ridDirs) { $ridName = $ridDir.Name -replace '^applocate-',''; Remove-Item (Join-Path release $ridName) -Recurse -Force }
 
       - name: Generate Release Notes (basic)
         id: notes
@@ -279,9 +247,6 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           files: |
             release/applocate-*.zip
-            release/applocate-test-report.zip
-            release/SHA256SUMS-all.txt
-            release/SHA256SUMS-*.txt
             release/RELEASE_NOTES.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
