@@ -521,6 +521,14 @@ public sealed class PathSearchSource : ISource
     var norm = query.ToLowerInvariant();
     var pathTokens = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
+    // Generic variant expansion: for any multi-token or hyphenated query, generate collapsed & punctuation-normalized forms.
+    var aliasForms = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { norm };
+    if (norm.Contains(' ')) aliasForms.Add(norm.Replace(" ", string.Empty));
+    if (norm.Contains('-')) aliasForms.Add(norm.Replace("-", string.Empty));
+    // Add combined hyphen form if original had spaces ("oh my posh" -> "oh-my-posh") and vice versa.
+    if (norm.Contains(' ') && !aliasForms.Contains(norm.Replace(' ', '-'))) aliasForms.Add(norm.Replace(' ', '-'));
+    if (norm.Contains('-') && !aliasForms.Contains(norm.Replace('-', ' '))) aliasForms.Add(norm.Replace('-', ' '));
+
         // Strategy:
         // 1. Invoke where.exe for the raw query (best effort) – may fail silently.
         // 2. Enumerate PATH directories; for each *.exe whose file name contains the query substring emit hits.
@@ -528,15 +536,29 @@ public sealed class PathSearchSource : ISource
 
         var yielded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        // Step 1: where.exe invocation (only if query looks like a single token without spaces)
-        if (!query.Contains(' '))
+        // Step 1: where.exe invocation
+        // For single-token queries: run once on raw query.
+        // For multi-token queries: attempt where.exe on collapsed variants (e.g., "oh my posh" -> "oh-my-posh", "ohmyposh")
+        var whereCandidates = new List<string>();
+        if (!query.Contains(' ')) whereCandidates.Add(query);
+        else
+        {
+            var collapsed = query.Replace(" ", string.Empty);
+            if (collapsed.Length > 2) whereCandidates.Add(collapsed);
+            if (query.Contains(' ') && !query.Contains('-'))
+            {
+                var hyphen = query.Replace(' ', '-');
+                if (hyphen.Length > 2) whereCandidates.Add(hyphen);
+            }
+        }
+        foreach (var wc in whereCandidates.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             List<AppHit>? buffered = null;
             try
             {
                 using var p = new System.Diagnostics.Process();
                 p.StartInfo.FileName = Environment.ExpandEnvironmentVariables("%SystemRoot%\\System32\\where.exe");
-                p.StartInfo.Arguments = ' ' + query;
+                p.StartInfo.Arguments = ' ' + wc;
                 p.StartInfo.CreateNoWindow = true;
                 p.StartInfo.UseShellExecute = false;
                 p.StartInfo.RedirectStandardOutput = true;
@@ -556,7 +578,7 @@ public sealed class PathSearchSource : ISource
                         if (!File.Exists(line)) continue;
                         if (!yielded.Add(line)) continue;
                         var scope = InferScope(line);
-                        var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"where","true"}} : null;
+                        var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"where","true"},{"WhereQuery", wc}} : null;
                         buffered ??= new List<AppHit>();
                         buffered.Add(new AppHit(HitType.Exe, scope, line, null, PackageType.EXE, new[] { Name }, 0, evidence));
                         var dir = Path.GetDirectoryName(line);
@@ -596,12 +618,90 @@ public sealed class PathSearchSource : ISource
             {
                 if (ct.IsCancellationRequested) yield break;
                 var name = Path.GetFileNameWithoutExtension(file).ToLowerInvariant();
-                bool match = !options.Strict ? name.Contains(norm) : pathTokens.All(t => name.Contains(t));
+                bool match;
+                if (!options.Strict)
+                {
+                    // Collapsed/normalized comparison: remove spaces, dashes, underscores, periods for tolerant matching
+                    string Collapse(string s)
+                    {
+                        Span<char> buffer = stackalloc char[s.Length];
+                        int idx = 0;
+                        foreach (var ch in s)
+                        {
+                            if (ch == ' ' || ch == '-' || ch == '_' || ch == '.') continue;
+                            buffer[idx++] = ch;
+                        }
+                        return new string(buffer.Slice(0, idx));
+                    }
+                    var collapsedName = Collapse(name);
+                    var plainMatch = aliasForms.Any(a => name.Contains(a, StringComparison.OrdinalIgnoreCase) || name.Equals(a, StringComparison.OrdinalIgnoreCase));
+                    var collapsedMatch = !plainMatch && aliasForms.Any(a =>
+                    {
+                        var ca = Collapse(a);
+                        if (ca.Length == 0) return false;
+                        return collapsedName.Contains(ca, StringComparison.OrdinalIgnoreCase);
+                    });
+                    match = plainMatch || collapsedMatch;
+                    if (!match) continue;
+                    // Evidence dictionary created later; we need to know whether collapsed-only matched
+                    // We'll stash this in a local for later evidence augmentation
+                    bool collapsedOnly = !plainMatch && match;
+                    // Defer evidence creation by storing flag via tuple list addition just before buffering
+                    // To keep changes minimal we'll recreate plainMatch/collapsedOnly after match when building evidence
+                    // by recomputing them (fast due to small alias set). Store markers via local functions.
+                }
+                else
+                {
+                    match = pathTokens.All(t => name.Contains(t));
+                }
                 if (!match) continue;
                 if (!File.Exists(file)) continue;
                 if (!yielded.Add(file)) continue;
                 var scope = InferScope(file);
-                var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"PATH", dir},{"ExeName", Path.GetFileName(file)}} : null;
+                Dictionary<string,string>? evidence = null;
+                if (options.IncludeEvidence)
+                {
+                    evidence = new Dictionary<string,string>{{"PATH", dir},{"ExeName", Path.GetFileName(file)}};
+                    // Recompute plain vs collapsed-only match for evidence clarity
+                    if (!options.Strict)
+                    {
+                        bool PlainAgain()
+                        {
+                            foreach (var a in aliasForms)
+                            {
+                                if (name.Contains(a, StringComparison.OrdinalIgnoreCase) || name.Equals(a, StringComparison.OrdinalIgnoreCase)) return true;
+                            }
+                            return false;
+                        }
+                        bool plain = PlainAgain();
+                        if (!plain)
+                        {
+                            // Check collapsed-only
+                            string Collapse(string s)
+                            {
+                                Span<char> buffer = stackalloc char[s.Length];
+                                int idx = 0;
+                                foreach (var ch in s)
+                                {
+                                    if (ch == ' ' || ch == '-' || ch == '_' || ch == '.') continue;
+                                    buffer[idx++] = ch;
+                                }
+                                return new string(buffer.Slice(0, idx));
+                            }
+                            var collapsedName = Collapse(name);
+                            foreach (var a in aliasForms)
+                            {
+                                var ca = Collapse(a);
+                                if (ca.Length == 0) continue;
+                                if (collapsedName.Contains(ca, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    evidence["CollapsedMatch"] = "true";
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
                 buffered ??= new List<AppHit>();
                 buffered.Add(new AppHit(HitType.Exe, scope, file, null, PackageType.EXE, new[] { Name }, 0, evidence));
                 var dirName = Path.GetDirectoryName(file);
@@ -619,6 +719,53 @@ public sealed class PathSearchSource : ISource
                 {
                     if (ct.IsCancellationRequested) yield break;
                     yield return h;
+                }
+            }
+        }
+
+        // Generic optional probe: If query has >=2 tokens or hyphens, attempt Program Files style directory/bin pattern: <variant>/bin/<primary>.exe
+        if (!ct.IsCancellationRequested && (pathTokens.Length > 1 || norm.Contains('-')))
+        {
+            string? pf86 = null; string? pf = null;
+            try { pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86); } catch { }
+            try { pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles); } catch { }
+            var roots = new List<string>();
+            if (!string.IsNullOrEmpty(pf86)) roots.Add(pf86);
+            if (!string.IsNullOrEmpty(pf) && pf != pf86) roots.Add(pf!);
+            foreach (var variant in aliasForms)
+            {
+                if (ct.IsCancellationRequested) break;
+                var collapsed = variant.Replace(" ", string.Empty).Replace("-", string.Empty);
+                if (collapsed.Length < 3) continue; // avoid spam
+                foreach (var root in roots)
+                {
+                    if (ct.IsCancellationRequested) break;
+                    // Probe patterns:
+                    // <root>\\<variant>\\bin\\<variant>.exe
+                    // <root>\\<variant>\\<variant>.exe
+                    // <root>\\<collapsed>\\bin\\<collapsed>.exe
+                    var candidates = new []
+                    {
+                        System.IO.Path.Combine(root, variant, "bin", variant + ".exe"),
+                        System.IO.Path.Combine(root, variant, variant + ".exe"),
+                        System.IO.Path.Combine(root, collapsed, "bin", collapsed + ".exe"),
+                        System.IO.Path.Combine(root, collapsed, collapsed + ".exe"),
+                    };
+                    foreach (var cand in candidates.Distinct(StringComparer.OrdinalIgnoreCase))
+                    {
+                        if (ct.IsCancellationRequested) break;
+                        if (!cand.EndsWith('.' + "exe", StringComparison.OrdinalIgnoreCase)) continue;
+                        if (!File.Exists(cand)) continue;
+                        if (!yielded.Add(cand)) continue;
+                        var scope = InferScope(cand);
+                        Dictionary<string,string>? evidence = null;
+                        if (options.IncludeEvidence)
+                            evidence = new Dictionary<string,string>{{"VariantProbe", variant},{"Root", root}};
+                        yield return new AppHit(HitType.Exe, scope, cand, null, PackageType.EXE, new[]{ Name }, 0, evidence);
+                        var dirOut = Path.GetDirectoryName(cand);
+                        if (!string.IsNullOrEmpty(dirOut) && yielded.Add(dirOut + "::install"))
+                            yield return new AppHit(HitType.InstallDir, scope, dirOut!, null, PackageType.EXE, new[]{ Name }, 0, evidence);
+                    }
                 }
             }
         }

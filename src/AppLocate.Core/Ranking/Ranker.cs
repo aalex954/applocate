@@ -290,9 +290,26 @@ public static class Ranker
             bool related = query.Contains("fl") || query.Contains("cloud") || query.Contains("plugin");
             if (!related)
             {
-                score -= 0.20;
+                score -= 0.35; // stronger suppression so mirrors don't pollute top hits
                 if (score < 0) score = 0;
             }
+        }
+
+        // (4d) Cache / transient artifact demotion (Code Cache, VideoDecodeStats, update-cache, Winget temp version folders)
+    if (lowerPath.Contains("code cache") || lowerPath.Contains("video\\decode") || lowerPath.Contains("videodecodestats") || lowerPath.Contains("video\\decodestats"))
+        {
+            score -= 0.25;
+            if (score < 0) score = 0;
+        }
+        if (lowerPath.Contains("\\update-cache\\") || lowerPath.EndsWith("\\update-cache", StringComparison.OrdinalIgnoreCase))
+        {
+            score -= 0.22;
+            if (score < 0) score = 0;
+        }
+        if (lowerPath.Contains("\\temp\\winget\\") || lowerPath.Contains("winget.")) // versioned staging dirs (already temp penalized, add extra)
+        {
+            score -= 0.10;
+            if (score < 0) score = 0;
         }
 
         return score;
