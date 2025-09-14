@@ -430,6 +430,102 @@ public static class Program
             mergedMap[key] = existing with { Source = srcSet.ToArray(), Evidence = evidenceMerged };
         }
         var scored = mergedMap.Values.Select(h => h with { Confidence = Ranker.Score(normalized, h) }).ToList();
+
+        // Post-score path-level consolidation & install-dir pairing boost:
+        // Rationale: Some environments surface the same path via multiple sources but (rarely) with scope variance
+        // that slips past earlier (Type,Scope,Path) merge (e.g., Program Files path mis-attributed as user scope by a source).
+        // We collapse duplicates ignoring scope (prefer Machine when any Machine scope present) and union sources/evidence.
+        // Additionally, boost install directories that contain a high-confidence exe hit (primary pairing) so the directory
+        // does not rank far below its exe counterpart and to avoid user confusion about relative ordering.
+        if (scored.Count > 1)
+        {
+            // Map directory -> max exe confidence for pairing boost.
+            var exeByDir = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+            foreach (var e in scored.Where(h => h.Type == HitType.Exe))
+            {
+                try
+                {
+                    var dir = System.IO.Path.GetDirectoryName(e.Path);
+                    if (string.IsNullOrEmpty(dir)) continue;
+                    if (!exeByDir.TryGetValue(dir, out var existing) || e.Confidence > existing)
+                        exeByDir[dir] = e.Confidence;
+                }
+                catch { }
+            }
+
+            var pathCollapse = new Dictionary<string, AppHit>(StringComparer.OrdinalIgnoreCase);
+            foreach (var h in scored)
+            {
+                var keyNoScope = $"{h.Type}|{NormalizePath(h.Path)}"; // ignore scope for consolidation
+                if (!pathCollapse.TryGetValue(keyNoScope, out var exist))
+                {
+                    pathCollapse[keyNoScope] = h;
+                    continue;
+                }
+                // Prefer machine scope if any disagreement; keep higher confidence else union sources
+                var chosen = exist;
+                if (exist.Scope != Scope.Machine && h.Scope == Scope.Machine) chosen = h;
+                else if (h.Confidence > exist.Confidence + 1e-9) chosen = h;
+                // Merge sources
+                var srcSet = new HashSet<string>(exist.Source, StringComparer.OrdinalIgnoreCase);
+                foreach (var s in h.Source) srcSet.Add(s);
+                // Merge evidence dictionaries (pipe-append distinct values)
+                Dictionary<string,string>? mergedEv = null;
+                if (exist.Evidence != null || h.Evidence != null)
+                {
+                    mergedEv = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                    if (exist.Evidence != null)
+                        foreach (var kv in exist.Evidence) mergedEv[kv.Key] = kv.Value;
+                    if (h.Evidence != null)
+                    {
+                        foreach (var kv in h.Evidence)
+                        {
+                            if (mergedEv.TryGetValue(kv.Key, out var val))
+                            {
+                                var parts = val.Split('|');
+                                if (!parts.Any(p => p.Equals(kv.Value, StringComparison.OrdinalIgnoreCase)))
+                                    mergedEv[kv.Key] = val + "|" + kv.Value;
+                            }
+                            else mergedEv[kv.Key] = kv.Value;
+                        }
+                    }
+                }
+                // Annotate merge reason (for future --evidence visibility) without flooding existing keys.
+                if (mergedEv == null) mergedEv = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                mergedEv["PathMerged"] = "1";
+                pathCollapse[keyNoScope] = chosen with { Source = srcSet.ToArray(), Evidence = mergedEv };
+            }
+
+            // Apply pairing boost: install dir gets +min(0.12, exeConf * 0.15) if associated exe has reasonably high confidence.
+            // This occurs before later per-type collapse to influence ordering.
+            var adjusted = new List<AppHit>(pathCollapse.Count);
+            foreach (var h in pathCollapse.Values)
+            {
+                if (h.Type == HitType.InstallDir)
+                {
+                    try
+                    {
+                        if (exeByDir.TryGetValue(h.Path, out var exeConf) && exeConf >= 0.35)
+                        {
+                            var boost = Math.Min(0.12, exeConf * 0.15); // scales with exe confidence
+                            var newConf = h.Confidence + boost;
+                            if (newConf > 1) newConf = 1;
+                            // add evidence marker
+                            Dictionary<string,string>? ev2 = null;
+                            if (h.Evidence != null)
+                                ev2 = new Dictionary<string,string>(h.Evidence, StringComparer.OrdinalIgnoreCase);
+                            else ev2 = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                            ev2["ExePair"] = "1";
+                            adjusted.Add(h with { Confidence = newConf, Evidence = ev2 });
+                            continue;
+                        }
+                    }
+                    catch { }
+                }
+                adjusted.Add(h);
+            }
+            scored = adjusted;
+        }
         var filtered = scored.Where(h => h.Confidence >= confidenceMin).OrderByDescending(h => h.Confidence).ToList();
         // Type filtering if any explicit type flags specified
         if (onlyExe || onlyInstall || onlyConfig || onlyData)
