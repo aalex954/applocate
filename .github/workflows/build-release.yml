@@ -88,17 +88,26 @@ jobs:
         $failed = $allResults | Where-Object { $_.Outcome -ne 'Passed' }
         $timestamp = (Get-Date).ToString('u')
 
-        $html = @()
-        $html += '<!DOCTYPE html><html><head><meta charset="utf-8" />'
-        $html += '<title>applocate Test Report</title>'
-        $html += '<style>body{font-family:Segoe UI,Arial,sans-serif;margin:1.5rem;color:#222}table{border-collapse:collapse;margin-top:1rem}th,td{border:1px solid #ccc;padding:4px 8px;font-size:13px}th{background:#f5f5f5} .fail{color:#b00;font-weight:600} .ok{color:#060}code{background:#f0f0f0;padding:2px 4px;border-radius:3px}</style>'
-        $html += '</head><body>'
-        $html += "<h1>applocate Test Report</h1><p><strong>Generated:</strong> $timestamp UTC</p>"
-        $html += '<h2>Summary</h2>'
-        $html += '<table><thead><tr><th>Total</th><th>Executed</th><th>Passed</th><th>Failed</th><th>Error</th><th>Timeout</th><th>Aborted</th><th>Warnings</th></tr></thead>'
-        $html += ('<tbody><tr>' + ($countersAgg.total,$countersAgg.executed,$countersAgg.passed,$countersAgg.failed,$countersAgg.error,$countersAgg.timeout,$countersAgg.aborted,$countersAgg.warning | ForEach-Object { "<td>$_</td>" }) -join '' + '</tr></tbody></table>')
+        $md = @()
+        $md += '### Test Summary'
+        $md += ''
+        $md += "Total: **$($countersAgg.total)**  Passed: **$($countersAgg.passed)**  Failed: **$($countersAgg.failed)**  Errors: **$($countersAgg.error)**  Timeout: **$($countersAgg.timeout)**"
         if ($failed) {
-          $html += '<h2>Failed / Non-Passed Tests</h2>'
+          $failedCount = $failed.Count
+          $md += ''
+            $md += '**Failures:**'
+          foreach ($f in ($failed | Select-Object -First 15)) {
+            $md += "- $($f.TestName)"
+          }
+          if ($failedCount -gt 15) {
+            $remaining = $failedCount - 15
+            $md += "- ... ($remaining more)"
+          }
+        } else {
+          $md += ''
+          $md += 'All tests passed ✅'
+        }
+        $md -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           $html += '<table><thead><tr><th>Test</th><th>Outcome</th><th>Duration</th><th>TRX</th></tr></thead><tbody>'
           foreach ($r in $failed) {
             $cls = if ($r.Outcome -eq 'Failed') { 'fail' } else { '' }
