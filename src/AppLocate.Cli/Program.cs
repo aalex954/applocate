@@ -587,6 +587,65 @@ public static class Program
             if (onlyData) allow.Add(HitType.Data);
             filtered = filtered.Where(h => allow.Contains(h.Type)).ToList();
         }
+        // Post-filter consolidation: guard against any residual duplicates (e.g., cache merge anomalies or
+        // future rule expansions adding duplicate config/data entries). This groups by (Type,Scope,Path) after
+        // ranking & primary filtering but before evidence key filtering / ordering.
+        if (filtered.Count > 1)
+        {
+            var finalMap = new Dictionary<string, AppHit>(StringComparer.OrdinalIgnoreCase);
+            int dupCollapsed = 0;
+            foreach (var h in filtered)
+            {
+                var key = $"{h.Type}|{h.Scope}|{h.Path}"; // path already normalized earlier
+                if (!finalMap.TryGetValue(key, out var exist))
+                {
+                    finalMap[key] = h;
+                    continue;
+                }
+                dupCollapsed++;
+                // Merge sources (distinct)
+                var srcSet = new HashSet<string>(exist.Source, StringComparer.OrdinalIgnoreCase);
+                foreach (var s in h.Source) srcSet.Add(s);
+                // Merge evidence (union, append distinct values pipe-separated)
+                Dictionary<string,string>? evidenceMerged = null;
+                if (exist.Evidence != null || h.Evidence != null)
+                {
+                    evidenceMerged = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                    if (exist.Evidence != null)
+                        foreach (var kv in exist.Evidence) evidenceMerged[kv.Key] = kv.Value;
+                    if (h.Evidence != null)
+                    {
+                        foreach (var kv in h.Evidence)
+                        {
+                            if (evidenceMerged.TryGetValue(kv.Key, out var existingVal))
+                            {
+                                if (existingVal.Equals(kv.Value, StringComparison.OrdinalIgnoreCase)) continue;
+                                var parts = existingVal.Split('|');
+                                if (!parts.Any(p => p.Equals(kv.Value, StringComparison.OrdinalIgnoreCase)))
+                                    evidenceMerged[kv.Key] = existingVal + "|" + kv.Value;
+                            }
+                            else
+                            {
+                                evidenceMerged[kv.Key] = kv.Value;
+                            }
+                        }
+                    }
+                }
+                // Choose higher confidence (they should typically be equal); tie-break by: machine scope already same, then more sources.
+                var chosen = h.Confidence > exist.Confidence + 1e-9 ? h : exist;
+                if (Math.Abs(h.Confidence - exist.Confidence) < 1e-9 && h.Source.Length > exist.Source.Length) chosen = h;
+                finalMap[key] = chosen with { Source = srcSet.ToArray(), Evidence = evidenceMerged };
+            }
+            if (dupCollapsed > 0)
+            {
+                filtered = finalMap.Values.OrderByDescending(h => h.Confidence).ThenBy(h => h.Type.ToString()).ToList();
+                if (verbose)
+                {
+                    try { Console.Error.WriteLine($"[verbose] post-filter dedup collapsed {dupCollapsed} duplicate entries"); } catch { }
+                }
+            }
+        }
+
         if (filtered.Count == 0)
         {
             // Persist an empty record to establish index presence for the query if not cached already.
