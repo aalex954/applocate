@@ -48,6 +48,7 @@ Options (implemented CLI surface):
 	--threads <n>              Max parallel source queries (default=min(logical CPU,16))
 	--trace                    Per-source timing diagnostics (stderr; prefix [trace])
 	--evidence                 Include evidence dictionary (if available)
+	--evidence-keys <k1,k2>    Only include specified evidence keys (implies --evidence)
 	--refresh-index            Ignore cached record
 	--clear-cache              Delete index file before running (rebuild cache)
 	--index-path <file>        Override index file path
@@ -200,7 +201,7 @@ In Progress / Near Term:
 - [ ] Expanded config/data heuristics acceptance scenarios
 - [x] Ranking refinement (phase 2: distance weighting, diminishing returns tuning, span scoring)
 - [ ] Performance tuning (parallel scheduling, cold vs warm benchmarks)
-- [ ] Evidence output stabilization & selective evidence emission tests
+- [x] Evidence output stabilization & selective evidence emission tests
 - [ ] Plugin loading (data-only alias & rule packs)
 - [ ] DI/registration refactor for sources (clean injection seams)
 - [ ] JSON schema contract & versioning documentation

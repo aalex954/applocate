@@ -34,25 +34,24 @@ public class RunningAcceptanceTests
     [Fact]
     public void RunningFlag_FindsLaunchedProcessExe()
     {
-        // Launch a lightweight child process with a stable executable name (e.g., notepad if available) else fall back to powershell itself.
-        // Prefer system notepad because its filename includes 'notepad'; query will approximate.
+        // Launch a lightweight headless process (cmd.exe /c timeout) to avoid GUI popups in CI.
+        // Fallback to current process name if cmd unavailable (unlikely on Windows GitHub runner).
         Process? child = null;
         string query;
         try
         {
-            var notepadPath = Environment.ExpandEnvironmentVariables("%SystemRoot%/System32/notepad.exe");
-            if (File.Exists(notepadPath))
+            var cmdPath = Environment.ExpandEnvironmentVariables("%SystemRoot%/System32/cmd.exe");
+            if (File.Exists(cmdPath))
             {
-                child = Process.Start(new ProcessStartInfo(notepadPath){ UseShellExecute=false });
-                query = "notepad";
+                child = Process.Start(new ProcessStartInfo(cmdPath, "/c timeout /t 2 >NUL") { UseShellExecute=false, CreateNoWindow=true, RedirectStandardOutput=true, RedirectStandardError=true });
+                query = "cmd"; // executable base name
             }
             else
             {
-                var pwsh = Environment.ProcessPath!; // current dotnet or testhost; fall back to its process name
                 child = Process.GetCurrentProcess();
                 query = child.ProcessName.ToLowerInvariant();
             }
-            System.Threading.Thread.Sleep(250); // brief delay to ensure process registered
+            System.Threading.Thread.Sleep(300); // ensure OS registers process
             var (code, json, err) = Run(query, "--json", "--running", "--limit", "200", "--refresh-index");
             Assert.Contains(code, new[]{0,1});
             Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
@@ -76,7 +75,7 @@ public class RunningAcceptanceTests
         }
         finally
         {
-            try { if (child != null && !child.HasExited && child.ProcessName.Equals("notepad", StringComparison.OrdinalIgnoreCase)) child.Kill(); } catch { }
+            try { if (child != null && !child.HasExited) child.Kill(); } catch { }
         }
     }
 

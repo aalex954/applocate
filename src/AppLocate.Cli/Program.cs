@@ -52,7 +52,9 @@ public static class Program
         var indexPathOpt = new Option<string>("--index-path") { Description = "Custom index file path (default %LOCALAPPDATA%/AppLocate/index.json)" };
         var refreshIndexOpt = new Option<bool>("--refresh-index") { Description = "Force refresh index for this query (ignore cached)" };
         var clearCacheOpt = new Option<bool>("--clear-cache") { Description = "Delete the on-disk index file before running (cache reset)" };
-        var evidenceOpt = new Option<bool>("--evidence") { Description = "Include evidence keys when available" };
+    var evidenceOpt = new Option<bool>("--evidence") { Description = "Include evidence keys when available" };
+    // New: selective evidence filtering (comma-separated list); implicitly enables evidence emission
+    var evidenceKeysOpt = new Option<string>("--evidence-keys") { Description = "Comma-separated list of evidence keys to include (implies --evidence)" };
         var verboseOpt = new Option<bool>("--verbose") { Description = "Verbose diagnostics (warnings)" };
         var noColorOpt = new Option<bool>("--no-color") { Description = "Disable ANSI colors" };
         var root = new RootCommand("Locate application installation directories, executables, and config/data paths")
@@ -60,7 +62,7 @@ public static class Program
             queryArg,
             jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt, allOpt,
             exeOpt, installDirOpt, configOpt, dataOpt, runningOpt, pidOpt, packageSourceOpt, threadsOpt, traceOpt,
-            limitOpt, confMinOpt, timeoutOpt, indexPathOpt, refreshIndexOpt, clearCacheOpt, evidenceOpt, verboseOpt, noColorOpt
+            limitOpt, confMinOpt, timeoutOpt, indexPathOpt, refreshIndexOpt, clearCacheOpt, evidenceOpt, evidenceKeysOpt, verboseOpt, noColorOpt
         };
         // Manual token extraction (robust multi-word + -- sentinel)
         var parse = root.Parse(args);
@@ -97,6 +99,7 @@ public static class Program
                               "  --refresh-index       Ignore cached results\n" +
                               "  --clear-cache         Delete index file before query (forces full rebuild)\n" +
                               "  --evidence            Include evidence keys\n" +
+                              "  --evidence-keys <k1,k2>  Only include specified evidence keys (implies --evidence)\n" +
                               "  --verbose             Verbose diagnostics\n" +
                               "  --no-color            Disable ANSI colors\n" +
                               "  --                    Treat following tokens as literal query");
@@ -160,6 +163,21 @@ public static class Program
             if (threads.Value > 128) { Console.Error.WriteLine("--threads too large (max 128)"); return 2; }
         }
         bool evidence = Has("--evidence");
+        string? evidenceKeysRaw = null;
+        for (int i = 0; i < tokens.Count - 1; i++)
+        {
+            if (string.Equals(tokens[i].Value, "--evidence-keys", StringComparison.OrdinalIgnoreCase))
+            {
+                var candidate = tokens[i + 1].Value;
+                if (!candidate.StartsWith('-')) evidenceKeysRaw = candidate; // raw CSV
+            }
+        }
+        HashSet<string>? evidenceKeyFilter = null;
+        if (!string.IsNullOrWhiteSpace(evidenceKeysRaw))
+        {
+            evidence = true; // implicit enable
+            evidenceKeyFilter = new HashSet<string>(evidenceKeysRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(s => s), StringComparer.OrdinalIgnoreCase);
+        }
         bool verbose = Has("--verbose");
         bool noColor = Has("--no-color");
         bool refreshIndex = Has("--refresh-index");
@@ -221,17 +239,17 @@ public static class Program
             return 2;
         }
         if (!noColor && (Console.IsOutputRedirected || Console.IsErrorRedirected)) noColor = true;
-        return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, verbose, trace, noColor, indexPath, refreshIndex, clearCache);
+    return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, evidenceKeyFilter, verbose, trace, noColor, indexPath, refreshIndex, clearCache);
     }
 
-    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, bool verbose, bool trace, bool noColor, string? indexPath, bool refreshIndex, bool clearCache)
+    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, HashSet<string>? evidenceKeyFilter, bool verbose, bool trace, bool noColor, string? indexPath, bool refreshIndex, bool clearCache)
     {
         if (string.IsNullOrWhiteSpace(query)) return 2;
         if (verbose)
         {
             try
             {
-                Console.Error.WriteLine($"[verbose] query='{query}' strict={strict} all={all} onlyExe={onlyExe} onlyInstall={onlyInstall} onlyConfig={onlyConfig} onlyData={onlyData} running={running} pid={(pid?.ToString() ?? "-")} pkgSrc={showPackageSources} evidence={evidence} json={json} csv={csv} text={text} confMin={confidenceMin} limit={(limit?.ToString() ?? "-")} threads={(threads?.ToString() ?? "-")} idxPath={(indexPath ?? "(default)")} refreshIndex={refreshIndex} clearCache={clearCache}");
+                Console.Error.WriteLine($"[verbose] query='{query}' strict={strict} all={all} onlyExe={onlyExe} onlyInstall={onlyInstall} onlyConfig={onlyConfig} onlyData={onlyData} running={running} pid={(pid?.ToString() ?? "-")} pkgSrc={showPackageSources} evidence={evidence} evidenceKeys={(evidenceKeyFilter==null?"(all|none)":string.Join(',',evidenceKeyFilter))} json={json} csv={csv} text={text} confMin={confidenceMin} limit={(limit?.ToString() ?? "-")} threads={(threads?.ToString() ?? "-")} idxPath={(indexPath ?? "(default)")} refreshIndex={refreshIndex} clearCache={clearCache}");
             }
             catch { }
         }
@@ -603,6 +621,38 @@ public static class Program
             }
             catch { }
         }
+        // Evidence filtering & deterministic ordering
+        if (evidence)
+        {
+            for (int i = 0; i < filtered.Count; i++)
+            {
+                var ev = filtered[i].Evidence;
+                if (ev == null) continue;
+                // Filter if key list provided
+                if (evidenceKeyFilter != null)
+                {
+                    var toRemove = ev.Keys.Where(k => !evidenceKeyFilter.Contains(k)).ToList();
+                    foreach (var k in toRemove) ev.Remove(k);
+                }
+                if (ev.Count == 0)
+                {
+                    filtered[i] = filtered[i] with { Evidence = null };
+                    continue;
+                }
+                // Deterministic ordering: rebuild dictionary with keys sorted ascending
+                var ordered = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var k in ev.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase)) ordered[k] = ev[k];
+                filtered[i] = filtered[i] with { Evidence = ordered };
+            }
+        }
+        else
+        {
+            // Ensure evidence suppressed when not requested
+            for (int i = 0; i < filtered.Count; i++)
+                if (filtered[i].Evidence != null)
+                    filtered[i] = filtered[i] with { Evidence = null };
+        }
+
         EmitResults(filtered, json, csv, text, noColor, showPackageSources);
     if (!servedFromCache && indexStore != null && indexFile != null)
         {
