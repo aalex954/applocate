@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Runtime.CompilerServices; // for EnumeratorCancellation attribute
 using AppLocate.Core.Abstractions;
 using AppLocate.Core.Sources;
 using Xunit;
@@ -12,7 +13,7 @@ public sealed class SourceRegistryTests
     {
         public string Name { get; }
         public DummySource(string name) => Name = name;
-        public async IAsyncEnumerable<AppLocate.Core.Models.AppHit> QueryAsync(string query, SourceOptions options, System.Threading.CancellationToken ct)
+    public async IAsyncEnumerable<AppLocate.Core.Models.AppHit> QueryAsync(string query, SourceOptions options, [EnumeratorCancellation] System.Threading.CancellationToken ct)
         {
             await System.Threading.Tasks.Task.Yield();
             yield break;
