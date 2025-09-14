@@ -558,6 +558,243 @@ public static class Program
                 }
             }
         }
+        // Confidence floor for paired install dirs: avoid surfacing 0.00 for a directory that clearly hosts a high-confidence exe
+        if (scored.Count > 0)
+        {
+            var exeByDir2 = new Dictionary<string,double>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ex in scored.Where(x => x.Type == HitType.Exe))
+            {
+                try
+                {
+                    var d = Path.GetDirectoryName(ex.Path);
+                    if (string.IsNullOrEmpty(d)) continue;
+                    if (!exeByDir2.TryGetValue(d, out var cur) || ex.Confidence > cur) exeByDir2[d] = ex.Confidence;
+                } catch { }
+            }
+            for (int i = 0; i < scored.Count; i++)
+            {
+                var h = scored[i];
+                if (h.Type != HitType.InstallDir) continue;
+                if (!exeByDir2.TryGetValue(h.Path, out var exConf) || exConf < 0.5) continue; // only if associated exe fairly strong
+                if (h.Confidence > 0.00001) continue; // already has non-zero
+                // Provide small floor so user sees a non-zero but still low value
+                var floor = 0.08;
+                var ev = h.Evidence != null ? new Dictionary<string,string>(h.Evidence, StringComparer.OrdinalIgnoreCase) : new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                ev["DirMinFloor"] = floor.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                scored[i] = h with { Confidence = floor, Evidence = ev };
+            }
+        }
+        // Orphan install dir enrichment: some package roots (e.g., Winget portable) store the real exe one level deeper
+        // resulting in an install dir hit without a paired exe. We do a shallow (depth=2) probe for a single primary exe name
+        // matching the query tokens to pair it, avoiding broad recursion.
+        try
+        {
+            if (scored.Count > 0)
+            {
+                // Build fast lookup of exe directories we already have
+                var existingExeDirs = new HashSet<string>(scored.Where(x => x.Type == HitType.Exe)
+                                                               .Select(x => Path.GetDirectoryName(x.Path)!)
+                                                               .Where(p => !string.IsNullOrEmpty(p)), StringComparer.OrdinalIgnoreCase);
+                // Candidate orphan roots: install dirs that have NO exe directly in same path and not generic system dirs
+                var orphanDirs = scored.Where(x => x.Type == HitType.InstallDir && !existingExeDirs.Contains(x.Path))
+                                       .Take(12) // safety cap
+                                       .ToList();
+                if (orphanDirs.Count > 0)
+                {
+                    var normTokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    foreach (var od in orphanDirs)
+                    {
+                        try
+                        {
+                            // Quick directory existence & skip if huge (heuristic: >200 entries top-level)
+                            if (!Directory.Exists(od.Path)) continue;
+                            int entryCount = 0;
+                            IEnumerable<string> subDirs = Array.Empty<string>();
+                            try
+                            {
+                                subDirs = Directory.EnumerateDirectories(od.Path, "*", SearchOption.TopDirectoryOnly);
+                                entryCount = subDirs.Take(201).Count();
+                                if (entryCount > 200) continue; // too large, skip expensive scan
+                            } catch { }
+                            // Probe first-level subdirectories for a bin folder OR token-matching folder.
+                            string? primaryLeaf = subDirs.FirstOrDefault(d => Path.GetFileName(d).Equals("bin", StringComparison.OrdinalIgnoreCase));
+                            if (primaryLeaf == null)
+                            {
+                                primaryLeaf = subDirs.FirstOrDefault(d =>
+                                {
+                                    var leaf = Path.GetFileName(d).ToLowerInvariant();
+                                    return normTokens.Length > 0 && normTokens.All(t => leaf.Contains(t));
+                                });
+                            }
+                            string? depth2Root = null;
+                            bool depth2 = false;
+                            // Depth=2 heuristic (Winget portable): look for a single *version* dir then bin beneath OR a single bin beneath any version-like dir.
+                            if (primaryLeaf == null)
+                            {
+                                // Allow small fan-out (<=8) to avoid large scans
+                                var subDirArr = subDirs.Take(9).ToArray();
+                                if (subDirArr.Length <= 8)
+                                {
+                                    // Prefer one directory whose name looks like version (contains digits or '-')
+                                    var versionLike = subDirArr.Where(d =>
+                                    {
+                                        var leaf = Path.GetFileName(d);
+                                        return leaf.Any(char.IsDigit) || leaf.Contains('-');
+                                    }).OrderBy(d => Path.GetFileName(d).Length).ToList();
+                                    foreach (var candidate in versionLike)
+                                    {
+                                        IEnumerable<string> sub2 = Array.Empty<string>();
+                                        try { sub2 = Directory.EnumerateDirectories(candidate, "*", SearchOption.TopDirectoryOnly); } catch { }
+                                        var sub2Arr = sub2.Take(9).ToArray();
+                                        // Look for bin
+                                        var binDir = sub2Arr.FirstOrDefault(d => Path.GetFileName(d).Equals("bin", StringComparison.OrdinalIgnoreCase));
+                                        if (binDir != null)
+                                        {
+                                            depth2Root = candidate;
+                                            primaryLeaf = binDir;
+                                            depth2 = true;
+                                            break;
+                                        }
+                                        // Or a nested folder matching tokens
+                                        var tokenDir = sub2Arr.FirstOrDefault(d =>
+                                        {
+                                            var leaf = Path.GetFileName(d).ToLowerInvariant();
+                                            return normTokens.Length > 0 && normTokens.All(t => leaf.Contains(t));
+                                        });
+                                        if (tokenDir != null)
+                                        {
+                                            depth2Root = candidate;
+                                            primaryLeaf = tokenDir;
+                                            depth2 = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            if (primaryLeaf == null) continue; // still nothing
+                            // Enumerate executables in that leaf (top-level only)
+                            IEnumerable<string> exes = Array.Empty<string>();
+                            try { exes = Directory.EnumerateFiles(primaryLeaf, "*.exe", SearchOption.TopDirectoryOnly); } catch { }
+                            string? chosen = null; double chosenScore = double.MinValue;
+                            foreach (var exePath in exes)
+                            {
+                                var name = Path.GetFileNameWithoutExtension(exePath).ToLowerInvariant();
+                                // Score simple: token coverage count
+                                int tokenMatches = 0;
+                                foreach (var t in normTokens) if (name.Contains(t)) tokenMatches++;
+                                if (tokenMatches == 0) continue;
+                                double score = (double)tokenMatches / Math.Max(1, normTokens.Length);
+                                if (score > chosenScore)
+                                {
+                                    chosenScore = score;
+                                    chosen = exePath;
+                                }
+                            }
+                            if (chosen != null && File.Exists(chosen))
+                            {
+                                // Add exe hit with conservative confidence baseline (rescored later).
+                                Dictionary<string,string>? ev = null;
+                                if (evidence)
+                                {
+                                    ev = new(StringComparer.OrdinalIgnoreCase)
+                                    {
+                                        { depth2 ? "OrphanDirProbe2" : "OrphanDirProbe", od.Path }
+                                    };
+                                    if (depth2 && depth2Root != null)
+                                    {
+                                        ev["Depth2Root"] = depth2Root;
+                                        ev["PrimaryLeaf"] = primaryLeaf;
+                                    }
+                                }
+                                scored.Add(new AppHit(HitType.Exe, od.Scope, chosen, null, od.PackageType, new[] { "OrphanProbe" }, 0, ev));
+                                // If depth2 discovered a more accurate install root (version folder), surface it as InstallDir if not already present.
+                                if (depth2 && depth2Root != null && Directory.Exists(depth2Root) && !scored.Any(h => h.Type == HitType.InstallDir && string.Equals(h.Path, depth2Root, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    Dictionary<string,string>? dirEv = null;
+                                    if (evidence)
+                                    {
+                                        dirEv = new(StringComparer.OrdinalIgnoreCase)
+                                        {
+                                            { "DerivedInstallDir", "true" },
+                                            { "FromDepth2", od.Path }
+                                        };
+                                    }
+                                    scored.Add(new AppHit(HitType.InstallDir, od.Scope, depth2Root, null, od.PackageType, new[] { "OrphanProbe" }, 0, dirEv));
+                                }
+                            }
+                            else if (!depth2)
+                            {
+                                // Explicit 2-hop fallback: look for <orphan>/<versionLike>/(bin|token)/<queryLike>.exe pattern
+                                // Only attempt if fan-out small
+                                var subDirArr2 = subDirs.Take(9).ToArray();
+                                if (subDirArr2.Length <= 8)
+                                {
+                                    foreach (var vdir in subDirArr2)
+                                    {
+                                        var leafName = Path.GetFileName(vdir);
+                                        if (!(leafName.Any(char.IsDigit) || leafName.Contains('-'))) continue; // version-like
+                                        IEnumerable<string> innerDirs = Array.Empty<string>();
+                                        try { innerDirs = Directory.EnumerateDirectories(vdir, "*", SearchOption.TopDirectoryOnly); } catch { }
+                                        var innerArr = innerDirs.Take(9).ToArray();
+                                        foreach (var inner in innerArr)
+                                        {
+                                            var innerLeaf = Path.GetFileName(inner).ToLowerInvariant();
+                                            if (!(innerLeaf == "bin" || (normTokens.Length > 0 && normTokens.All(t => innerLeaf.Contains(t))))) continue;
+                                            IEnumerable<string> innerExes = Array.Empty<string>();
+                                            try { innerExes = Directory.EnumerateFiles(inner, "*.exe", SearchOption.TopDirectoryOnly); } catch { }
+                                            foreach (var exePath in innerExes)
+                                            {
+                                                var name = Path.GetFileNameWithoutExtension(exePath).ToLowerInvariant();
+                                                if (!name.Contains(normalized)) continue;
+                                                if (!File.Exists(exePath)) continue;
+                                                Dictionary<string,string>? ev2 = null;
+                                                if (evidence)
+                                                {
+                                                    ev2 = new(StringComparer.OrdinalIgnoreCase)
+                                                    {
+                                                        { "OrphanDirProbe2Pattern", od.Path },
+                                                        { "VersionDir", vdir },
+                                                        { "Leaf", inner }
+                                                    };
+                                                }
+                                                scored.Add(new AppHit(HitType.Exe, od.Scope, exePath, null, od.PackageType, new[] { "OrphanProbe" }, 0, ev2));
+                                                if (!scored.Any(h => h.Type == HitType.InstallDir && string.Equals(h.Path, vdir, StringComparison.OrdinalIgnoreCase)))
+                                                {
+                                                    Dictionary<string,string>? dirEv2 = null;
+                                                    if (evidence)
+                                                    {
+                                                        dirEv2 = new(StringComparer.OrdinalIgnoreCase)
+                                                        {
+                                                            { "DerivedInstallDir", "true" },
+                                                            { "FromPatternDepth2", od.Path }
+                                                        };
+                                                    }
+                                                    scored.Add(new AppHit(HitType.InstallDir, od.Scope, vdir, null, od.PackageType, new[] { "OrphanProbe" }, 0, dirEv2));
+                                                }
+                                                goto DonePattern; // only take first matching pattern
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            DonePattern: ;
+                        }
+                        catch { }
+                    }
+                    // Re-score only newly added orphan exe hits
+                    for (int i = 0; i < scored.Count; i++)
+                    {
+                        var h = scored[i];
+                        if (h.Type == HitType.Exe && h.Confidence == 0 && h.Source.Length == 1 && h.Source[0] == "OrphanProbe")
+                        {
+                            scored[i] = h with { Confidence = Ranker.Score(normalized, h) };
+                        }
+                    }
+                }
+            }
+        }
+        catch { }
+
         var filtered = scored.Where(h => h.Confidence >= confidenceMin).OrderByDescending(h => h.Confidence).ToList();
         // Type filtering if any explicit type flags specified
         if (onlyExe || onlyInstall || onlyConfig || onlyData)
@@ -571,26 +808,132 @@ public static class Program
         }
         if (!all)
         {
-            // Collapse to best per HitType (keeping highest confidence). If multiple scopes for same type, prefer machine over user if confidence ties.
-            var bestMap = new Dictionary<HitType, AppHit>();
-            foreach (var h in filtered)
+            // Enhanced collapse strategy:
+            //  * Always surface top exe plus additional high-confidence exe(s) from distinct directories (pair mode)
+            //  * For each surfaced exe ensure its install directory is included (create synthetic if necessary)
+            //  * Preserve multi-version install dir family (variant siblings) for the top install dir (FL Studio case)
+            //  * Drop orphan install dirs that are not paired with any selected exe nor variant sibling
+            var selected = new List<AppHit>();
+
+            // ----- Phase 1: Exe pairing -----
+            var exeGroups = filtered.Where(h => h.Type == HitType.Exe)
+                                     .OrderByDescending(h => h.Confidence)
+                                     .ToList();
+            var selectedExeDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            double topExeConf = exeGroups.Count > 0 ? exeGroups[0].Confidence : 0;
+            int exePairCap = 3; // safety cap to avoid flooding output
+            for (int i = 0; i < exeGroups.Count && selectedExeDirs.Count < exePairCap; i++)
             {
-                if (!bestMap.TryGetValue(h.Type, out var existing))
+                var ex = exeGroups[i];
+                var dir = System.IO.Path.GetDirectoryName(ex.Path);
+                if (string.IsNullOrEmpty(dir)) continue;
+                if (selectedExeDirs.Contains(dir)) continue;
+                // Inclusion criteria: always take first; subsequent need to be within delta or above absolute threshold
+                if (i == 0 || ex.Confidence >= topExeConf - 0.11 || ex.Confidence >= 0.60)
                 {
-                    bestMap[h.Type] = h;
-                    continue;
+                    selected.Add(ex);
+                    selectedExeDirs.Add(dir);
                 }
-                bool replace = false;
-                if (h.Confidence > existing.Confidence + 1e-9) replace = true; // strictly higher
-                else if (Math.Abs(h.Confidence - existing.Confidence) < 1e-9)
-                {
-                    // Tie-break: prefer machine scope over user; else prefer one with more sources (evidence synergy)
-                    if (existing.Scope != Scope.Machine && h.Scope == Scope.Machine) replace = true;
-                    else if (h.Source.Length > existing.Source.Length) replace = true;
-                }
-                if (replace) bestMap[h.Type] = h;
             }
-            filtered = bestMap.Values.OrderByDescending(h => h.Confidence).ThenBy(h => h.Type.ToString()).ToList();
+
+            // ----- Phase 2: Ensure install dir for each selected exe -----
+            var installLookup = filtered.Where(h => h.Type == HitType.InstallDir)
+                                        .ToDictionary(h => h.Path, h => h, StringComparer.OrdinalIgnoreCase);
+            foreach (var dir in selectedExeDirs)
+            {
+                if (installLookup.TryGetValue(dir, out var existingDirHit))
+                {
+                    if (!selected.Any(h => h.Type == HitType.InstallDir && string.Equals(h.Path, dir, StringComparison.OrdinalIgnoreCase)))
+                        selected.Add(existingDirHit);
+                }
+                else
+                {
+                    // Synthetic directory hit (rare). Clone minimal evidence from its exe.
+                    var exeRef = selected.First(e => e.Type == HitType.Exe && System.IO.Path.GetDirectoryName(e.Path) == dir);
+                    Dictionary<string,string>? ev = null;
+                    if (evidence && exeRef.Evidence != null)
+                    {
+                        ev = new Dictionary<string,string>(exeRef.Evidence, StringComparer.OrdinalIgnoreCase);
+                        ev["AutoPair"] = "1";
+                    }
+                    else if (evidence)
+                    {
+                        ev = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase) { { "AutoPair", "1" } };
+                    }
+                    selected.Add(new AppHit(HitType.InstallDir, exeRef.Scope, dir!, exeRef.Version, exeRef.PackageType, exeRef.Source, Math.Min(exeRef.Confidence, 0.50), ev));
+                }
+            }
+
+            // ----- Phase 3: Variant sibling expansion for primary install dir family (reuse previous heuristic) -----
+            bool SameVariantFamily(string a, string b)
+            {
+                try
+                {
+                    var nameA = System.IO.Path.GetFileName(a).ToLowerInvariant();
+                    var nameB = System.IO.Path.GetFileName(b).ToLowerInvariant();
+                    var tokensA = nameA.Split(new[]{' ','-','_'}, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    var tokensB = nameB.Split(new[]{' ','-','_'}, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    if (tokensA.Length < 2 || tokensB.Length < 2) return false;
+                    return tokensA[0] == tokensB[0] && tokensA[1] == tokensB[1];
+                }
+                catch { return false; }
+            }
+            // Determine primary install dir (highest confidence among already selected dir hits)
+            var selectedInstallDirs = selected.Where(h => h.Type == HitType.InstallDir)
+                                              .OrderByDescending(h => h.Confidence)
+                                              .ToList();
+            AppHit? primaryInstall = selectedInstallDirs.FirstOrDefault();
+            if (primaryInstall != null)
+            {
+                var allInstallDirs = filtered.Where(h => h.Type == HitType.InstallDir)
+                                             .OrderByDescending(h => h.Confidence)
+                                             .ToList();
+                int addedVariants = 0;
+                foreach (var cand in allInstallDirs)
+                {
+                    if (selected.Any(h => h.Type == HitType.InstallDir && string.Equals(h.Path, cand.Path, StringComparison.OrdinalIgnoreCase))) continue;
+                    if (!SameVariantFamily(primaryInstall.Path, cand.Path)) continue;
+                    if (cand.Confidence < primaryInstall.Confidence - 0.12) continue;
+                    var ev = cand.Evidence != null ? new Dictionary<string,string>(cand.Evidence, StringComparer.OrdinalIgnoreCase) : new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                    ev["VariantSibling"] = primaryInstall.Path;
+                    selected.Add(cand with { Evidence = ev });
+                    addedVariants++;
+                    if (addedVariants >= 3) break; // cap variant expansion
+                }
+            }
+
+            // ----- Phase 4: Single-best for remaining types (Config/Data/etc.) -----
+            var handledTypes = new HashSet<HitType> { HitType.Exe, HitType.InstallDir };
+            foreach (var typeGroup in filtered.Where(h => !handledTypes.Contains(h.Type)).GroupBy(h => h.Type))
+            {
+                AppHit? best = null;
+                foreach (var h in typeGroup)
+                {
+                    if (best == null) { best = h; continue; }
+                    var current = best;
+                    bool replace = false;
+                    if (h.Confidence > current.Confidence + 1e-9) replace = true;
+                    else if (Math.Abs(h.Confidence - current.Confidence) < 1e-9)
+                    {
+                        if (current.Scope != Scope.Machine && h.Scope == Scope.Machine) replace = true;
+                        else if (h.Source.Length > current.Source.Length) replace = true;
+                    }
+                    if (replace) best = h;
+                }
+                if (best != null) selected.Add(best);
+            }
+
+            // ----- Phase 5: Remove orphan install dirs (those without a selected exe and not marked VariantSibling) -----
+            var exeDirSet = selected.Where(h => h.Type == HitType.Exe)
+                                    .Select(h => System.IO.Path.GetDirectoryName(h.Path))
+                                    .Where(p => !string.IsNullOrEmpty(p))
+                                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            selected = selected.Where(h => h.Type != HitType.InstallDir || exeDirSet.Contains(h.Path) || (h.Evidence != null && h.Evidence.ContainsKey("VariantSibling")))
+                               .ToList();
+
+            filtered = selected.OrderByDescending(h => h.Confidence)
+                                .ThenBy(h => h.Type.ToString())
+                                .ToList();
         }
         if (limit.HasValue) filtered = filtered.Take(limit.Value).ToList();
 
