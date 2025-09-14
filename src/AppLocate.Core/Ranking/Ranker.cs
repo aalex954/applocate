@@ -69,7 +69,10 @@ public static class Ranker
         var path = hit.Path ?? string.Empty;
         var lowerPath = path.ToLowerInvariant();
         var query = normalizedQuery.ToLowerInvariant();
-        double score = 0;
+    double score = 0;
+    // (1) Multi-token alias normalization: collapse spaces & punctuation for alias equivalence/fuzzy (e.g., "oh my posh")
+    string collapsedQuery = new string(query.Where(ch => !(ch == ' ' || ch == '-' || ch == '.')).ToArray());
+    if (collapsedQuery.Length < 2) collapsedQuery = query;
 
         // 1. Token set similarity (Jaccard) over filename & parent directory names
         var fileName = Safe(() => System.IO.Path.GetFileNameWithoutExtension(path)?.ToLowerInvariant());
@@ -104,15 +107,12 @@ public static class Ranker
             score += 0.15; // fallback simple substring when tokenization gives nothing
         }
 
-        // 1c. Collapsed substring fuzzy: if no token coverage and no direct substring (with spaces), try space-stripped comparison
+        // 1c. Collapsed substring fuzzy: if no token coverage and no direct substring (with spaces), try collapsed comparison
         if (tokenCoverage == 0)
         {
-            var collapsedQuery = query.Replace(" ", string.Empty);
             var collapsedName = (fileName ?? string.Empty).Replace(" ", string.Empty);
             if (!string.IsNullOrEmpty(collapsedQuery) && collapsedName.Contains(collapsedQuery) && !fileName!.Equals(query, StringComparison.OrdinalIgnoreCase))
-            {
                 score += 0.08; // moderate fuzzy boost
-            }
         }
 
         int extraTokenCountForCandidate = 0; // track tokens not in query for later noise penalty
@@ -175,11 +175,12 @@ public static class Ranker
             if (ev.ContainsKey("BrokenShortcut")) score -= 0.15; // penalty
         }
 
-        // 4. Path quality penalties (extend to installer caches & ephemeral roots)
-        if (lowerPath.Contains("\\temp\\") || lowerPath.Contains("/temp/") || lowerPath.Contains("%temp%")) score -= 0.10; // ephemeral (handles mixed separators)
-        if (lowerPath.Contains("\\installer\\") || lowerPath.EndsWith(".tmp.exe", StringComparison.OrdinalIgnoreCase)) score -= 0.08;
-        if (lowerPath.Contains("edgeupdate\\temp")) score -= 0.05; // updater staging area
-        if (lowerPath.Contains("appdata\\local\\temp")) score -= 0.05;
+    // 4. Path quality penalties (extend to installer caches & ephemeral roots) – stronger temp/staging demotion
+    bool tempLike = lowerPath.Contains("\\temp\\") || lowerPath.Contains("/temp/") || lowerPath.Contains("%temp%") || lowerPath.Contains("appdata\\local\\temp");
+    if (tempLike) score -= 0.18;
+    if (lowerPath.Contains("\\installer\\") || lowerPath.EndsWith(".tmp.exe", StringComparison.OrdinalIgnoreCase)) score -= 0.10;
+    if (lowerPath.Contains("edgeupdate\\temp")) score -= 0.06; // updater staging area
+    if (lowerPath.Contains("\\temp\\winget\\") || lowerPath.Contains("/temp/winget/")) score -= 0.15; // winget staging
 
         // 4b. Token span tightness & noise penalty: contiguous coverage wins over spaced with many unrelated inserts
         if (tokensQ.Count > 1 && !string.IsNullOrEmpty(fileName))
@@ -261,6 +262,30 @@ public static class Ranker
         // Clamp
         if (score > 1.0) score = 1.0;
         if (score < 0) score = 0;
+
+        // (3) Penalize uninstaller/update-cache executables unless explicitly searched for uninstall
+        if (hit.Type == HitType.Exe)
+        {
+            var fn = Safe(() => System.IO.Path.GetFileName(hit.Path)?.ToLowerInvariant()) ?? string.Empty;
+            bool uninstallLike = fn.StartsWith("unins") || fn.Contains("uninstall") || fn.Contains("unins000") || fn.Contains("update-cache") || (fn.Contains("setup") && fn.EndsWith(".exe"));
+            if (uninstallLike && !query.Contains("uninstall"))
+            {
+                score -= 0.25;
+                if (score < 0) score = 0;
+            }
+        }
+
+        // (4) Cross-app FL Cloud Plugins suppression
+        if (lowerPath.Contains("fl cloud plugins"))
+        {
+            bool related = query.Contains("fl") || query.Contains("cloud") || query.Contains("plugin");
+            if (!related)
+            {
+                score -= 0.20;
+                if (score < 0) score = 0;
+            }
+        }
+
         return score;
     }
 
