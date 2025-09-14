@@ -273,6 +273,15 @@ public static class Ranker
                 score -= 0.25;
                 if (score < 0) score = 0;
             }
+            // (5) Steam auxiliary dampening: if query is 'steam' and filename contains helper patterns (webhelper, errorreporter, service, xboxutil, sysinfo)
+            if (query == "steam")
+            {
+                if (fn.Contains("webhelper") || fn.Contains("errorreporter") || fn.Contains("service") || fn.Contains("xboxutil") || fn.Contains("sysinfo") || fn.Contains("steamservice"))
+                {
+                    score -= 0.18; // strong dampening so primary steam.exe remains clearly highest
+                    if (score < 0) score = 0;
+                }
+            }
         }
 
         // (4) Cross-app FL Cloud Plugins suppression

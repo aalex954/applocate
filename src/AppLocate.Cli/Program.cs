@@ -526,6 +526,38 @@ public static class Program
             }
             scored = adjusted;
         }
+        // Generic directory penalty (5): If a generic container directory (System32, */bin, mingw*/bin) appears as InstallDir and we already
+        // have a higher-confidence exe in that directory, demote the directory's confidence to reduce noise.
+        if (scored.Count > 1)
+        {
+            var exeByDir = new Dictionary<string,double>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ex in scored.Where(x => x.Type == HitType.Exe))
+            {
+                try
+                {
+                    var d = Path.GetDirectoryName(ex.Path);
+                    if (string.IsNullOrEmpty(d)) continue;
+                    if (!exeByDir.TryGetValue(d, out var cur) || ex.Confidence > cur) exeByDir[d] = ex.Confidence;
+                } catch { }
+            }
+            for (int i = 0; i < scored.Count; i++)
+            {
+                var h = scored[i];
+                if (h.Type != HitType.InstallDir) continue;
+                var p = h.Path.ToLowerInvariant();
+                bool generic = p.EndsWith("\\system32") || p.EndsWith("/system32") || p.EndsWith("\\bin") || p.EndsWith("/bin");
+                if (!generic) continue;
+                if (exeByDir.TryGetValue(h.Path, out var exConf) && exConf >= h.Confidence)
+                {
+                    var newConf = Math.Max(0, h.Confidence - 0.30); // strong demotion
+                    Dictionary<string,string>? ev = null;
+                    if (h.Evidence != null) ev = new Dictionary<string,string>(h.Evidence, StringComparer.OrdinalIgnoreCase);
+                    else ev = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                    ev["GenericDirPenalty"] = "1";
+                    scored[i] = h with { Confidence = newConf, Evidence = ev };
+                }
+            }
+        }
         var filtered = scored.Where(h => h.Confidence >= confidenceMin).OrderByDescending(h => h.Confidence).ToList();
         // Type filtering if any explicit type flags specified
         if (onlyExe || onlyInstall || onlyConfig || onlyData)
