@@ -223,11 +223,31 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Path release -Force | Out-Null
-          Get-ChildItem dist -Recurse -File | ForEach-Object {
-            Copy-Item $_.FullName -Destination (Join-Path release $_.Name) -Force
+          $distRoot = (Resolve-Path dist).Path
+          foreach ($ridDir in Get-ChildItem dist -Directory) {
+            $ridName = $ridDir.Name -replace '^applocate-',''
+            $targetDir = Join-Path release $ridName
+            New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+            Get-ChildItem $ridDir.FullName -Recurse -File | ForEach-Object {
+              Copy-Item $_.FullName -Destination (Join-Path $targetDir $_.Name) -Force
+            }
+            # Per-RID checksum file
+            $ridChecksum = Join-Path release "SHA256SUMS-$ridName.txt"
+            if (Test-Path $ridChecksum) { Remove-Item $ridChecksum -Force }
+            Get-ChildItem $targetDir -File | ForEach-Object {
+              $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+              "$hash  $ridName/$( $_.Name )" | Out-File $ridChecksum -Append -Encoding ascii
+            }
           }
-          # Combined checksum file
-          Get-ChildItem dist -Recurse -Filter SHA256SUMS.txt | Get-Content | Out-File release/SHA256SUMS-all.txt -Encoding ascii
+          # Combined checksum with relative paths (rid/filename)
+          $checksumAll = Join-Path release 'SHA256SUMS-all.txt'
+          if (Test-Path $checksumAll) { Remove-Item $checksumAll -Force }
+          Get-ChildItem release -Recurse -File | Where-Object { $_.Name -notmatch '^SHA256SUMS-' -and $_.Name -ne 'SHA256SUMS-all.txt' } | ForEach-Object {
+            if ($_.DirectoryName -eq (Resolve-Path release).Path) { return } # skip root files if any
+            $rel = (Resolve-Path $_.FullName).Path.Substring((Resolve-Path release).Path.Length + 1)
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+            "$hash  $rel" | Out-File $checksumAll -Append -Encoding ascii
+          }
 
       - name: Generate Release Notes (basic)
         id: notes
@@ -245,7 +265,7 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           files: |
-            release/*
+            release/**
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
