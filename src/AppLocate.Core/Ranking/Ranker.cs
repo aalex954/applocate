@@ -23,7 +23,12 @@ public static class Ranker
         { "edge", new[]{"microsoft edge"} },
         { "notepad++", new[]{"notepadpp","npp"} },
         { "powershell", new[]{"pwsh"} },
-        { "pwsh", new[]{"powershell"} }
+    { "pwsh", new[]{"powershell"} },
+    // oh-my-posh / winget id variants
+    { "ohmyposh", new[]{"oh my posh","jandedobbeleer.ohmyposh","oh-my-posh"} },
+    { "oh-my-posh", new[]{"oh my posh","ohmyposh","jandedobbeleer.ohmyposh"} },
+    { "oh my posh", new[]{"ohmyposh","oh-my-posh","jandedobbeleer.ohmyposh"} },
+    { "jandedobbeleer.ohmyposh", new[]{"oh my posh","ohmyposh","oh-my-posh"} }
     };
 
     private static bool AliasEquivalent(string query, string candidateFileName, out string? aliasMatched)
@@ -71,6 +76,21 @@ public static class Ranker
         var dirName = Safe(() => System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(path) ?? string.Empty)?.ToLowerInvariant());
         var tokensQ = Tokenize(query);
         var tokensCand = Tokenize(string.Join(' ', new[]{fileName, dirName}));
+        // Secondary punctuation/camel splits: expand token sets without overwriting originals
+        if (tokensQ.Count > 0)
+        {
+            foreach (var t in tokensQ.ToArray())
+            {
+                foreach (var exp in ExpandToken(t)) tokensQ.Add(exp);
+            }
+        }
+        if (tokensCand.Count > 0)
+        {
+            foreach (var t in tokensCand.ToArray())
+            {
+                foreach (var exp in ExpandToken(t)) tokensCand.Add(exp);
+            }
+        }
         double tokenCoverage = 0;
         if (tokensQ.Count > 0 && tokensCand.Count > 0)
         {
@@ -258,6 +278,72 @@ public static class Ranker
             set.Add(t);
         }
         return set;
+    }
+
+    // Expands a token by splitting camelCase/PascalCase and numeric boundaries; returns additional fragments.
+    private static System.Collections.Generic.IEnumerable<string> ExpandToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token) || token.Length < 4) yield break; // skip very short
+        // CamelCase: split before capitals (except first)
+        var segments = new System.Collections.Generic.List<string>();
+        var current = new System.Text.StringBuilder();
+        for (int i = 0; i < token.Length; i++)
+        {
+            char c = token[i];
+            if (i > 0 && char.IsUpper(c) && (current.Length > 0))
+            {
+                segments.Add(current.ToString());
+                current.Clear();
+            }
+            current.Append(c);
+        }
+        if (current.Length > 0) segments.Add(current.ToString());
+        if (segments.Count > 1)
+        {
+            foreach (var s in segments)
+            {
+                var ls = s.ToLowerInvariant();
+                if (ls.Length > 1) yield return ls;
+            }
+        }
+        // Additionally split numeric boundaries (e.g., app2go -> app, 2, go)
+        var numBuf = new System.Text.StringBuilder();
+        var alphaBuf = new System.Text.StringBuilder();
+        void FlushAlpha(System.Collections.Generic.List<string> output)
+        {
+            if (alphaBuf.Length > 1)
+            {
+                var v = alphaBuf.ToString().ToLowerInvariant();
+                if (v != token) output.Add(v);
+            }
+            alphaBuf.Clear();
+        }
+        void FlushNum(System.Collections.Generic.List<string> output)
+        {
+            if (numBuf.Length > 0)
+            {
+                var v = numBuf.ToString();
+                if (v != token) output.Add(v);
+            }
+            numBuf.Clear();
+        }
+        var extra = new System.Collections.Generic.List<string>();
+        foreach (var c in token)
+        {
+            if (char.IsDigit(c))
+            {
+                if (alphaBuf.Length > 0) FlushAlpha(extra);
+                numBuf.Append(c);
+            }
+            else
+            {
+                if (numBuf.Length > 0) FlushNum(extra);
+                alphaBuf.Append(c);
+            }
+        }
+        if (alphaBuf.Length > 0) FlushAlpha(extra);
+        if (numBuf.Length > 0) FlushNum(extra);
+        foreach (var e in extra) yield return e;
     }
 
     // Lightweight Levenshtein similarity ratio (1 - distance/maxLen)
