@@ -240,10 +240,22 @@ jobs:
             "$zipHash  $(Split-Path -Leaf $zipPath)" | Out-File $ridChecksumFile -Encoding ascii
             $perRidChecksums += $ridChecksumFile
           }
+          # Copy test report artifact if downloaded (artifact name: test-report)
+          if (Test-Path dist/test-report) {
+            $report = Get-ChildItem dist/test-report -Filter test-report.html -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($report) {
+              Copy-Item $report.FullName (Join-Path release 'test-report.html') -Force
+              $testZip = Join-Path release 'applocate-test-report.zip'
+              if (Test-Path $testZip) { Remove-Item $testZip -Force }
+              Compress-Archive -Path (Join-Path release 'test-report.html') -DestinationPath $testZip -Force
+              $testHash = (Get-FileHash $testZip -Algorithm SHA256).Hash
+              "$testHash  applocate-test-report.zip" | Out-File (Join-Path release 'SHA256SUMS-test-report.txt') -Encoding ascii
+            }
+          }
           # Combined checksum for all distributable assets (zips + sbom + reports)
           $checksumAll = Join-Path release 'SHA256SUMS-all.txt'
           if (Test-Path $checksumAll) { Remove-Item $checksumAll -Force }
-          Get-ChildItem release -File | Where-Object { $_.Name -notmatch '^SHA256SUMS-' -and $_.Name -ne 'SHA256SUMS-all.txt' } | ForEach-Object {
+          Get-ChildItem release -File | Where-Object { $_.Name -notmatch '^SHA256SUMS-' -and $_.Name -ne 'SHA256SUMS-all.txt' -and $_.Name -ne 'test-report.html' } | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
             "$hash  $($_.Name)" | Out-File $checksumAll -Append -Encoding ascii
           }
@@ -266,12 +278,11 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
           files: |
-            release/*.zip
+            release/applocate-*.zip
+            release/applocate-test-report.zip
             release/SHA256SUMS-all.txt
             release/SHA256SUMS-*.txt
             release/RELEASE_NOTES.md
-            release/test-report.*
-            release/sbom-*.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
