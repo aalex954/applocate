@@ -19,7 +19,7 @@ public class ThreadsOptionTests
     [Fact]
     public void ThreadsOne_SucceedsOrNoHits()
     {
-        var (code, _, err) = Run("code", "--json", "--threads", "1", "--limit", "2", "--refresh-index");
+    var (code, _, err) = Run("code", "--json", "--threads", "1", "--limit", "2");
         Assert.Contains(code, new[]{0,1});
         Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
     }
@@ -27,7 +27,7 @@ public class ThreadsOptionTests
     [Fact]
     public void ThreadsLarge_SucceedsOrNoHits()
     {
-        var (code, _, err) = Run("code", "--json", "--threads", "8", "--limit", "2", "--refresh-index");
+    var (code, _, err) = Run("code", "--json", "--threads", "8", "--limit", "2");
         Assert.Contains(code, new[]{0,1});
         Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
     }

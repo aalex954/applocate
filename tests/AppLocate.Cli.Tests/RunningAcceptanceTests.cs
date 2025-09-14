@@ -52,7 +52,7 @@ public class RunningAcceptanceTests
                 query = child.ProcessName.ToLowerInvariant();
             }
             System.Threading.Thread.Sleep(300); // ensure OS registers process
-            var (code, json, err) = Run(query, "--json", "--running", "--limit", "200", "--refresh-index");
+            var (code, json, err) = Run(query, "--json", "--running", "--limit", "200");
             Assert.Contains(code, new[]{0,1});
             Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
             if (code == 0 && child != null && !child.HasExited)

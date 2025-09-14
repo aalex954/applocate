@@ -65,7 +65,7 @@ public class AcceptanceTests
     var pathEnv = progDir;
 
         // Act
-    var (code, stdout, stderr) = RunWithEnv(new[]{"code","--json","--limit","10","--refresh-index"},
+    var (code, stdout, stderr) = RunWithEnv(new[]{"code","--json","--limit","10"},
             ("LOCALAPPDATA", localAppData),
             ("APPDATA", roaming),
             ("PATH", pathEnv));
@@ -126,7 +126,7 @@ public class AcceptanceTests
         var exe = CreateDummyExe(portableDir, "FooApp.exe");
         var pathEnv = portableDir; // Aid PATH search
 
-    var (code, stdout, stderr) = RunWithEnv(new[]{"fooapp","--json","--limit","10","--refresh-index"}, ("PATH", pathEnv));
+    var (code, stdout, stderr) = RunWithEnv(new[]{"fooapp","--json","--limit","10"}, ("PATH", pathEnv));
         Assert.Equal(0, code);
         Assert.True(string.IsNullOrWhiteSpace(stderr), $"Unexpected stderr: {stderr}");
         var doc = JsonDocument.Parse(stdout);
@@ -154,7 +154,7 @@ public class AcceptanceTests
         Directory.CreateDirectory(userData);
         File.WriteAllText(Path.Combine(userData, "Preferences"), "{}" );
         var pathEnv = appDir;
-    var (code, stdout, stderr) = RunWithEnv(new[]{"chrome","--json","--limit","15","--refresh-index"},
+    var (code, stdout, stderr) = RunWithEnv(new[]{"chrome","--json","--limit","15"},
             ("LOCALAPPDATA", local),
             ("PATH", pathEnv));
         Assert.Equal(0, code);
@@ -185,7 +185,7 @@ public class AcceptanceTests
         Environment.SetEnvironmentVariable("APPDATA", appData);
         try
         {
-            var (code, stdout, stderr) = RunWithEnv(new[]{"shortcut app","--json","--limit","10","--refresh-index"}, ("PATH", appDir));
+            var (code, stdout, stderr) = RunWithEnv(new[]{"shortcut app","--json","--limit","10"}, ("PATH", appDir));
             Assert.Equal(0, code);
             Assert.True(string.IsNullOrWhiteSpace(stderr), $"stderr: {stderr}");
             var doc = JsonDocument.Parse(stdout);
@@ -219,7 +219,7 @@ public class AcceptanceTests
         var install = Path.Combine(root, "FakeMsix.App_1.0.0.0_x64__12345", "App");
         var exe = CreateDummyExe(install, "FakeMsixApp.exe");
         var payload = $"[{{\"name\":\"FakeMsixApp\",\"family\":\"FakeMsixApp_12345\",\"install\":\"{install.Replace("\\", "\\\\")}\",\"version\":\"1.0.0.0\"}}]"; // escape backslashes for JSON
-    var (code, stdout, stderr) = RunWithEnv(new[]{"FakeMsixApp","--json","--limit","10","--refresh-index"}, ("APPLOCATE_MSIX_FAKE", payload));
+    var (code, stdout, stderr) = RunWithEnv(new[]{"FakeMsixApp","--json","--limit","10"}, ("APPLOCATE_MSIX_FAKE", payload));
         Assert.Equal(0, code);
         Assert.True(string.IsNullOrWhiteSpace(stderr), $"stderr: {stderr}");
         var doc = JsonDocument.Parse(stdout);

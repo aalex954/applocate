@@ -4,7 +4,6 @@ using AppLocate.Core.Models;
 using AppLocate.Core.Abstractions;
 using AppLocate.Core.Sources;
 using AppLocate.Core.Ranking;
-using AppLocate.Core.Indexing;
 using AppLocate.Core.Rules;
 
 namespace AppLocate.Cli;
@@ -51,9 +50,6 @@ public static class Program
         var limitOpt = new Option<int?>("--limit") { Description = "Maximum number of results to return" };
     var confMinOpt = new Option<double>("--confidence-min") { Description = "Minimum confidence threshold (0-1)" };
     var timeoutOpt = new Option<int>("--timeout") { Description = "Per-source timeout seconds (default 5)" };
-        var indexPathOpt = new Option<string>("--index-path") { Description = "Custom index file path (default %LOCALAPPDATA%/AppLocate/index.json)" };
-        var refreshIndexOpt = new Option<bool>("--refresh-index") { Description = "Force refresh index for this query (ignore cached)" };
-        var clearCacheOpt = new Option<bool>("--clear-cache") { Description = "Delete the on-disk index file before running (cache reset)" };
     var evidenceOpt = new Option<bool>("--evidence") { Description = "Include evidence keys when available" };
     // New: selective evidence filtering (comma-separated list); implicitly enables evidence emission
     var evidenceKeysOpt = new Option<string>("--evidence-keys") { Description = "Comma-separated list of evidence keys to include (implies --evidence)" };
@@ -64,7 +60,7 @@ public static class Program
             queryArg,
             jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt, allOpt,
             exeOpt, installDirOpt, configOpt, dataOpt, runningOpt, pidOpt, packageSourceOpt, threadsOpt, traceOpt,
-            limitOpt, confMinOpt, timeoutOpt, indexPathOpt, refreshIndexOpt, clearCacheOpt, evidenceOpt, evidenceKeysOpt, verboseOpt, noColorOpt
+            limitOpt, confMinOpt, timeoutOpt, evidenceOpt, evidenceKeysOpt, verboseOpt, noColorOpt
         };
         // Manual token extraction (robust multi-word + -- sentinel)
         var parse = root.Parse(args);
@@ -97,9 +93,7 @@ public static class Program
                               "  --limit <n>           Limit results\n" +
                               "  --confidence-min <f>  Min confidence 0-1\n" +
                               "  --timeout <sec>       Per-source timeout (default 5)\n" +
-                              "  --index-path <file>   Custom index file path\n" +
-                              "  --refresh-index       Ignore cached results\n" +
-                              "  --clear-cache         Delete index file before query (forces full rebuild)\n" +
+                              "  (cache removed: future snapshot index may return)\n" +
                               "  --evidence            Include evidence keys\n" +
                               "  --evidence-keys <k1,k2>  Only include specified evidence keys (implies --evidence)\n" +
                               "  --verbose             Verbose diagnostics\n" +
@@ -118,7 +112,7 @@ public static class Program
         {
             // Collect argument tokens that are not option values
             var valueOptions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-            { "--limit","--confidence-min","--timeout","--index-path" };
+            { "--limit","--confidence-min","--timeout" };
             var parts = new List<string>();
             for (int i = 0; i < tokens.Count; i++)
             {
@@ -241,128 +235,23 @@ public static class Program
             return 2;
         }
         if (!noColor && (Console.IsOutputRedirected || Console.IsErrorRedirected)) noColor = true;
-    return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, evidenceKeyFilter, verbose, trace, noColor, indexPath, refreshIndex, clearCache);
+    return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, evidenceKeyFilter, verbose, trace, noColor);
     }
 
-    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, HashSet<string>? evidenceKeyFilter, bool verbose, bool trace, bool noColor, string? indexPath, bool refreshIndex, bool clearCache)
+    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, HashSet<string>? evidenceKeyFilter, bool verbose, bool trace, bool noColor)
     {
         if (string.IsNullOrWhiteSpace(query)) return 2;
         if (verbose)
         {
             try
             {
-                Console.Error.WriteLine($"[verbose] query='{query}' strict={strict} all={all} onlyExe={onlyExe} onlyInstall={onlyInstall} onlyConfig={onlyConfig} onlyData={onlyData} running={running} pid={(pid?.ToString() ?? "-")} pkgSrc={showPackageSources} evidence={evidence} evidenceKeys={(evidenceKeyFilter==null?"(all|none)":string.Join(',',evidenceKeyFilter))} json={json} csv={csv} text={text} confMin={confidenceMin} limit={(limit?.ToString() ?? "-")} threads={(threads?.ToString() ?? "-")} idxPath={(indexPath ?? "(default)")} refreshIndex={refreshIndex} clearCache={clearCache}");
+        Console.Error.WriteLine($"[verbose] query='{query}' strict={strict} all={all} onlyExe={onlyExe} onlyInstall={onlyInstall} onlyConfig={onlyConfig} onlyData={onlyData} running={running} pid={(pid?.ToString() ?? "-")} pkgSrc={showPackageSources} evidence={evidence} evidenceKeys={(evidenceKeyFilter==null?"(all|none)":string.Join(',',evidenceKeyFilter))} json={json} csv={csv} text={text} confMin={confidenceMin} limit={(limit?.ToString() ?? "-")} threads={(threads?.ToString() ?? "-")}");
             }
             catch { }
         }
         var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
         var normalized = Normalize(query);
-
-        // Index load + short-circuit
-        string defaultIndexPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AppLocate", "index.json");
-        string effectiveIndexPath = string.IsNullOrWhiteSpace(indexPath) ? defaultIndexPath : indexPath;
-        IndexStore? indexStore = null; IndexFile? indexFile = null; bool servedFromCache = false;
-        // Composite key: query + flags that affect result shape (scope filters, strictness, running, type filters, confidence min rounding)
-        string compositeKey = BuildCompositeKey(normalized, user, machine, strict, running, pid, onlyExe, onlyInstall, onlyConfig, onlyData, confidenceMin);
-        try
-        {
-            indexStore = new IndexStore(effectiveIndexPath);
-            if (clearCache)
-            {
-                try
-                {
-                    if (File.Exists(effectiveIndexPath))
-                    {
-                        File.Delete(effectiveIndexPath);
-                        if (verbose) Console.Error.WriteLine("[verbose] cleared cache file");
-                    }
-                }
-                catch (Exception dx) { if (verbose) Console.Error.WriteLine($"[warn] clear-cache failed: {dx.Message}"); }
-            }
-            indexFile = indexStore.Load();
-            try
-            {
-                if (indexStore.Prune(indexFile, DateTimeOffset.UtcNow))
-                {
-                    if (verbose) Console.Error.WriteLine("[verbose] pruned legacy/invalid cache records");
-                    indexStore.Save(indexFile);
-                }
-            }
-            catch (Exception px) { if (verbose) Console.Error.WriteLine($"[warn] prune failed: {px.Message}"); }
-            if (!refreshIndex && indexStore.TryGet(indexFile, compositeKey, out var rec) && rec != null)
-            {
-                var cachedHits = rec.Entries.Select(e => new AppHit(e.Type, e.Scope, e.Path, e.Version, e.PackageType, e.Source, e.Confidence, null)).ToList();
-                // Existence validation on cached hits; remove stale entries and persist sanitized record.
-                int beforeExist = cachedHits.Count;
-                cachedHits = cachedHits.Where(h => SafePathExists(h.Path)).ToList();
-                int removedExist = beforeExist - cachedHits.Count;
-                if (removedExist > 0 && verbose)
-                {
-                    Console.Error.WriteLine($"[verbose] cache sanitized: removed {removedExist} non-existent paths");
-                }
-                if (removedExist > 0 && rec.Entries.Count > 0)
-                {
-                    // mutate underlying record entries to reflect removals and persist (best-effort)
-                    var existingSet = new HashSet<string>(cachedHits.Select(h => h.Path), StringComparer.OrdinalIgnoreCase);
-                    for (int i = rec.Entries.Count - 1; i >= 0; i--)
-                    {
-                        if (!existingSet.Contains(rec.Entries[i].Path)) rec.Entries.RemoveAt(i);
-                    }
-                    try { indexStore.Save(indexFile); } catch { }
-                }
-                // If all cached hits vanished, treat as cache miss (allow rebuild); do not short-circuit.
-                if (cachedHits.Count == 0 && beforeExist > 0)
-                {
-                    if (verbose) Console.Error.WriteLine("[verbose] cache stale: all paths missing; bypassing short-circuit");
-                }
-                else
-                {
-                var working = cachedHits.Where(h => h.Confidence >= confidenceMin).OrderByDescending(h => h.Confidence).ToList();
-                // Respect type filters on cached path
-                if (onlyExe || onlyInstall || onlyConfig || onlyData)
-                {
-                    var allow = new HashSet<HitType>();
-                    if (onlyExe) allow.Add(HitType.Exe);
-                    if (onlyInstall) allow.Add(HitType.InstallDir);
-                    if (onlyConfig) allow.Add(HitType.Config);
-                    if (onlyData) allow.Add(HitType.Data);
-                    working = working.Where(h => allow.Contains(h.Type)).ToList();
-                }
-                if (!all)
-                {
-                    var best = new Dictionary<HitType, AppHit>();
-                    foreach (var h in working)
-                    {
-                        if (!best.TryGetValue(h.Type, out var exist)) { best[h.Type] = h; continue; }
-                        if (h.Confidence > exist.Confidence + 1e-9) best[h.Type] = h;
-                        else if (Math.Abs(h.Confidence - exist.Confidence) < 1e-9)
-                        {
-                            if (exist.Scope != Scope.Machine && h.Scope == Scope.Machine) best[h.Type] = h;
-                            else if (h.Source.Length > exist.Source.Length) best[h.Type] = h;
-                        }
-                    }
-                    working = best.Values.OrderByDescending(h => h.Confidence).ThenBy(h => h.Type.ToString()).ToList();
-                }
-                if (limit.HasValue) working = working.Take(limit.Value).ToList();
-                if (verbose)
-                {
-                    Console.Error.WriteLine($"[verbose] cache-hit entries={cachedHits.Count} after-filters={working.Count} types={string.Join(',', working.GroupBy(h=>h.Type).Select(g=>$"{g.Key}={g.Count()}"))}");
-                }
-                if (working.Count > 0)
-                {
-                    EmitResults(working, json, csv, text, noColor, showPackageSources);
-                    servedFromCache = true;
-                    return 0;
-                }
-                if (rec.Entries.Count == 0)
-                {
-                    if (verbose) Console.Error.WriteLine("[info] cache short-circuit: known empty result set");
-                    return 1; // no matches (cached)
-                }
-                }
-            }
-        }
-        catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] index load failed: {ex.Message}"); }
+    // Cache removed: future snapshot/index may be reintroduced when more expensive sources added.
 
     var hits = new List<AppHit>();
         using var cts = new CancellationTokenSource();
@@ -646,27 +535,7 @@ public static class Program
             }
         }
 
-        if (filtered.Count == 0)
-        {
-            // Persist an empty record to establish index presence for the query if not cached already.
-            try
-            {
-                if (!servedFromCache && indexStore != null && indexFile != null)
-                {
-                    indexStore.Upsert(indexFile, compositeKey, Array.Empty<AppHit>(), DateTimeOffset.UtcNow);
-                    indexStore.Save(indexFile);
-                }
-                // Fallback: if save silently failed (file still missing) attempt minimal manual write.
-                if (!File.Exists(effectiveIndexPath))
-                {
-                    var minimal = new IndexFile(IndexFile.CurrentVersion, new List<IndexRecord>{ IndexRecord.Create(normalized, DateTimeOffset.UtcNow) }, null);
-                    Directory.CreateDirectory(Path.GetDirectoryName(effectiveIndexPath)!);
-                    File.WriteAllText(effectiveIndexPath, System.Text.Json.JsonSerializer.Serialize(minimal));
-                }
-            }
-            catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] index save failed: {ex.Message}"); }
-            return 1;
-        }
+    if (filtered.Count == 0) return 1;
     if (verbose)
         {
             try
@@ -715,42 +584,9 @@ public static class Program
         }
 
         EmitResults(filtered, json, csv, text, noColor, showPackageSources);
-    if (!servedFromCache && indexStore != null && indexFile != null)
-        {
-            try
-            {
-        indexStore.Upsert(indexFile, compositeKey, filtered, DateTimeOffset.UtcNow);
-                indexStore.Save(indexFile);
-                if (!File.Exists(effectiveIndexPath))
-                {
-                    // Defensive ensure
-                    Directory.CreateDirectory(Path.GetDirectoryName(effectiveIndexPath)!);
-                    File.WriteAllText(effectiveIndexPath, System.Text.Json.JsonSerializer.Serialize(indexFile));
-                }
-            }
-            catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] index save failed: {ex.Message}"); }
-        }
         return 0;
     }
-
-    private static string BuildCompositeKey(string normalizedQuery, bool user, bool machine, bool strict, bool running, int? pid, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, double confidenceMin)
-    {
-        // Round confidenceMin to 2 decimals to avoid key explosion for tiny float differences
-        var conf = Math.Round(confidenceMin, 2, MidpointRounding.AwayFromZero);
-        return string.Join('|', new[]{
-            normalizedQuery,
-            user ? "u1" : "u0",
-            machine ? "m1" : "m0",
-            strict ? "s1" : "s0",
-            running ? "r1" : "r0",
-            pid.HasValue ? ("p"+pid.Value) : "p0",
-            onlyExe ? "te" : "te0",
-            onlyInstall ? "ti" : "ti0",
-            onlyConfig ? "tc" : "tc0",
-            onlyData ? "td" : "td0",
-            $"c{conf:0.00}"
-        });
-    }
+    // BuildCompositeKey removed with cache layer.
 
     private static string Normalize(string query)
     {

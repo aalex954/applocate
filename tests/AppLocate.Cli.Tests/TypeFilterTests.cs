@@ -39,7 +39,7 @@ public class TypeFilterTests
     [Fact]
     public void ExeFilter_OnlyExeHits()
     {
-        var (code, json, err) = Run("code", "--json", "--exe", "--all", "--limit", "50", "--refresh-index");
+    var (code, json, err) = Run("code", "--json", "--exe", "--all", "--limit", "50");
         Assert.Contains(code, new[]{0,1});
         Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
         if (code == 0)
@@ -53,7 +53,7 @@ public class TypeFilterTests
     [Fact]
     public void MultiFilter_ExeAndInstall()
     {
-        var (code, json, err) = Run("code", "--json", "--exe", "--install-dir", "--all", "--limit", "100", "--refresh-index");
+    var (code, json, err) = Run("code", "--json", "--exe", "--install-dir", "--all", "--limit", "100");
         Assert.Contains(code, new[]{0,1});
         Assert.True(string.IsNullOrWhiteSpace(err));
         if (code == 0)

@@ -51,7 +51,7 @@ public class RulePackTests
     [InlineData("powershell")]
     public void QueryReturnsAtLeastOneHit(string query)
     {
-        var output = RunCli($"{query} --json --refresh-index --limit 3", out var exit);
+    var output = RunCli($"{query} --json --limit 3", out var exit);
         // We allow exit code 1 (no matches) in environments without installed apps; test focuses on JSON parse stability
         Assert.True(exit == 0 || exit == 1, $"Unexpected exit code {exit}. Output: {output}");
         if (exit == 0)

@@ -36,10 +36,10 @@ public class AllOptionTests
     {
         // Use a query likely to produce more than one hit of same type in synthetic fixtures (e.g., code) via Start Menu + path + uninstall heuristics.
         // If environment only yields single hits, allow equality but assert no error.
-        var (codeCollapsed, jsonCollapsed, errCollapsed) = Run("code", "--json", "--limit", "50", "--refresh-index");
+    var (codeCollapsed, jsonCollapsed, errCollapsed) = Run("code", "--json", "--limit", "50");
         Assert.Contains(codeCollapsed, new[]{0,1});
         Assert.True(string.IsNullOrWhiteSpace(errCollapsed), $"stderr (collapsed): {errCollapsed}");
-        var (codeAll, jsonAll, errAll) = Run("code", "--json", "--all", "--limit", "50", "--refresh-index");
+    var (codeAll, jsonAll, errAll) = Run("code", "--json", "--all", "--limit", "50");
         Assert.Contains(codeAll, new[]{0,1});
         Assert.True(string.IsNullOrWhiteSpace(errAll), $"stderr (all): {errAll}");
         if (codeCollapsed == 0 && codeAll == 0)

@@ -34,7 +34,7 @@ public class RunningPidTests
     [Fact]
     public void RunningFlag_DoesNotError()
     {
-        var (code, _out, err) = Run("code", "--json", "--running", "--limit", "5", "--refresh-index");
+    var (code, _out, err) = Run("code", "--json", "--running", "--limit", "5");
         Assert.Contains(code, new[]{0,1});
         Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
     }
@@ -44,7 +44,7 @@ public class RunningPidTests
     {
         // Target current process (test runner) to guarantee a valid PID.
         var current = Process.GetCurrentProcess();
-        var (code, json, err) = Run(current.ProcessName.ToLowerInvariant(), "--json", "--pid", current.Id.ToString(), "--limit", "50", "--refresh-index");
+    var (code, json, err) = Run(current.ProcessName.ToLowerInvariant(), "--json", "--pid", current.Id.ToString(), "--limit", "50");
         Assert.Contains(code, new[]{0,1});
         Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
         if (code == 0)

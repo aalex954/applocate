@@ -21,7 +21,7 @@ public class PackageSourceFlagTests
     [Fact]
     public void TextOutput_IncludesPkgAndSrc_WhenFlag()
     {
-        var (code, stdout, stderr) = Run("code", "--limit", "3", "--refresh-index", "--package-source");
+    var (code, stdout, stderr) = Run("code", "--limit", "3", "--package-source");
         Assert.Contains(code, new[]{0,1});
         Assert.True(string.IsNullOrWhiteSpace(stderr), $"stderr: {stderr}");
         if (code == 0)
@@ -35,7 +35,7 @@ public class PackageSourceFlagTests
     [Fact]
     public void CsvOutput_AddsSourcesColumn()
     {
-        var (code, stdout, stderr) = Run("code", "--csv", "--limit", "3", "--refresh-index", "--package-source");
+    var (code, stdout, stderr) = Run("code", "--csv", "--limit", "3", "--package-source");
         Assert.Contains(code, new[]{0,1});
         Assert.True(string.IsNullOrWhiteSpace(stderr));
         if (code == 0)
@@ -49,7 +49,7 @@ public class PackageSourceFlagTests
     [Fact]
     public void CsvOutput_NoSourcesColumnWithoutFlag()
     {
-        var (code, stdout, stderr) = Run("code", "--csv", "--limit", "3", "--refresh-index");
+    var (code, stdout, stderr) = Run("code", "--csv", "--limit", "3");
         Assert.Contains(code, new[]{0,1});
         Assert.True(string.IsNullOrWhiteSpace(stderr));
         if (code == 0)

@@ -15,7 +15,7 @@ Windows 11 CLI to locate application install directories, executables, and (in p
 | MSIX / Store | Yes | PowerShell enumeration + env fake provider |
 | Services & Tasks | Yes | ImagePath + scheduled task parsing |
 | Heuristic FS scan | Yes | Bounded depth/time roots |
-| Index cache | Yes | Known-miss short‑circuit |
+| Index cache | Removed | Will return if cold latency >2s |
 | Ranking | Phase 2 | Span compactness, noise penalties, refined diminishing returns |
 | Config/Data rules | Yes | YAML rule pack (≥50 apps) |
 | Existence filtering | Yes | Drops non-existent paths (live + cache sanitize) |
@@ -49,9 +49,7 @@ Options (implemented CLI surface):
 	--trace                    Per-source timing diagnostics (stderr; prefix [trace])
 	--evidence                 Include evidence dictionary (if available)
 	--evidence-keys <k1,k2>    Only include specified evidence keys (implies --evidence)
-	--refresh-index            Ignore cached record
-	--clear-cache              Delete index file before running (rebuild cache)
-	--index-path <file>        Override index file path
+	# (cache/index options removed – may return if future sources are slow)
 	--timeout <sec>            Per-source soft timeout (default 5)
 	--no-color                 Disable ANSI color in text output
 	--verbose                  Verbose diagnostics (warnings)
@@ -124,7 +122,7 @@ Implemented:
 - Sources (real): Registry Uninstall (HKLM/HKCU, WOW6432Node), App Paths, Start Menu shortcuts (.lnk resolution), Running Processes, PATH search (`where` fallback), Services & Scheduled Tasks (image path extraction), MSIX/Store packages (Appx), Heuristic filesystem scan (bounded depth/timeout, curated token filters).
 - Evidence & Merge: Dedup + union of `Source` arrays and merged evidence key/value sets.
 - Ranking: token & fuzzy coverage (Jaccard + collapsed substring), exact exe/dir boosts, alias equivalence (embedded dictionary), evidence synergy (shortcut+process), diminishing returns on multi-source, path quality penalties; final score clamped [0,1].
-- Indexing: On-disk JSON (`%LOCALAPPDATA%/AppLocate/index.json`) with environment hash invalidation + empty-cache short‑circuit (cached known-miss returns exit 1 instantly). `--index-path`, `--refresh-index` supported.
+- (Former) indexing layer removed: on-disk cache provided minimal benefit (<500ms cold queries). Will reintroduce a snapshot/inverted index if added package manager sources push cold median >2s.
 - Argument parsing: Manual robust multi-word parsing + `--` sentinel, validation for numeric options, custom help text (uses `System.CommandLine` only for usage surface).
 - Output formats: text (color-aware), JSON, CSV.
 - Rules engine: lightweight YAML (subset) parser expands config/data hits (VSCode, Chrome examples) before ranking.
@@ -180,8 +178,7 @@ Each published RID artifact now includes a CycloneDX SBOM file (`sbom-<rid>.json
 Completed / Phase 1 Foundation:
 - [x] Reintroduce `System.CommandLine` + full option set
 - [x] Initial ranking heuristics (phase 1)
-- [x] JSON indexing cache (write-through)
-- [x] Environment hash invalidation & empty-cache short‑circuit
+// (Removed) JSON indexing cache & related invalidation (to be reconsidered later)
 - [x] Discovery sources (registry uninstall, App Paths, start menu shortcuts, processes, PATH, services/tasks, MSIX/Store, heuristic FS)
 - [x] Golden snapshot tests (Verify) for core queries
 - [x] Deterministic CLI argument validation tests
@@ -208,7 +205,7 @@ In Progress / Near Term:
 - [ ] Benchmark harness (cold vs warm index, thread scaling, source timing)
 
 Backlog / Later:
-- [ ] Existence filtering layer (live + cache sanitize)
+// Existence filtering now always live (cache layer removed)
 - [ ] Rule pack ≥50 apps finalized with tests
 - [ ] Advanced ranking ML/learned weights experiment (optional)
 - [ ] CI matrix (x64/ARM64), optional code signing & SBOM pipeline polish
