@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.IO;
 using Microsoft.Win32;
 using AppLocate.Core.Abstractions;
 using AppLocate.Core.Models;
@@ -184,7 +185,7 @@ public sealed class RegistryUninstallSource : ISource
     }
 }
 
-/// <summary>Placeholder: future enumeration of App Paths registry keys.</summary>
+/// <summary>Enumerates App Paths registry keys to resolve executables and their directories.</summary>
 public sealed class AppPathsSource : ISource
 {
     /// <summary>Source name.</summary>
@@ -199,62 +200,66 @@ public sealed class AppPathsSource : ISource
         @"HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths"
     ];
 
+    /// <summary>Enumerates App Paths for matching executables and directories.</summary>
     /// <inheritdoc />
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await System.Threading.Tasks.Task.Yield();
-        var lower = query;
-        foreach (var root in RootsUser)
+        if (string.IsNullOrWhiteSpace(query)) yield break;
+        var norm = query.ToLowerInvariant();
+        if (!options.MachineOnly)
         {
-            if (options.MachineOnly) break;
-            foreach (var hit in Enumerate(root, Scope.User, lower, options, ct)) yield return hit;
+            foreach (var hit in Enumerate(RootsUser, Scope.User, norm, options, ct)) yield return hit;
         }
-        foreach (var root in RootsMachine)
+        if (!options.UserOnly)
         {
-            if (options.UserOnly) break;
-            foreach (var hit in Enumerate(root, Scope.Machine, lower, options, ct)) yield return hit;
+            foreach (var hit in Enumerate(RootsMachine, Scope.Machine, norm, options, ct)) yield return hit;
         }
     }
 
-    private IEnumerable<AppHit> Enumerate(string rootPath, Scope scope, string query, SourceOptions options, CancellationToken ct)
+    private IEnumerable<AppHit> Enumerate(IEnumerable<string> roots, Scope scope, string norm, SourceOptions options, CancellationToken ct)
     {
-        using var root = RegistryUninstallSource_OpenRoot(rootPath);
-        if (root == null) yield break;
-        foreach (var sub in root.GetSubKeyNames())
+        foreach (var root in roots)
         {
             if (ct.IsCancellationRequested) yield break;
-            List<AppHit>? buffered = null;
-            try
+            using var rk = RegistryUninstallSource_OpenRoot(root);
+            if (rk == null) continue;
+            string[] subs;
+            try { subs = rk.GetSubKeyNames(); } catch { continue; }
+            foreach (var sub in subs)
             {
-                using var subKey = root.OpenSubKey(sub);
+                if (ct.IsCancellationRequested) yield break;
+                using var subKey = rk.OpenSubKey(sub);
                 if (subKey == null) continue;
-                var keyName = sub.ToLowerInvariant();
-                if (!keyName.Contains(query)) continue;
-                var exePath = (subKey.GetValue(null) as string)?.Trim('"');
-                var pathDir = (subKey.GetValue("Path") as string)?.Trim();
-                var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"Key", sub}} : null;
-                if (!string.IsNullOrWhiteSpace(exePath))
+                var keyLower = sub.ToLowerInvariant();
+                bool match = keyLower.Contains(norm);
+                if (!match) continue;
+                string? exePath = null; string? pathDir = null;
+                try { exePath = (subKey.GetValue(null) as string)?.Trim().Trim('"'); } catch { }
+                try { pathDir = (subKey.GetValue("Path") as string)?.Trim().Trim('"'); } catch { }
+                Dictionary<string,string>? evidence = null;
+                if (options.IncludeEvidence)
                 {
-                    buffered ??= new List<AppHit>();
-                    buffered.Add(new AppHit(HitType.Exe, scope, exePath!, null, PackageType.EXE, new[] { Name }, 0, evidence));
+                    evidence = new Dictionary<string,string>{{"Key", sub}};
+                    if (!string.IsNullOrEmpty(exePath)) evidence["HasExe"] = "true";
+                    if (!string.IsNullOrEmpty(pathDir)) evidence["HasPath"] = "true";
                 }
-                if (!string.IsNullOrWhiteSpace(pathDir))
+                if (!string.IsNullOrWhiteSpace(exePath) && File.Exists(exePath))
                 {
-                    buffered ??= new List<AppHit>();
-                    buffered.Add(new AppHit(HitType.InstallDir, scope, pathDir!, null, PackageType.EXE, new[] { Name }, 0, evidence));
+                    yield return new AppHit(HitType.Exe, scope, exePath!, null, PackageType.EXE, new[] { Name }, 0, evidence);
+                    var dir = Path.GetDirectoryName(exePath);
+                    if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                        yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, evidence);
                 }
-            }
-            catch { }
-            if (buffered != null)
-            {
-                foreach (var h in buffered)
-                    yield return h;
+                if (!string.IsNullOrWhiteSpace(pathDir) && Directory.Exists(pathDir))
+                {
+                    yield return new AppHit(HitType.InstallDir, scope, pathDir!, null, PackageType.EXE, new[] { Name }, 0, evidence);
+                }
             }
         }
     }
 
-    // Reuse helper logic to open HKLM/HKCU root (internal copy of RegistryUninstallSource.OpenRoot logic)
-    private static Microsoft.Win32.RegistryKey? RegistryUninstallSource_OpenRoot(string path)
+    private static RegistryKey? RegistryUninstallSource_OpenRoot(string path)
     {
         const string HKLM = "HKEY_LOCAL_MACHINE\\";
         const string HKCU = "HKEY_CURRENT_USER\\";
@@ -263,12 +268,12 @@ public sealed class AppPathsSource : ISource
             if (path.StartsWith(HKLM, StringComparison.OrdinalIgnoreCase))
             {
                 var sub = path.Substring(HKLM.Length);
-                return Microsoft.Win32.Registry.LocalMachine.OpenSubKey(sub);
+                return Registry.LocalMachine.OpenSubKey(sub);
             }
             if (path.StartsWith(HKCU, StringComparison.OrdinalIgnoreCase))
             {
                 var sub = path.Substring(HKCU.Length);
-                return Microsoft.Win32.Registry.CurrentUser.OpenSubKey(sub);
+                return Registry.CurrentUser.OpenSubKey(sub);
             }
         }
         catch { }
