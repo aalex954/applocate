@@ -12,17 +12,19 @@ namespace AppLocate.Cli;
 public static class Program
 {
     private static ISourceRegistry BuildRegistry()
-        => new SourceRegistry(new ISource[]
-        {
-            new RegistryUninstallSource(),
-            new AppPathsSource(),
-            new StartMenuShortcutSource(),
-            new ProcessSource(),
-            new PathSearchSource(),
-            new ServicesTasksSource(),
-            new MsixStoreSource(),
-            new HeuristicFsSource()
-        });
+    {
+        // Builder allows future plugin injection (e.g., rule-pack driven or external package managers)
+        var builder = new SourceRegistryBuilder()
+            .Add(new RegistryUninstallSource())
+            .Add(new AppPathsSource())
+            .Add(new StartMenuShortcutSource())
+            .Add(new ProcessSource())
+            .Add(new PathSearchSource())
+            .Add(new ServicesTasksSource())
+            .Add(new MsixStoreSource())
+            .Add(new HeuristicFsSource());
+        return builder.Build();
+    }
 
     public static async Task<int> Main(string[] args) => await RunAsync(args);
 

@@ -203,7 +203,7 @@ In Progress / Near Term:
 - [ ] Performance tuning (parallel scheduling, cold vs warm benchmarks)
 - [x] Evidence output stabilization & selective evidence emission tests
 - [ ] Plugin loading (data-only alias & rule packs)
-- [ ] DI/registration refactor for sources (clean injection seams)
+ - [x] DI/registration refactor for sources (builder-based injection seams)
 - [ ] JSON schema contract & versioning documentation
 - [ ] Benchmark harness (cold vs warm index, thread scaling, source timing)
 
