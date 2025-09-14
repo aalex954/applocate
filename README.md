@@ -16,7 +16,7 @@ Windows 11 CLI to locate application install directories, executables, and (in p
 | Services & Tasks | Yes | ImagePath + scheduled task parsing |
 | Heuristic FS scan | Yes | Bounded depth/time roots |
 | Index cache | Yes | Known-miss short‑circuit |
-| Ranking | Phase 1 | Heuristics + synergy; calibration pending |
+| Ranking | Phase 2 | Span compactness, noise penalties, refined diminishing returns |
 | Config/Data rules | Yes | YAML rule pack (≥50 apps) |
 | Existence filtering | Yes | Drops non-existent paths (live + cache sanitize) |
 | Evidence emission | Yes | Optional via --evidence |
@@ -198,7 +198,7 @@ Completed / Phase 1 Foundation:
 In Progress / Near Term:
 - [x] Running process acceptance scenario (`--running` live capture)
 - [ ] Expanded config/data heuristics acceptance scenarios
-- [ ] Ranking refinement (phase 2: distance weighting, diminishing returns tuning, span scoring)
+- [x] Ranking refinement (phase 2: distance weighting, diminishing returns tuning, span scoring)
 - [ ] Performance tuning (parallel scheduling, cold vs warm benchmarks)
 - [ ] Evidence output stabilization & selective evidence emission tests
 - [ ] Plugin loading (data-only alias & rule packs)
@@ -309,7 +309,7 @@ See `.github/copilot-instructions.md` for design/extension guidance. Keep `AppHi
 - No network I/O, no executing discovered binaries.
 - Keep JSON camelCase & deterministic ordering via source generator (`JsonContext`).
 - Add XML docs gradually (warnings currently suppressed only by omission).
-- Ranking: token coverage (+ up to 0.25), partial token Jaccard (+ up to 0.08), contiguous token span (+0.08), exact filename (+0.30), alias equivalence (+0.22) vs evidence alias (+0.14), fuzzy filename similarity (Levenshtein scaled + up to 0.06), evidence boosts (shortcut/process + synergy, where, dir/exe matches), harmonic multi-source diminishing returns (cap +0.18), type baselines, and penalties (broken shortcut, temp/installer/cache paths). Scores clamped to [0,1].
+- Ranking: token coverage (+ up to 0.25), partial token Jaccard (+ up to 0.08 noise‑scaled), span compactness (+0.14) with noise penalties for excessive non‑query tokens (up to -0.12), exact filename (+0.30), alias equivalence (+0.22) vs evidence alias (+0.14), fuzzy filename similarity (Levenshtein scaled + up to 0.06), evidence boosts (shortcut/process + synergy, where, dir/exe matches), harmonic multi-source diminishing returns (cap +0.18), type baselines, and penalties (broken shortcut, temp/installer/cache paths). Scores clamped to [0,1].
 
 ---
 This README reflects the discovery + indexing + baseline test milestone; update with each subsequent milestone (ranking calibration, rules, performance, packaging).

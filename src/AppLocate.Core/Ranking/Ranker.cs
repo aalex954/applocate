@@ -95,7 +95,12 @@ public static class Ranker
             }
         }
 
-        // 1b. Fuzzy token ratio (very lightweight): token overlap over union (if partial mismatch) – adds up to +0.10
+        int extraTokenCountForCandidate = 0; // track tokens not in query for later noise penalty
+        if (tokensCand.Count > 0)
+        {
+            foreach (var t in tokensCand) if (!tokensQ.Contains(t)) extraTokenCountForCandidate++;
+        }
+        // 1b. Fuzzy token ratio (very lightweight): token overlap over union (if partial mismatch) – adds up to +0.10 (noise scaled)
         if (tokensQ.Count > 0 && tokensCand.Count > 0)
         {
             var union = new System.Collections.Generic.HashSet<string>(tokensCand, StringComparer.OrdinalIgnoreCase);
@@ -105,7 +110,13 @@ public static class Ranker
             {
                 var jaccard = (double)inter / union.Count; // 0..1
                 if (jaccard > 0 && jaccard < 1) // only partial matches
-                    score += jaccard * 0.08; // slightly reduced to let span boost differentiate
+                {
+                    // If there are many extra tokens (noise), dampen this partial boost so noisy names don't dominate
+                    double noiseFactor = 1.0;
+                    if (extraTokenCountForCandidate >= 2) noiseFactor = 0.6;
+                    if (extraTokenCountForCandidate >= 4) noiseFactor = 0.4;
+                    score += jaccard * 0.08 * noiseFactor;
+                }
             }
         }
 
@@ -150,20 +161,45 @@ public static class Ranker
         if (lowerPath.Contains("edgeupdate\\temp")) score -= 0.05; // updater staging area
         if (lowerPath.Contains("appdata\\local\\temp")) score -= 0.05;
 
-        // 4b. Token span tightness: are all tokens covered contiguously in filename?
+        // 4b. Token span tightness & noise penalty: contiguous coverage wins over spaced with many unrelated inserts
         if (tokensQ.Count > 1 && !string.IsNullOrEmpty(fileName))
         {
-            // Evaluate contiguous token span inside filename (ignoring separators '-', '_')
             var simplified = fileName.Replace("-", string.Empty).Replace("_", string.Empty).Replace(" ", string.Empty);
-            var joinedInOrder = string.Join(string.Empty, tokensQ); // e.g., "googlechrome"
+            var joinedInOrder = string.Join(string.Empty, tokensQ); // e.g., googlechrome
+            bool contiguous = false;
             if (simplified.Contains(joinedInOrder, StringComparison.OrdinalIgnoreCase))
             {
-                // Ensure we aren't trivially matching because tokens collapsed due to inserted unrelated tokens: require each token present separately too
                 bool allPresent = true;
                 foreach (var t in tokensQ) if (!simplified.Contains(t, StringComparison.OrdinalIgnoreCase)) { allPresent = false; break; }
-                if (allPresent)
-                    score += 0.08; // increased tight span boost to outrank spaced noisy variants
+                contiguous = allPresent;
             }
+
+            // Count how many distinct extra tokens exist beyond query tokens in filename+dir tokens
+            int extraTokens = 0;
+            if (tokensCand.Count > 0)
+            {
+                foreach (var t in tokensCand)
+                {
+                    if (!tokensQ.Contains(t)) extraTokens++;
+                }
+            }
+
+            if (contiguous)
+            {
+                score += 0.14; // stronger tight span reward
+                if (extraTokens > 2) score -= 0.01; // mild dampener
+            }
+            else if (extraTokens > 1 && tokenCoverage < 1)
+            {
+                // Penalize noisy separation so a contiguous clean filename is not overshadowed
+                score -= Math.Min(0.12, 0.02 * extraTokens); // up to -0.12
+            }
+        }
+
+        // 4c. Global noise penalty (post primary boosts) if excessive extra tokens without contiguous span or exact match
+        if (extraTokenCountForCandidate >= 4 && tokenCoverage < 1)
+        {
+            score -= Math.Min(0.06, 0.01 * extraTokenCountForCandidate); // additional dampening
         }
 
         // 5. Multi-source diminishing returns (harmonic series scaling) cap +0.18
