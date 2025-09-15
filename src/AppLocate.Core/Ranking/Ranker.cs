@@ -402,6 +402,27 @@ namespace AppLocate.Core.Ranking {
                     score = 0;
                 }
             }
+
+            // 4e. System32 generic noise: executables in system32 that only match by short generic substring (tokenCoverage low)
+            if (hit.Type == HitType.Exe && tokenCoverage < 0.50 && lowerPath.Contains("\\windows\\system32\\")) {
+                var fn = Path.GetFileNameWithoutExtension(path)?.ToLowerInvariant() ?? string.Empty;
+                // Penalize if filename doesn't start with query token and query not explicit system tool
+                if (!fn.StartsWith(query, StringComparison.OrdinalIgnoreCase) && query.Length >= 3 && !query.Contains("system32")) {
+                    score -= 0.22; AddOrAccumulate(signals, "NoisePenalties", -0.22); if (score < 0) { score = 0; }
+                }
+            }
+            // 4f. VSCode extension server/service executables when querying for 'code' / 'vscode': keep primary Code.exe higher
+            if (hit.Type == HitType.Exe && (query == "code" || query == "vscode") && lowerPath.Contains(".vscode\\extensions")) {
+                // If not exact filename code.exe, demote auxiliary service hosts
+                var baseFn = Path.GetFileName(path)?.ToLowerInvariant() ?? string.Empty;
+                if (baseFn != "code.exe") {
+                    score -= 0.18; AddOrAccumulate(signals, "NoisePenalties", -0.18); if (score < 0) { score = 0; }
+                }
+            }
+            // 4g. Temp installer copies of main exe already penalized; further damp duplicates with _ or copy markers
+            if (hit.Type == HitType.Exe && (lowerPath.Contains("\\temp\\") || lowerPath.Contains(" copy")) && tokenCoverage < 1) {
+                score -= 0.08; AddOrAccumulate(signals, "NoisePenalties", -0.08); if (score < 0) { score = 0; }
+            }
             AddSignal(signals, "Total", score);
             return score;
         }
