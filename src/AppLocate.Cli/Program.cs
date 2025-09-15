@@ -251,6 +251,7 @@ namespace AppLocate.Cli {
             }
             var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
             var normalized = Normalize(query);
+            var normTokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             // (index/cache removed)
 
             var hits = new List<AppHit>();
@@ -460,6 +461,32 @@ namespace AppLocate.Cli {
                 }
             }
 
+            // Strict mode: require every normalized query token to appear in either the file/directory name segment
+            // (case-insensitive) or the DisplayName-related evidence (if present). For now we only inspect path tokens
+            // to keep it deterministic and fast. This sharply reduces noisy extension/service binaries for short queries.
+            if (strict && normTokens.Length > 0) {
+                var beforeStrict = scored.Count;
+                scored = scored.Where(h => {
+                    try {
+                        var name = Path.GetFileName(h.Path).ToLowerInvariant();
+                        // If directory (InstallDir) take last segment
+                        if (string.IsNullOrEmpty(name)) {
+                            name = h.Path.Replace('\\', '/').TrimEnd('/').Split('/').LastOrDefault()?.ToLowerInvariant() ?? string.Empty;
+                        }
+                        foreach (var t in normTokens) {
+                            if (!name.Contains(t)) {
+                                return false; // all tokens must appear
+                            }
+                        }
+                        return true;
+                    }
+                    catch { return false; }
+                }).ToList();
+                if (verbose) {
+                    try { Console.Error.WriteLine($"[verbose] strict filter reduced hits {beforeStrict}->{scored.Count}"); } catch { }
+                }
+            }
+
             // Post-score path-level consolidation & install-dir pairing boost:
             // Rationale: Some environments surface the same path via multiple sources but (rarely) with scope variance
             // that slips past earlier (Type,Scope,Path) merge (e.g., Program Files path mis-attributed as user scope by a source).
@@ -653,7 +680,7 @@ namespace AppLocate.Cli {
                                            .Take(12) // safety cap
                                            .ToList();
                     if (orphanDirs.Count > 0) {
-                        var normTokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                        // normTokens already computed earlier
                         foreach (var od in orphanDirs) {
                             try {
                                 // Quick directory existence & skip if huge (heuristic: >200 entries top-level)
