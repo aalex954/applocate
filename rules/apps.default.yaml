@@ -1,10 +1,16 @@
 # Placeholder rules file. Populate with real application patterns.
 - match:
-  anyOf: ["Visual Studio Code", "Code.exe", "vscode", "code"]
+    anyOf: ["Visual Studio Code", "Code.exe", "vscode", "code"]
   config:
     - "%APPDATA%/Code/User/settings.json"
+    - "%APPDATA%/Code/User/keybindings.json"
+    - "%APPDATA%/Code/User/snippets"
   data:
-    - "%APPDATA%/Code/*"
+    - "%APPDATA%/Code/User"
+    - "%USERPROFILE%/.vscode/extensions"
+  evidence:
+    add:
+      VSCodeRule: "1"
 
 - match:
     anyOf: ["Google Chrome", "chrome", "chrome.exe"]
