@@ -55,8 +55,8 @@ public sealed class StartMenuShortcutSource : ISource
                 string? target = null;
                 try { target = ResolveShortcut(lnk); } catch { }
                 if (string.IsNullOrWhiteSpace(target)) continue;
-                target = Environment.ExpandEnvironmentVariables(target).Trim().Trim('"');
-                if (!target.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
+                target = PathUtils.NormalizePath(Environment.ExpandEnvironmentVariables(target));
+                if (string.IsNullOrWhiteSpace(target) || !target.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
                 if (!File.Exists(target)) continue;
                 if (!dedup.Add(target)) continue;
                 var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{EvidenceKeys.Shortcut, lnk}} : null;

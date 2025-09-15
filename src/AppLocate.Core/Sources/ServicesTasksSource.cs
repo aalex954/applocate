@@ -52,8 +52,8 @@ public sealed class ServicesTasksSource : ISource
             try { imagePath = sk.GetValue("ImagePath") as string; } catch { }
             try { displayName = sk.GetValue("DisplayName") as string; } catch { }
             if (string.IsNullOrWhiteSpace(imagePath)) continue;
-            imagePath = Environment.ExpandEnvironmentVariables(imagePath).Trim().Trim('"');
-            var exeCandidate = ExtractExecutablePath(imagePath);
+            imagePath = PathUtils.NormalizePath(Environment.ExpandEnvironmentVariables(imagePath));
+            var exeCandidate = imagePath != null ? PathUtils.NormalizePath(ExtractExecutablePath(imagePath)) : null;
             if (string.IsNullOrWhiteSpace(exeCandidate) || !File.Exists(exeCandidate)) continue;
             var fileName = Path.GetFileNameWithoutExtension(exeCandidate) ?? string.Empty;
             var lowerFile = fileName.ToLowerInvariant();
@@ -108,27 +108,28 @@ public sealed class ServicesTasksSource : ISource
             {
                 continue;
             }
-            foreach (var exe in ExtractCommands(content))
+                foreach (var exe in ExtractCommands(content))
             {
                 if (ct.IsCancellationRequested) yield break;
-                if (string.IsNullOrWhiteSpace(exe) || !File.Exists(exe)) continue;
-                var fileName = Path.GetFileNameWithoutExtension(exe)?.ToLowerInvariant() ?? string.Empty;
-                bool match = options.Strict ? tokens.All(t => fileName.Contains(t) || exe.ToLowerInvariant().Contains(t)) : (fileName.Contains(norm) || exe.ToLowerInvariant().Contains(norm));
+                    var normExe = PathUtils.NormalizePath(exe);
+                    if (string.IsNullOrWhiteSpace(normExe) || !File.Exists(normExe)) continue;
+                    var fileName = Path.GetFileNameWithoutExtension(normExe)?.ToLowerInvariant() ?? string.Empty;
+                    bool match = options.Strict ? tokens.All(t => fileName.Contains(t) || normExe!.ToLowerInvariant().Contains(t)) : (fileName.Contains(norm) || normExe!.ToLowerInvariant().Contains(norm));
                 if (!match) continue;
-                if (!seenExe.Add(exe)) continue;
-                var scope = ServicesScopeFromPath(exe);
+                    if (!seenExe.Add(normExe!)) continue;
+                    var scope = ServicesScopeFromPath(normExe!);
                 if (options.MachineOnly && scope == Scope.User) continue;
                 if (options.UserOnly && scope == Scope.Machine) continue;
                 Dictionary<string,string>? evidence = null;
                 if (options.IncludeEvidence)
                 {
                     var taskName = tf.StartsWith(tasksRoot, StringComparison.OrdinalIgnoreCase) ? tf.Substring(tasksRoot.Length).TrimStart(Path.DirectorySeparatorChar) : tf;
-                    evidence = new Dictionary<string,string>{{EvidenceKeys.TaskFile, tf},{EvidenceKeys.TaskName, taskName},{EvidenceKeys.ExeName, Path.GetFileName(exe)}};
-                    var dirName = Path.GetFileName(Path.GetDirectoryName(exe) ?? string.Empty)?.ToLowerInvariant();
+                        evidence = new Dictionary<string,string>{{EvidenceKeys.TaskFile, tf},{EvidenceKeys.TaskName, taskName},{EvidenceKeys.ExeName, Path.GetFileName(normExe)}};
+                        var dirName = Path.GetFileName(Path.GetDirectoryName(normExe!) ?? string.Empty)?.ToLowerInvariant();
                     if (!string.IsNullOrEmpty(dirName) && (options.Strict ? tokens.All(t => dirName.Contains(t)) : dirName.Contains(norm))) evidence[EvidenceKeys.DirMatch] = dirName;
                 }
-                yield return new AppHit(HitType.Exe, scope, exe, null, PackageType.EXE, new[] { Name }, 0, evidence);
-                var dir = Path.GetDirectoryName(exe);
+                    yield return new AppHit(HitType.Exe, scope, normExe!, null, PackageType.EXE, new[] { Name }, 0, evidence);
+                    var dir = Path.GetDirectoryName(normExe!);
                 if (!string.IsNullOrEmpty(dir) && seenInstall.Add(dir))
                 {
                     Dictionary<string,string>? dirEvidence = evidence;

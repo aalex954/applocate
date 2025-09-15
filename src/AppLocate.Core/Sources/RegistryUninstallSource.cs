@@ -75,16 +75,16 @@ public sealed class RegistryUninstallSource : ISource
                             if (!dnLower!.Contains(normalizedQuery) && !keyLower.Contains(normalizedQuery)) continue;
                         }
 
-                        var installLocation = (subKey.GetValue("InstallLocation") as string)?.Trim().Trim('"');
+                        var installLocation = PathUtils.NormalizePath(subKey.GetValue("InstallLocation") as string);
                         if (string.IsNullOrEmpty(installLocation)) installLocation = null;
                         var displayIconRaw = (subKey.GetValue("DisplayIcon") as string)?.Trim();
                         var version = (subKey.GetValue("DisplayVersion") as string)?.Trim();
                         var windowsInstaller = (subKey.GetValue("WindowsInstaller") as int?) == 1 || (subKey.GetValue("WindowsInstaller") as string) == "1";
 
-                        string? exeCandidate = ParseExeFromDisplayIcon(displayIconRaw);
+                        string? exeCandidate = PathUtils.NormalizePath(ParseExeFromDisplayIcon(displayIconRaw));
                         if (installLocation == null && exeCandidate != null)
                         {
-                            try { installLocation = Path.GetDirectoryName(exeCandidate); } catch { }
+                            try { installLocation = PathUtils.NormalizePath(Path.GetDirectoryName(exeCandidate)); } catch { }
                         }
 
                         var pkgType = windowsInstaller ? PackageType.MSI : PackageType.EXE;
