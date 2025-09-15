@@ -1,3 +1,5 @@
 namespace AppLocate.Cli.Tests;
-// Placeholder removed cache test (cache feature deprecated)
-public class CacheKeyVariantTests { }
+// Obsolete: cache layer removed.
+#if FALSE
+namespace AppLocate.Cli.Tests { public class CacheKeyVariantTests { } }
+#endif
