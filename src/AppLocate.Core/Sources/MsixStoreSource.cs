@@ -134,8 +134,48 @@ namespace AppLocate.Core.Sources {
                     }
                     yield return new AppHit(HitType.InstallDir, scope, install, version, PackageType.MSIX, [Name], 0, evidence);
 
-                    IEnumerable<string> exes = [];
-                    try { exes = Directory.EnumerateFiles(install, "*.exe", SearchOption.TopDirectoryOnly); } catch { }
+                    // First attempt AppxManifest.xml parse for declared Application Executable entries; fall back to raw directory scan.
+                    var manifestPath = Path.Combine(install, "AppxManifest.xml");
+                    var manifestExes = new List<string>();
+                    try {
+                        if (File.Exists(manifestPath)) {
+                            var xml = File.ReadAllText(manifestPath);
+                            // Very lightweight parse: look for Executable="..." attributes in <Application ...>
+                            // Avoid full XML DOM to reduce allocations; handle quotes conservatively.
+                            var idx = 0;
+                            while (idx < xml.Length) {
+                                var appTag = xml.IndexOf("<Application", idx, StringComparison.OrdinalIgnoreCase);
+                                if (appTag < 0) { break; }
+                                var close = xml.IndexOf('>', appTag + 12);
+                                if (close < 0) { break; }
+                                var segment = xml.Substring(appTag, close - appTag);
+                                var exeAttrIdx = segment.IndexOf("Executable=", StringComparison.OrdinalIgnoreCase);
+                                if (exeAttrIdx >= 0) {
+                                    var quoteStart = segment.IndexOf('"', exeAttrIdx);
+                                    if (quoteStart >= 0) {
+                                        var quoteEnd = segment.IndexOf('"', quoteStart + 1);
+                                        if (quoteEnd > quoteStart) {
+                                            var rel = segment.Substring(quoteStart + 1, quoteEnd - quoteStart - 1).Trim();
+                                            if (rel.Length > 0) {
+                                                // Executable may be relative; combine.
+                                                var abs = Path.Combine(install, rel.Replace('/', Path.DirectorySeparatorChar));
+                                                if (File.Exists(abs)) {
+                                                    manifestExes.Add(abs);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                idx = close + 1;
+                            }
+                        }
+                    }
+                    catch { }
+
+                    IEnumerable<string> exes = manifestExes.Count > 0 ? manifestExes : [];
+                    if (manifestExes.Count == 0) {
+                        try { exes = Directory.EnumerateFiles(install, "*.exe", SearchOption.TopDirectoryOnly); } catch { }
+                    }
                     foreach (var exe in exes) {
                         if (ct.IsCancellationRequested) {
                             yield break;
@@ -158,6 +198,9 @@ namespace AppLocate.Core.Sources {
                         var exeEvidence = evidence;
                         if (options.IncludeEvidence) {
                             exeEvidence = new Dictionary<string, string>(evidence ?? []) { { EvidenceKeys.ExeName, Path.GetFileName(exe) } };
+                            if (manifestExes.Count > 0) {
+                                exeEvidence["MsixManifest"] = "1";
+                            }
                         }
 
                         yield return new AppHit(HitType.Exe, scope, exe, version, PackageType.MSIX, [Name], 0, exeEvidence);
