@@ -268,11 +268,21 @@ public static class Ranker
         }
 
         // 8. Post adjustments: mild reward for deeper token coverage precision (all tokens matched and exact file)
-    if (tokenCoverage == 1 && !string.IsNullOrEmpty(fileName) && fileName.Equals(query, StringComparison.OrdinalIgnoreCase)) { score += 0.05; if (signals!=null) signals["ExactMatchBonus"] = 0.05; }
+    if (tokenCoverage == 1 && !string.IsNullOrEmpty(fileName) && fileName.Equals(query, StringComparison.OrdinalIgnoreCase))
+    {
+        score += 0.05;
+        if (signals!=null) signals["ExactMatchBonus"] = 0.05;
+    }
 
         // Clamp
-        if (score > 1.0) score = 1.0;
-        if (score < 0) score = 0;
+        if (score > 1.0)
+        {
+            score = 1.0;
+        }
+        if (score < 0)
+        {
+            score = 0;
+        }
 
         // (3) Penalize uninstaller/update-cache executables unless explicitly searched for uninstall
         if (hit.Type == HitType.Exe)
@@ -283,11 +293,21 @@ public static class Ranker
                                  || fn.Contains("unins000", StringComparison.Ordinal)
                                  || fn.Contains("update-cache", StringComparison.Ordinal)
                                  || (fn.Contains("setup", StringComparison.Ordinal) && fn.EndsWith(".exe", StringComparison.Ordinal));
-            if (uninstallLike && !query.Contains("uninstall")) { score -= 0.25; AddSignal(signals, "UninstallPenalty", -0.25); if (score < 0) score = 0; }
+            if (uninstallLike && !query.Contains("uninstall"))
+            {
+                score -= 0.25;
+                AddSignal(signals, "UninstallPenalty", -0.25);
+                if (score < 0) score = 0;
+            }
             // (5) Steam auxiliary dampening: if query is 'steam' and filename contains helper patterns (webhelper, errorreporter, service, xboxutil, sysinfo)
             if (query == "steam")
             {
-                if (fn.Contains("webhelper") || fn.Contains("errorreporter") || fn.Contains("service") || fn.Contains("xboxutil") || fn.Contains("sysinfo") || fn.Contains("steamservice")) { score -= 0.18; AddSignal(signals, "SteamAuxPenalty", -0.18); if (score < 0) score = 0; }
+                if (fn.Contains("webhelper") || fn.Contains("errorreporter") || fn.Contains("service") || fn.Contains("xboxutil") || fn.Contains("sysinfo") || fn.Contains("steamservice"))
+                {
+                    score -= 0.18;
+                    AddSignal(signals, "SteamAuxPenalty", -0.18);
+                    if (score < 0) score = 0;
+                }
             }
         }
 
@@ -295,13 +315,33 @@ public static class Ranker
         if (lowerPath.Contains("fl cloud plugins"))
         {
             bool related = query.Contains("fl") || query.Contains("cloud") || query.Contains("plugin");
-            if (!related) { score -= 0.35; AddSignal(signals, "PluginSuppression", -0.35); if (score < 0) score = 0; }
+            if (!related)
+            {
+                score -= 0.35;
+                AddSignal(signals, "PluginSuppression", -0.35);
+                if (score < 0) score = 0;
+            }
         }
 
         // (4d) Cache / transient artifact demotion (Code Cache, VideoDecodeStats, update-cache, Winget temp version folders)
-    if (lowerPath.Contains("code cache") || lowerPath.Contains("video\\decode") || lowerPath.Contains("videodecodestats") || lowerPath.Contains("video\\decodestats")) { score -= 0.25; AddOrAccumulate(signals, "CacheArtifactPenalty", -0.25); if (score < 0) score = 0; }
-    if (lowerPath.Contains("\\update-cache\\") || lowerPath.EndsWith("\\update-cache", StringComparison.OrdinalIgnoreCase)) { score -= 0.22; AddOrAccumulate(signals, "CacheArtifactPenalty", -0.22); if (score < 0) score = 0; }
-    if (lowerPath.Contains("\\temp\\winget\\") || lowerPath.Contains("winget.")) { score -= 0.10; AddOrAccumulate(signals, "CacheArtifactPenalty", -0.10); if (score < 0) score = 0; }
+    if (lowerPath.Contains("code cache") || lowerPath.Contains("video\\decode") || lowerPath.Contains("videodecodestats") || lowerPath.Contains("video\\decodestats"))
+    {
+        score -= 0.25;
+        AddOrAccumulate(signals, "CacheArtifactPenalty", -0.25);
+        if (score < 0) score = 0;
+    }
+    if (lowerPath.Contains("\\update-cache\\") || lowerPath.EndsWith("\\update-cache", StringComparison.OrdinalIgnoreCase))
+    {
+        score -= 0.22;
+        AddOrAccumulate(signals, "CacheArtifactPenalty", -0.22);
+        if (score < 0) score = 0;
+    }
+    if (lowerPath.Contains("\\temp\\winget\\") || lowerPath.Contains("winget."))
+    {
+        score -= 0.10;
+        AddOrAccumulate(signals, "CacheArtifactPenalty", -0.10);
+        if (score < 0) score = 0;
+    }
     AddSignal(signals, "Total", score);
     return score;
     }
@@ -311,40 +351,48 @@ public static class Ranker
     private static System.Collections.Generic.HashSet<string> Tokenize(string? value)
     {
         var set = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (string.IsNullOrWhiteSpace(value)) return set;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return set;
+        }
     var parts = value.Split(Separators, StringSplitOptions.RemoveEmptyEntries);
         foreach (var p in parts)
         {
             var t = p.Trim();
-            if (t.Length == 0) continue;
+            if (t.Length == 0) { continue; }
             set.Add(t);
-    private static readonly char[] Separators = new[] { ' ', '-', '_', '.' };
+        }
+        return set;
+    }
+
+    private static readonly char[] Separators = { ' ', '-', '_', '.' };
 
     private static void AddSignal(System.Collections.Generic.Dictionary<string,double>? map, string key, double value)
     {
-        if (map == null) return;
+        if (map == null) { return; }
         map[key] = value;
     }
 
     private static void AddOrAccumulate(System.Collections.Generic.Dictionary<string,double>? map, string key, double delta)
     {
-        if (map == null) return;
-        if (map.TryGetValue(key, out var existing)) map[key] = existing + delta; else map[key] = delta;
-    }
-        }
-        return set;
+        if (map == null) { return; }
+        if (map.TryGetValue(key, out var existing)) { map[key] = existing + delta; }
+        else { map[key] = delta; }
     }
 
     // Expands a token by splitting camelCase/PascalCase and numeric boundaries; returns additional fragments.
     private static System.Collections.Generic.IEnumerable<string> ExpandToken(string token)
     {
-        if (string.IsNullOrWhiteSpace(token) || token.Length < 4) yield break; // skip very short
+        if (string.IsNullOrWhiteSpace(token) || token.Length < 4)
+        {
+            yield break; // skip very short
+        }
         // CamelCase: split before capitals (except first)
         var segments = new System.Collections.Generic.List<string>();
         var current = new System.Text.StringBuilder();
-        for (int i = 0; i < token.Length; i++)
+        for (var i = 0; i < token.Length; i++)
         {
-            char c = token[i];
+            var c = token[i];
             if (i > 0 && char.IsUpper(c) && (current.Length > 0))
             {
                 segments.Add(current.ToString());
@@ -352,13 +400,19 @@ public static class Ranker
             }
             current.Append(c);
         }
-        if (current.Length > 0) segments.Add(current.ToString());
+        if (current.Length > 0)
+        {
+            segments.Add(current.ToString());
+        }
         if (segments.Count > 1)
         {
             foreach (var s in segments)
             {
                 var ls = s.ToLowerInvariant();
-                if (ls.Length > 1) yield return ls;
+                if (ls.Length > 1)
+                {
+                    yield return ls;
+                }
             }
         }
         // Additionally split numeric boundaries (e.g., app2go -> app, 2, go)
@@ -369,7 +423,10 @@ public static class Ranker
             if (alphaBuf.Length > 1)
             {
                 var v = alphaBuf.ToString().ToLowerInvariant();
-                if (v != token) output.Add(v);
+                if (v != token)
+                {
+                    output.Add(v);
+                }
             }
             alphaBuf.Clear();
         }
@@ -378,7 +435,10 @@ public static class Ranker
             if (numBuf.Length > 0)
             {
                 var v = numBuf.ToString();
-                if (v != token) output.Add(v);
+                if (v != token)
+                {
+                    output.Add(v);
+                }
             }
             numBuf.Clear();
         }
@@ -387,51 +447,88 @@ public static class Ranker
         {
             if (char.IsDigit(c))
             {
-                if (alphaBuf.Length > 0) FlushAlpha(extra);
+                if (alphaBuf.Length > 0)
+                {
+                    FlushAlpha(extra);
+                }
                 numBuf.Append(c);
             }
             else
             {
-                if (numBuf.Length > 0) FlushNum(extra);
+                if (numBuf.Length > 0)
+                {
+                    FlushNum(extra);
+                }
                 alphaBuf.Append(c);
             }
         }
-        if (alphaBuf.Length > 0) FlushAlpha(extra);
-        if (numBuf.Length > 0) FlushNum(extra);
-        foreach (var e in extra) yield return e;
+        if (alphaBuf.Length > 0)
+        {
+            FlushAlpha(extra);
+        }
+        if (numBuf.Length > 0)
+        {
+            FlushNum(extra);
+        }
+        foreach (var e in extra)
+        {
+            yield return e;
+        }
     }
 
     // Lightweight Levenshtein similarity ratio (1 - distance/maxLen)
     private static double FuzzyRatio(string a, string b)
     {
-        if (a.Length == 0 || b.Length == 0) return 0;
+        if (a.Length == 0 || b.Length == 0)
+        {
+            return 0;
+        }
         // Cap to avoid excessive cost on very long paths (only filenames here so fine)
         var la = a.Length; var lb = b.Length;
         var d = new int[la + 1, lb + 1];
-        for (int i = 0; i <= la; i++) d[i,0] = i;
-        for (int j = 0; j <= lb; j++) d[0,j] = j;
-        for (int i = 1; i <= la; i++)
+        for (var i = 0; i <= la; i++)
         {
-            for (int j = 1; j <= lb; j++)
+            d[i,0] = i;
+        }
+        for (var j = 0; j <= lb; j++)
+        {
+            d[0,j] = j;
+        }
+        for (var i = 1; i <= la; i++)
+        {
+            for (var j = 1; j <= lb; j++)
             {
-                int cost = a[i-1] == b[j-1] ? 0 : 1;
-                int del = d[i-1,j] + 1;
-                int ins = d[i,j-1] + 1;
-                int sub = d[i-1,j-1] + cost;
-                int min = del < ins ? del : ins;
-                if (sub < min) min = sub;
+                var cost = a[i-1] == b[j-1] ? 0 : 1;
+                var del = d[i-1,j] + 1;
+                var ins = d[i,j-1] + 1;
+                var sub = d[i-1,j-1] + cost;
+                var min = del < ins ? del : ins;
+                if (sub < min)
+                {
+                    min = sub;
+                }
                 d[i,j] = min;
             }
         }
         var dist = d[la,lb];
         double maxLen = Math.Max(la, lb);
         var ratio = 1.0 - (dist / maxLen);
-        if (ratio < 0) ratio = 0; if (ratio > 1) ratio = 1;
+        if (ratio < 0)
+        {
+            ratio = 0;
+        }
+        if (ratio > 1)
+        {
+            ratio = 1;
+        }
         return ratio;
     }
     private static ScoreBreakdown BuildBreakdown(System.Collections.Generic.Dictionary<string,double> map, double total)
     {
-        double Get(string k) => map.TryGetValue(k, out var v) ? v : 0;
+        double Get(string k)
+        {
+            return map.TryGetValue(k, out var v) ? v : 0;
+        }
         return new ScoreBreakdown(
             Get("TokenCoverage"),
             Get("CollapsedSubstring"),

@@ -7,8 +7,13 @@ namespace AppLocate.Core.Tests;
 
 public class RankingTests
 {
+    private static readonly string[] DefaultSources = ["Test"]; // CA1861
+    private static readonly string[] SrcA = ["A"]; 
+    private static readonly string[] SrcABC = ["A","B","C"]; 
+    private static readonly string[] SrcABCD = ["A","B","C","D"]; 
+    private static readonly string[] SrcABCDEFGH = ["A","B","C","D","E","F","G","H"]; 
     private static AppHit Make(string path, HitType type = HitType.Exe, Dictionary<string,string>? evidence = null, string[]? sources = null)
-        => new(type, Scope.User, path, null, PackageType.EXE, sources ?? new[]{"Test"}, 0, evidence);
+        => new(type, Scope.User, path, null, PackageType.EXE, sources ?? DefaultSources, 0, evidence);
 
     [Fact]
     public void ExactFileNameBeatsSubstring()
@@ -35,8 +40,8 @@ public class RankingTests
     [Fact]
     public void MultiSourceAddsBoost()
     {
-        var single = Make("C:/apps/tool.exe", sources: new[]{"A"});
-        var multi = Make("C:/apps/tool.exe", sources: new[]{"A","B","C"});
+    var single = Make("C:/apps/tool.exe", sources: SrcA);
+    var multi = Make("C:/apps/tool.exe", sources: SrcABC);
         var q = "tool";
         var sSingle = Ranker.Score(q, single);
         var sMulti = Ranker.Score(q, multi);
@@ -84,8 +89,8 @@ public class RankingTests
     [Fact]
     public void MultiSourceSaturation()
     {
-        var four = Make("C:/apps/app.exe", sources: new[]{"A","B","C","D"});
-        var eight = Make("C:/apps/app.exe", sources: new[]{"A","B","C","D","E","F","G","H"});
+    var four = Make("C:/apps/app.exe", sources: SrcABCD);
+    var eight = Make("C:/apps/app.exe", sources: SrcABCDEFGH);
         var q = "app";
         var s4 = Ranker.Score(q, four);
         var s8 = Ranker.Score(q, eight);

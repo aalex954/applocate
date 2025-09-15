@@ -247,7 +247,11 @@ public static class Program
     // (index/cache removed)
 
     var hits = new List<AppHit>();
-        using var cts = new CancellationTokenSource();
+    // Reusable singleton arrays to avoid repeated allocations (CA1861)
+    static readonly string[] SrcProcess = ["Process"];
+    static readonly string[] SrcRules = ["Rules"];
+
+    using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
         // Parallel source execution with bounded degree
     var registry = BuildRegistry();
@@ -305,10 +309,10 @@ public static class Program
                 if (!string.IsNullOrWhiteSpace(procPath) && File.Exists(procPath))
                 {
                     var ev = evidence ? new Dictionary<string,string>{{"ProcessId", pid.Value.ToString()},{"ProcessName", proc.ProcessName}} : null;
-                    hits.Add(new AppHit(HitType.Exe, Scope.Machine, procPath, null, PackageType.Unknown, new[]{"Process"}, 0, ev));
+                    hits.Add(new AppHit(HitType.Exe, Scope.Machine, procPath, null, PackageType.Unknown, SrcProcess, 0, ev));
                     var dir = Path.GetDirectoryName(procPath);
                     if (!string.IsNullOrWhiteSpace(dir))
-                        hits.Add(new AppHit(HitType.InstallDir, Scope.Machine, dir!, null, PackageType.Unknown, new[]{"Process"}, 0, ev));
+                        hits.Add(new AppHit(HitType.InstallDir, Scope.Machine, dir!, null, PackageType.Unknown, SrcProcess, 0, ev));
                 }
             }
             catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] pid lookup failed: {ex.Message}"); }
@@ -341,12 +345,12 @@ public static class Program
                         foreach (var cfg in rule.Config)
                         {
                             var expanded = Environment.ExpandEnvironmentVariables(cfg.Replace('/', Path.DirectorySeparatorChar));
-                            hits.Add(new AppHit(HitType.Config, Scope.User, expanded, null, PackageType.Unknown, new[]{"Rules"}, 0, new System.Collections.Generic.Dictionary<string,string>{{"Rule","config"}}));
+                            hits.Add(new AppHit(HitType.Config, Scope.User, expanded, null, PackageType.Unknown, SrcRules, 0, new System.Collections.Generic.Dictionary<string,string>{{"Rule","config"}}));
                         }
                         foreach (var dat in rule.Data)
                         {
                             var expanded = Environment.ExpandEnvironmentVariables(dat.Replace('/', Path.DirectorySeparatorChar));
-                            hits.Add(new AppHit(HitType.Data, Scope.User, expanded, null, PackageType.Unknown, new[]{"Rules"}, 0, new System.Collections.Generic.Dictionary<string,string>{{"Rule","data"}}));
+                            hits.Add(new AppHit(HitType.Data, Scope.User, expanded, null, PackageType.Unknown, SrcRules, 0, new System.Collections.Generic.Dictionary<string,string>{{"Rule","data"}}));
                         }
                     }
                 }
