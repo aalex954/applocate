@@ -43,7 +43,7 @@ public sealed class RegistryUninstallSource : ISource
     private void EnumerateRoots(IEnumerable<string> roots, Scope scope, string normalizedQuery, SourceOptions options, List<AppHit> sink, CancellationToken ct)
     {
         var queryTokens = normalizedQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-    foreach (var root in roots)
+        foreach (var root in roots)
         {
             if (ct.IsCancellationRequested) return;
             RegistryKey? rk = null;
@@ -89,10 +89,10 @@ public sealed class RegistryUninstallSource : ISource
 
                         var pkgType = windowsInstaller ? PackageType.MSI : PackageType.EXE;
 
-                        Dictionary<string,string>? evidence = null;
+                        Dictionary<string, string>? evidence = null;
                         if (options.IncludeEvidence)
                         {
-                            evidence = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase)
+                            evidence = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
                             {
                                 {EvidenceKeys.DisplayName, displayName!},
                                 {EvidenceKeys.Key, sub}

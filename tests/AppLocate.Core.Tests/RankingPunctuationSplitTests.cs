@@ -7,8 +7,9 @@ namespace AppLocate.Core.Tests;
 
 public class RankingPunctuationSplitTests
 {
+    private static readonly string[] DefaultSources = ["Test"]; // CA1861 reuse
     private static AppHit Make(string path, HitType type = HitType.Exe, string[]? sources = null)
-        => new(type, Scope.User, path, null, PackageType.EXE, sources ?? new[]{"Test"}, 0, null);
+        => new(type, Scope.User, path, null, PackageType.EXE, sources ?? DefaultSources, 0, null);
 
     [Fact]
     public void CompressedTokenMatchesHyphenated()

@@ -70,28 +70,28 @@ public sealed class ServicesTasksSource : ISource
             var lowerService = serviceName.ToLowerInvariant();
             var lowerDisplay = displayName?.ToLowerInvariant();
             bool match = options.Strict
-                ? tokens.All(t => lowerFile.Contains(t) || lowerService.Contains(t) || (lowerDisplay?.Contains(t) ?? false))
-                : lowerFile.Contains(norm) || lowerService.Contains(norm) || (lowerDisplay?.Contains(norm) ?? false) || exeCandidate.ToLowerInvariant().Contains(norm);
+                ? tokens.All(t => lowerFile.Contains(t, StringComparison.Ordinal) || lowerService.Contains(t, StringComparison.Ordinal) || (lowerDisplay?.Contains(t, StringComparison.Ordinal) ?? false))
+                : lowerFile.Contains(norm, StringComparison.Ordinal) || lowerService.Contains(norm, StringComparison.Ordinal) || (lowerDisplay?.Contains(norm, StringComparison.Ordinal) ?? false) || exeCandidate.ToLowerInvariant().Contains(norm, StringComparison.Ordinal);
             if (!match) continue;
             var scope = ServicesScopeFromPath(exeCandidate);
             if (options.MachineOnly && scope == Scope.User) continue;
             if (options.UserOnly && scope == Scope.Machine) continue;
             if (!seenExe.Add(exeCandidate)) continue;
-            Dictionary<string,string>? evidence = null;
+            Dictionary<string, string>? evidence = null;
             if (options.IncludeEvidence)
             {
-                evidence = new Dictionary<string,string>{{EvidenceKeys.Service, serviceName},{EvidenceKeys.ExeName, Path.GetFileName(exeCandidate)}};
+                evidence = new Dictionary<string, string> { { EvidenceKeys.Service, serviceName }, { EvidenceKeys.ExeName, Path.GetFileName(exeCandidate) } };
                 if (!string.IsNullOrWhiteSpace(displayName)) evidence[EvidenceKeys.ServiceDisplayName] = displayName!;
                 var dirName = Path.GetFileName(Path.GetDirectoryName(exeCandidate) ?? string.Empty)?.ToLowerInvariant();
-                if (!string.IsNullOrEmpty(dirName) && (options.Strict ? tokens.All(t => dirName.Contains(t)) : dirName.Contains(norm))) evidence[EvidenceKeys.DirMatch] = dirName;
+                if (!string.IsNullOrEmpty(dirName) && (options.Strict ? tokens.All(t => dirName.Contains(t, StringComparison.Ordinal)) : dirName.Contains(norm, StringComparison.Ordinal))) evidence[EvidenceKeys.DirMatch] = dirName;
             }
             yield return new AppHit(HitType.Exe, scope, exeCandidate, null, PackageType.EXE, new[] { Name }, 0, evidence);
             var dir = Path.GetDirectoryName(exeCandidate);
             if (!string.IsNullOrEmpty(dir) && seenInstall.Add(dir))
             {
-                Dictionary<string,string>? dirEvidence = evidence;
+                Dictionary<string, string>? dirEvidence = evidence;
                 if (options.IncludeEvidence && dirEvidence != null && !dirEvidence.ContainsKey(EvidenceKeys.FromService))
-                    dirEvidence = new Dictionary<string,string>(dirEvidence) { {EvidenceKeys.FromService,"true"} };
+                    dirEvidence = new Dictionary<string, string>(dirEvidence) { { EvidenceKeys.FromService, "true" } };
                 yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, dirEvidence);
             }
         }
@@ -118,33 +118,33 @@ public sealed class ServicesTasksSource : ISource
             {
                 continue;
             }
-                foreach (var exe in ExtractCommands(content))
+            foreach (var exe in ExtractCommands(content))
             {
                 if (ct.IsCancellationRequested) yield break;
-                    var normExe = PathUtils.NormalizePath(exe);
-                    if (string.IsNullOrWhiteSpace(normExe) || !File.Exists(normExe)) continue;
-                    var fileName = Path.GetFileNameWithoutExtension(normExe)?.ToLowerInvariant() ?? string.Empty;
-                    bool match = options.Strict ? tokens.All(t => fileName.Contains(t) || normExe!.ToLowerInvariant().Contains(t)) : (fileName.Contains(norm) || normExe!.ToLowerInvariant().Contains(norm));
+                var normExe = PathUtils.NormalizePath(exe);
+                if (string.IsNullOrWhiteSpace(normExe) || !File.Exists(normExe)) continue;
+                var fileName = Path.GetFileNameWithoutExtension(normExe)?.ToLowerInvariant() ?? string.Empty;
+                bool match = options.Strict ? tokens.All(t => fileName.Contains(t, StringComparison.Ordinal) || normExe!.ToLowerInvariant().Contains(t, StringComparison.Ordinal)) : (fileName.Contains(norm, StringComparison.Ordinal) || normExe!.ToLowerInvariant().Contains(norm, StringComparison.Ordinal));
                 if (!match) continue;
-                    if (!seenExe.Add(normExe!)) continue;
-                    var scope = ServicesScopeFromPath(normExe!);
+                if (!seenExe.Add(normExe!)) continue;
+                var scope = ServicesScopeFromPath(normExe!);
                 if (options.MachineOnly && scope == Scope.User) continue;
                 if (options.UserOnly && scope == Scope.Machine) continue;
-                Dictionary<string,string>? evidence = null;
+                Dictionary<string, string>? evidence = null;
                 if (options.IncludeEvidence)
                 {
                     var taskName = tf.StartsWith(tasksRoot, StringComparison.OrdinalIgnoreCase) ? tf.Substring(tasksRoot.Length).TrimStart(Path.DirectorySeparatorChar) : tf;
-                        evidence = new Dictionary<string,string>{{EvidenceKeys.TaskFile, tf},{EvidenceKeys.TaskName, taskName},{EvidenceKeys.ExeName, Path.GetFileName(normExe)}};
-                        var dirName = Path.GetFileName(Path.GetDirectoryName(normExe!) ?? string.Empty)?.ToLowerInvariant();
-                    if (!string.IsNullOrEmpty(dirName) && (options.Strict ? tokens.All(t => dirName.Contains(t)) : dirName.Contains(norm))) evidence[EvidenceKeys.DirMatch] = dirName;
+                    evidence = new Dictionary<string, string> { { EvidenceKeys.TaskFile, tf }, { EvidenceKeys.TaskName, taskName }, { EvidenceKeys.ExeName, Path.GetFileName(normExe) } };
+                    var dirName = Path.GetFileName(Path.GetDirectoryName(normExe!) ?? string.Empty)?.ToLowerInvariant();
+                    if (!string.IsNullOrEmpty(dirName) && (options.Strict ? tokens.All(t => dirName.Contains(t, StringComparison.Ordinal)) : dirName.Contains(norm, StringComparison.Ordinal))) evidence[EvidenceKeys.DirMatch] = dirName;
                 }
-                    yield return new AppHit(HitType.Exe, scope, normExe!, null, PackageType.EXE, new[] { Name }, 0, evidence);
-                    var dir = Path.GetDirectoryName(normExe!);
+                yield return new AppHit(HitType.Exe, scope, normExe!, null, PackageType.EXE, new[] { Name }, 0, evidence);
+                var dir = Path.GetDirectoryName(normExe!);
                 if (!string.IsNullOrEmpty(dir) && seenInstall.Add(dir))
                 {
-                    Dictionary<string,string>? dirEvidence = evidence;
+                    Dictionary<string, string>? dirEvidence = evidence;
                     if (options.IncludeEvidence && dirEvidence != null && !dirEvidence.ContainsKey(EvidenceKeys.FromTask))
-                        dirEvidence = new Dictionary<string,string>(dirEvidence) { {EvidenceKeys.FromTask,"true"} };
+                        dirEvidence = new Dictionary<string, string>(dirEvidence) { { EvidenceKeys.FromTask, "true" } };
                     yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, dirEvidence);
                 }
             }
@@ -189,7 +189,7 @@ public sealed class ServicesTasksSource : ISource
         try
         {
             var lower = path.ToLowerInvariant();
-            if (lower.Contains("\\users\\")) return Scope.User;
+            if (lower.Contains("\\users\\", StringComparison.Ordinal)) return Scope.User;
             return Scope.Machine;
         }
         catch { return Scope.Machine; }

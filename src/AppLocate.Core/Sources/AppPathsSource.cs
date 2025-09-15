@@ -30,7 +30,7 @@ public sealed class AppPathsSource : ISource
     /// <inheritdoc />
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
-    await Task.Yield();
+        await Task.Yield();
         if (string.IsNullOrWhiteSpace(query)) { yield break; }
         var norm = query.ToLowerInvariant();
         if (!options.MachineOnly)
@@ -63,10 +63,10 @@ public sealed class AppPathsSource : ISource
                 string? exePath = null; string? pathDir = null;
                 try { exePath = (subKey.GetValue(null) as string)?.Trim().Trim('"'); } catch { }
                 try { pathDir = (subKey.GetValue("Path") as string)?.Trim().Trim('"'); } catch { }
-                Dictionary<string,string>? evidence = null;
+                Dictionary<string, string>? evidence = null;
                 if (options.IncludeEvidence)
                 {
-                    evidence = new Dictionary<string,string> { { "Key", sub } };
+                    evidence = new Dictionary<string, string> { { "Key", sub } };
                     if (!string.IsNullOrEmpty(exePath)) { evidence["HasExe"] = "true"; }
                     if (!string.IsNullOrEmpty(pathDir)) { evidence["HasPath"] = "true"; }
                 }

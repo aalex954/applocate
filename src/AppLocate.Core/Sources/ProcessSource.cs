@@ -46,21 +46,21 @@ public sealed class ProcessSource : ISource
             bool match;
             if (options.Strict)
             {
-                match = nameLower != null && processTokens.All(t => nameLower.Contains(t));
+                match = nameLower != null && processTokens.All(t => nameLower.Contains(t, StringComparison.Ordinal));
             }
             else
             {
-                match = (nameLower != null && nameLower.Contains(norm)) || (mainModulePath != null && mainModulePath.ToLowerInvariant().Contains(norm));
+                match = (nameLower != null && nameLower.Contains(norm, StringComparison.Ordinal)) || (mainModulePath != null && mainModulePath.ToLowerInvariant().Contains(norm, StringComparison.Ordinal));
             }
             if (!match) continue;
             if (!string.IsNullOrEmpty(mainModulePath) && File.Exists(mainModulePath))
             {
                 if (!dedup.Add(mainModulePath)) continue;
                 var scope = InferScope(mainModulePath);
-                Dictionary<string,string>? evidence = null;
+                Dictionary<string, string>? evidence = null;
                 if (options.IncludeEvidence)
                 {
-                    evidence = new Dictionary<string,string>{{"ProcessId", p.Id.ToString()}};
+                    evidence = new Dictionary<string, string> { { "ProcessId", p.Id.ToString(System.Globalization.CultureInfo.InvariantCulture) } };
                     if (!string.IsNullOrEmpty(name)) evidence["ProcessName"] = name;
                     var exeName = Path.GetFileName(mainModulePath);
                     if (!string.IsNullOrEmpty(exeName)) evidence["ExeName"] = exeName;
@@ -71,7 +71,7 @@ public sealed class ProcessSource : ISource
                 {
                     var dirEvidence = evidence;
                     if (options.IncludeEvidence && dirEvidence != null && !dirEvidence.ContainsKey("DirMatch"))
-                        dirEvidence = new Dictionary<string,string>(dirEvidence) { {"DirMatch","true"} };
+                        dirEvidence = new Dictionary<string, string>(dirEvidence) { { "DirMatch", "true" } };
                     yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, dirEvidence);
                 }
             }
@@ -83,7 +83,7 @@ public sealed class ProcessSource : ISource
         try
         {
             var lower = path.ToLowerInvariant();
-            if (lower.Contains("\\users\\")) return Scope.User;
+            if (lower.Contains("\\users\\", StringComparison.Ordinal)) return Scope.User;
             return Scope.Machine;
         }
         catch { return Scope.Machine; }

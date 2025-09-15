@@ -1,4 +1,7 @@
-using System.Diagnostics;using System.IO;using System.Linq;using Xunit;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using Xunit;
 
 namespace AppLocate.Cli.Tests;
 
@@ -19,8 +22,8 @@ public class TraceFlagTests
     [Fact]
     public void TraceFlag_EmitsTraceLines()
     {
-    var (code, _, err) = Run("code", "--threads", "2", "--trace", "--limit", "2");
-        Assert.Contains(code, new[]{0,1});
+        var (code, _, err) = Run("code", "--threads", "2", "--trace", "--limit", "2");
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.Contains("[trace]", err);
         Assert.Contains("total-sources-ms", err);
     }
@@ -28,8 +31,8 @@ public class TraceFlagTests
     [Fact]
     public void NoTrace_NoTraceLines()
     {
-    var (code, _, err) = Run("code", "--threads", "2", "--limit", "2");
-        Assert.Contains(code, new[]{0,1});
+        var (code, _, err) = Run("code", "--threads", "2", "--limit", "2");
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.DoesNotContain("total-sources-ms", err);
     }
 }

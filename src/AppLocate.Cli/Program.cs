@@ -11,6 +11,12 @@ namespace AppLocate.Cli;
 
 public static class Program
 {
+    // Static reusable source arrays (CA1861 mitigation) centralized at class scope
+    private static class SourceArrays
+    {
+        public static readonly string[] Process = ["Process"];
+        public static readonly string[] Rules = ["Rules"];
+    }
     private static ISourceRegistry BuildRegistry()
     {
         // Builder allows future plugin injection (e.g., rule-pack driven or external package managers)
@@ -35,26 +41,26 @@ public static class Program
         var jsonOpt = new Option<bool>("--json") { Description = "Output results as JSON array" };
         var csvOpt = new Option<bool>("--csv") { Description = "Output results as CSV" };
         var textOpt = new Option<bool>("--text") { Description = "Force text output (default if neither --json nor --csv)" };
-    var userOpt = new Option<bool>("--user") { Description = "Limit to user-scope results" };
-    var machineOpt = new Option<bool>("--machine") { Description = "Limit to machine-scope results" };
-    var strictOpt = new Option<bool>("--strict") { Description = "Disable fuzzy/alias matching (exact tokens only)" };
-    var allOpt = new Option<bool>("--all") { Description = "Return all hits (default returns best per type)" };
-    var exeOpt = new Option<bool>("--exe") { Description = "Include only executable hits (can combine with others)" };
-    var installDirOpt = new Option<bool>("--install-dir") { Description = "Include only install directory hits" };
-    var configOpt = new Option<bool>("--config") { Description = "Include only config hits" };
-    var dataOpt = new Option<bool>("--data") { Description = "Include only data hits" };
-    var runningOpt = new Option<bool>("--running") { Description = "Include running process exe (enables ProcessSource)" };
-    var pidOpt = new Option<int?>("--pid") { Description = "Restrict to a specific process id (implies --running)" };
-    var packageSourceOpt = new Option<bool>("--package-source") { Description = "Include package type and raw source list in text/CSV output" };
-    var threadsOpt = new Option<int?>("--threads") { Description = "Maximum parallel source tasks (default = logical processors, cap 16)" };
-    var traceOpt = new Option<bool>("--trace") { Description = "Emit per-source timing diagnostics" };
+        var userOpt = new Option<bool>("--user") { Description = "Limit to user-scope results" };
+        var machineOpt = new Option<bool>("--machine") { Description = "Limit to machine-scope results" };
+        var strictOpt = new Option<bool>("--strict") { Description = "Disable fuzzy/alias matching (exact tokens only)" };
+        var allOpt = new Option<bool>("--all") { Description = "Return all hits (default returns best per type)" };
+        var exeOpt = new Option<bool>("--exe") { Description = "Include only executable hits (can combine with others)" };
+        var installDirOpt = new Option<bool>("--install-dir") { Description = "Include only install directory hits" };
+        var configOpt = new Option<bool>("--config") { Description = "Include only config hits" };
+        var dataOpt = new Option<bool>("--data") { Description = "Include only data hits" };
+        var runningOpt = new Option<bool>("--running") { Description = "Include running process exe (enables ProcessSource)" };
+        var pidOpt = new Option<int?>("--pid") { Description = "Restrict to a specific process id (implies --running)" };
+        var packageSourceOpt = new Option<bool>("--package-source") { Description = "Include package type and raw source list in text/CSV output" };
+        var threadsOpt = new Option<int?>("--threads") { Description = "Maximum parallel source tasks (default = logical processors, cap 16)" };
+        var traceOpt = new Option<bool>("--trace") { Description = "Emit per-source timing diagnostics" };
         var limitOpt = new Option<int?>("--limit") { Description = "Maximum number of results to return" };
-    var confMinOpt = new Option<double>("--confidence-min") { Description = "Minimum confidence threshold (0-1)" };
-    var scoreBreakdownOpt = new Option<bool>("--score-breakdown") { Description = "Include per-hit score component breakdown (JSON adds 'breakdown', text shows extra lines)" };
-    var timeoutOpt = new Option<int>("--timeout") { Description = "Per-source timeout seconds (default 5)" };
-    var evidenceOpt = new Option<bool>("--evidence") { Description = "Include evidence keys when available" };
-    // New: selective evidence filtering (comma-separated list); implicitly enables evidence emission
-    var evidenceKeysOpt = new Option<string>("--evidence-keys") { Description = "Comma-separated list of evidence keys to include (implies --evidence)" };
+        var confMinOpt = new Option<double>("--confidence-min") { Description = "Minimum confidence threshold (0-1)" };
+        var scoreBreakdownOpt = new Option<bool>("--score-breakdown") { Description = "Include per-hit score component breakdown (JSON adds 'breakdown', text shows extra lines)" };
+        var timeoutOpt = new Option<int>("--timeout") { Description = "Per-source timeout seconds (default 5)" };
+        var evidenceOpt = new Option<bool>("--evidence") { Description = "Include evidence keys when available" };
+        // New: selective evidence filtering (comma-separated list); implicitly enables evidence emission
+        var evidenceKeysOpt = new Option<string>("--evidence-keys") { Description = "Comma-separated list of evidence keys to include (implies --evidence)" };
         var verboseOpt = new Option<bool>("--verbose") { Description = "Verbose diagnostics (warnings)" };
         var noColorOpt = new Option<bool>("--no-color") { Description = "Disable ANSI colors" };
         var root = new RootCommand("Locate application installation directories, executables, and config/data paths")
@@ -140,11 +146,11 @@ public static class Program
         bool user = Has("--user");
         bool machine = Has("--machine");
         bool strict = Has("--strict");
-    bool all = Has("--all");
-    bool onlyExe = Has("--exe");
-    bool onlyInstall = Has("--install-dir");
-    bool onlyConfig = Has("--config");
-    bool onlyData = Has("--data");
+        bool all = Has("--all");
+        bool onlyExe = Has("--exe");
+        bool onlyInstall = Has("--install-dir");
+        bool onlyConfig = Has("--config");
+        bool onlyData = Has("--data");
         bool running = Has("--running");
         int? pid = IntAfter("--pid");
         if (pid.HasValue && pid.Value <= 0)
@@ -153,9 +159,9 @@ public static class Program
             return 2;
         }
         if (pid.HasValue) running = true; // imply
-    bool showPackageSources = Has("--package-source");
+        bool showPackageSources = Has("--package-source");
         int? threads = IntAfter("--threads");
-    bool trace = Has("--trace");
+        bool trace = Has("--trace");
         if (threads.HasValue)
         {
             if (threads.Value <= 0) { Console.Error.WriteLine("--threads must be > 0"); return 2; }
@@ -179,7 +185,7 @@ public static class Program
         }
         bool verbose = Has("--verbose");
         bool noColor = Has("--no-color");
-    // (index/cache options removed)
+        // (index/cache options removed)
 
         int? IntAfter(string name)
         {
@@ -227,8 +233,8 @@ public static class Program
             return 2;
         }
         if (!noColor && (Console.IsOutputRedirected || Console.IsErrorRedirected)) noColor = true;
-    bool scoreBreakdown = Has("--score-breakdown");
-    return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, evidenceKeyFilter, scoreBreakdown, verbose, trace, noColor);
+        bool scoreBreakdown = Has("--score-breakdown");
+        return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, evidenceKeyFilter, scoreBreakdown, verbose, trace, noColor);
     }
 
     private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, HashSet<string>? evidenceKeyFilter, bool scoreBreakdown, bool verbose, bool trace, bool noColor)
@@ -238,25 +244,23 @@ public static class Program
         {
             try
             {
-    Console.Error.WriteLine($"[verbose] query='{query}' strict={strict} all={all} onlyExe={onlyExe} onlyInstall={onlyInstall} onlyConfig={onlyConfig} onlyData={onlyData} running={running} pid={(pid?.ToString() ?? "-")} pkgSrc={showPackageSources} evidence={evidence} scoreBreakdown={scoreBreakdown} evidenceKeys={(evidenceKeyFilter==null?"(all|none)":string.Join(',',evidenceKeyFilter))} json={json} csv={csv} text={text} confMin={confidenceMin} limit={(limit?.ToString() ?? "-")} threads={(threads?.ToString() ?? "-")}");
+                Console.Error.WriteLine($"[verbose] query='{query}' strict={strict} all={all} onlyExe={onlyExe} onlyInstall={onlyInstall} onlyConfig={onlyConfig} onlyData={onlyData} running={running} pid={(pid?.ToString() ?? "-")} pkgSrc={showPackageSources} evidence={evidence} scoreBreakdown={scoreBreakdown} evidenceKeys={(evidenceKeyFilter == null ? "(all|none)" : string.Join(',', evidenceKeyFilter))} json={json} csv={csv} text={text} confMin={confidenceMin} limit={(limit?.ToString() ?? "-")} threads={(threads?.ToString() ?? "-")}");
             }
             catch { }
         }
-    var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
-    var normalized = Normalize(query);
-    // (index/cache removed)
+        var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
+        var normalized = Normalize(query);
+        // (index/cache removed)
 
-    var hits = new List<AppHit>();
-    // Reusable singleton arrays to avoid repeated allocations (CA1861)
-    static readonly string[] SrcProcess = ["Process"];
-    static readonly string[] SrcRules = ["Rules"];
+        var hits = new List<AppHit>();
+        // (Removed local static arrays; using Program.SourceArrays instead)
 
-    using var cts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
         // Parallel source execution with bounded degree
-    var registry = BuildRegistry();
-    var activeSources = registry.GetSources().Where(s => !(s is ProcessSource) || running).ToList();
-    var traceRecords = trace ? new System.Collections.Concurrent.ConcurrentBag<(string name,int count,long ms,bool error)>() : null;
+        var registry = BuildRegistry();
+        var activeSources = registry.GetSources().Where(s => !(s is ProcessSource) || running).ToList();
+        var traceRecords = trace ? new System.Collections.Concurrent.ConcurrentBag<(string name, int count, long ms, bool error)>() : null;
         int maxDegree = threads ?? Math.Min(Environment.ProcessorCount, 16);
         if (maxDegree < 1) maxDegree = 1;
         var sem = new SemaphoreSlim(maxDegree, maxDegree);
@@ -308,11 +312,11 @@ public static class Program
                 try { procPath = proc.MainModule?.FileName; } catch { }
                 if (!string.IsNullOrWhiteSpace(procPath) && File.Exists(procPath))
                 {
-                    var ev = evidence ? new Dictionary<string,string>{{"ProcessId", pid.Value.ToString()},{"ProcessName", proc.ProcessName}} : null;
-                    hits.Add(new AppHit(HitType.Exe, Scope.Machine, procPath, null, PackageType.Unknown, SrcProcess, 0, ev));
+                    var ev = evidence ? new Dictionary<string, string> { { "ProcessId", pid.Value.ToString() }, { "ProcessName", proc.ProcessName } } : null;
+                    hits.Add(new AppHit(HitType.Exe, Scope.Machine, procPath, null, PackageType.Unknown, SourceArrays.Process, 0, ev));
                     var dir = Path.GetDirectoryName(procPath);
                     if (!string.IsNullOrWhiteSpace(dir))
-                        hits.Add(new AppHit(HitType.InstallDir, Scope.Machine, dir!, null, PackageType.Unknown, SrcProcess, 0, ev));
+                        hits.Add(new AppHit(HitType.InstallDir, Scope.Machine, dir!, null, PackageType.Unknown, SourceArrays.Process, 0, ev));
                 }
             }
             catch (Exception ex) { if (verbose) Console.Error.WriteLine($"[warn] pid lookup failed: {ex.Message}"); }
@@ -330,8 +334,7 @@ public static class Program
             }
             if (!string.IsNullOrEmpty(rulesPath))
             {
-                var engine = new RulesEngine();
-                var loaded = await engine.LoadAsync(rulesPath, CancellationToken.None);
+                var loaded = await RulesEngine.LoadAsync(rulesPath, CancellationToken.None);
                 if (loaded.Count > 0)
                 {
                     // Determine if any rule matches query tokens or existing exe/install hits
@@ -345,12 +348,12 @@ public static class Program
                         foreach (var cfg in rule.Config)
                         {
                             var expanded = Environment.ExpandEnvironmentVariables(cfg.Replace('/', Path.DirectorySeparatorChar));
-                            hits.Add(new AppHit(HitType.Config, Scope.User, expanded, null, PackageType.Unknown, SrcRules, 0, new System.Collections.Generic.Dictionary<string,string>{{"Rule","config"}}));
+                            hits.Add(new AppHit(HitType.Config, Scope.User, expanded, null, PackageType.Unknown, SourceArrays.Rules, 0, new System.Collections.Generic.Dictionary<string, string> { { "Rule", "config" } }));
                         }
                         foreach (var dat in rule.Data)
                         {
                             var expanded = Environment.ExpandEnvironmentVariables(dat.Replace('/', Path.DirectorySeparatorChar));
-                            hits.Add(new AppHit(HitType.Data, Scope.User, expanded, null, PackageType.Unknown, SrcRules, 0, new System.Collections.Generic.Dictionary<string,string>{{"Rule","data"}}));
+                            hits.Add(new AppHit(HitType.Data, Scope.User, expanded, null, PackageType.Unknown, SourceArrays.Rules, 0, new System.Collections.Generic.Dictionary<string, string> { { "Rule", "data" } }));
                         }
                     }
                 }
@@ -369,18 +372,18 @@ public static class Program
                 full = full.Replace('/', Path.DirectorySeparatorChar);
                 // Trim trailing directory separator (except root like C:\)
                 if (full.Length > 3 && (full.EndsWith('\\') || full.EndsWith('/')))
-                    full = full.TrimEnd('\\','/');
+                    full = full.TrimEnd('\\', '/');
                 return full;
             }
             catch { return p.Replace('/', Path.DirectorySeparatorChar); }
         }
-    // Existence filtering (drop any hits whose file/dir no longer exists) BEFORE merge/ranking to avoid noise.
-    int preExistCount = hits.Count;
-    hits = hits.Where(h => SafePathExists(h.Path)).ToList();
-    int removed = preExistCount - hits.Count;
-    if (removed > 0 && verbose) { Console.Error.WriteLine($"[verbose] filtered {removed} non-existent paths (pre-merge)"); }
+        // Existence filtering (drop any hits whose file/dir no longer exists) BEFORE merge/ranking to avoid noise.
+        int preExistCount = hits.Count;
+        hits = hits.Where(h => SafePathExists(h.Path)).ToList();
+        int removed = preExistCount - hits.Count;
+        if (removed > 0 && verbose) { Console.Error.WriteLine($"[verbose] filtered {removed} non-existent paths (pre-merge)"); }
 
-    var mergedMap = new Dictionary<string, AppHit>(StringComparer.OrdinalIgnoreCase);
+        var mergedMap = new Dictionary<string, AppHit>(StringComparer.OrdinalIgnoreCase);
         foreach (var h in hits)
         {
             var normPath = NormalizePath(h.Path);
@@ -393,10 +396,10 @@ public static class Program
             // Merge: combine unique sources; merge evidence keys by accumulating distinct values.
             var srcSet = new HashSet<string>(existing.Source, StringComparer.OrdinalIgnoreCase);
             foreach (var s in h.Source) srcSet.Add(s);
-            Dictionary<string,string>? evidenceMerged = null;
+            Dictionary<string, string>? evidenceMerged = null;
             if (existing.Evidence != null || h.Evidence != null)
             {
-                evidenceMerged = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                evidenceMerged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 if (existing.Evidence != null)
                 {
                     foreach (var kv in existing.Evidence) evidenceMerged[kv.Key] = kv.Value;
@@ -479,10 +482,10 @@ public static class Program
                 var srcSet = new HashSet<string>(exist.Source, StringComparer.OrdinalIgnoreCase);
                 foreach (var s in h.Source) srcSet.Add(s);
                 // Merge evidence dictionaries (pipe-append distinct values)
-                Dictionary<string,string>? mergedEv = null;
+                Dictionary<string, string>? mergedEv = null;
                 if (exist.Evidence != null || h.Evidence != null)
                 {
-                    mergedEv = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                    mergedEv = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                     if (exist.Evidence != null)
                         foreach (var kv in exist.Evidence) mergedEv[kv.Key] = kv.Value;
                     if (h.Evidence != null)
@@ -500,7 +503,7 @@ public static class Program
                     }
                 }
                 // Annotate merge reason (for future --evidence visibility) without flooding existing keys.
-                if (mergedEv == null) mergedEv = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                if (mergedEv == null) mergedEv = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 mergedEv["PathMerged"] = "1";
                 pathCollapse[keyNoScope] = chosen with { Source = srcSet.ToArray(), Evidence = mergedEv };
             }
@@ -520,10 +523,10 @@ public static class Program
                             var newConf = h.Confidence + boost;
                             if (newConf > 1) newConf = 1;
                             // add evidence marker
-                            Dictionary<string,string>? ev2 = null;
+                            Dictionary<string, string>? ev2 = null;
                             if (h.Evidence != null)
-                                ev2 = new Dictionary<string,string>(h.Evidence, StringComparer.OrdinalIgnoreCase);
-                            else ev2 = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                                ev2 = new Dictionary<string, string>(h.Evidence, StringComparer.OrdinalIgnoreCase);
+                            else ev2 = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                             ev2["ExePair"] = "1";
                             adjusted.Add(h with { Confidence = newConf, Evidence = ev2 });
                             continue;
@@ -539,7 +542,7 @@ public static class Program
         // have a higher-confidence exe in that directory, demote the directory's confidence to reduce noise.
         if (scored.Count > 1)
         {
-            var exeByDir = new Dictionary<string,double>(StringComparer.OrdinalIgnoreCase);
+            var exeByDir = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             foreach (var ex in scored.Where(x => x.Type == HitType.Exe))
             {
                 try
@@ -547,7 +550,8 @@ public static class Program
                     var d = Path.GetDirectoryName(ex.Path);
                     if (string.IsNullOrEmpty(d)) continue;
                     if (!exeByDir.TryGetValue(d, out var cur) || ex.Confidence > cur) exeByDir[d] = ex.Confidence;
-                } catch { }
+                }
+                catch { }
             }
             for (int i = 0; i < scored.Count; i++)
             {
@@ -562,9 +566,9 @@ public static class Program
                 if (exeByDir.TryGetValue(h.Path, out var exConf) && exConf >= h.Confidence)
                 {
                     var newConf = Math.Max(0, h.Confidence - 0.30); // strong demotion
-                    Dictionary<string,string>? ev = null;
-                    if (h.Evidence != null) ev = new Dictionary<string,string>(h.Evidence, StringComparer.OrdinalIgnoreCase);
-                    else ev = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                    Dictionary<string, string>? ev = null;
+                    if (h.Evidence != null) ev = new Dictionary<string, string>(h.Evidence, StringComparer.OrdinalIgnoreCase);
+                    else ev = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                     ev["GenericDirPenalty"] = "1";
                     scored[i] = h with { Confidence = newConf, Evidence = ev };
                 }
@@ -573,7 +577,7 @@ public static class Program
         // Confidence floor for paired install dirs: avoid surfacing 0.00 for a directory that clearly hosts a high-confidence exe
         if (scored.Count > 0)
         {
-            var exeByDir2 = new Dictionary<string,double>(StringComparer.OrdinalIgnoreCase);
+            var exeByDir2 = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
             foreach (var ex in scored.Where(x => x.Type == HitType.Exe))
             {
                 try
@@ -581,7 +585,8 @@ public static class Program
                     var d = Path.GetDirectoryName(ex.Path);
                     if (string.IsNullOrEmpty(d)) continue;
                     if (!exeByDir2.TryGetValue(d, out var cur) || ex.Confidence > cur) exeByDir2[d] = ex.Confidence;
-                } catch { }
+                }
+                catch { }
             }
             for (int i = 0; i < scored.Count; i++)
             {
@@ -591,7 +596,7 @@ public static class Program
                 if (h.Confidence > 0.00001) continue; // already has non-zero
                 // Provide small floor so user sees a non-zero but still low value
                 var floor = 0.08;
-                var ev = h.Evidence != null ? new Dictionary<string,string>(h.Evidence, StringComparer.OrdinalIgnoreCase) : new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                var ev = h.Evidence != null ? new Dictionary<string, string>(h.Evidence, StringComparer.OrdinalIgnoreCase) : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 ev["DirMinFloor"] = floor.ToString(System.Globalization.CultureInfo.InvariantCulture);
                 scored[i] = h with { Confidence = floor, Evidence = ev };
             }
@@ -627,7 +632,8 @@ public static class Program
                                 subDirs = Directory.EnumerateDirectories(od.Path, "*", SearchOption.TopDirectoryOnly);
                                 entryCount = subDirs.Take(201).Count();
                                 if (entryCount > 200) continue; // too large, skip expensive scan
-                            } catch { }
+                            }
+                            catch { }
                             // Probe first-level subdirectories for a bin folder OR token-matching folder.
                             string? primaryLeaf = subDirs.FirstOrDefault(d => Path.GetFileName(d).Equals("bin", StringComparison.OrdinalIgnoreCase));
                             if (primaryLeaf == null)
@@ -705,7 +711,7 @@ public static class Program
                             if (chosen != null && File.Exists(chosen))
                             {
                                 // Add exe hit with conservative confidence baseline (rescored later).
-                                Dictionary<string,string>? ev = null;
+                                Dictionary<string, string>? ev = null;
                                 if (evidence)
                                 {
                                     ev = new(StringComparer.OrdinalIgnoreCase)
@@ -722,7 +728,7 @@ public static class Program
                                 // If depth2 discovered a more accurate install root (version folder), surface it as InstallDir if not already present.
                                 if (depth2 && depth2Root != null && Directory.Exists(depth2Root) && !scored.Any(h => h.Type == HitType.InstallDir && string.Equals(h.Path, depth2Root, StringComparison.OrdinalIgnoreCase)))
                                 {
-                                    Dictionary<string,string>? dirEv = null;
+                                    Dictionary<string, string>? dirEv = null;
                                     if (evidence)
                                     {
                                         dirEv = new(StringComparer.OrdinalIgnoreCase)
@@ -759,7 +765,7 @@ public static class Program
                                                 var name = Path.GetFileNameWithoutExtension(exePath).ToLowerInvariant();
                                                 if (!name.Contains(normalized)) continue;
                                                 if (!File.Exists(exePath)) continue;
-                                                Dictionary<string,string>? ev2 = null;
+                                                Dictionary<string, string>? ev2 = null;
                                                 if (evidence)
                                                 {
                                                     ev2 = new(StringComparer.OrdinalIgnoreCase)
@@ -772,7 +778,7 @@ public static class Program
                                                 scored.Add(new AppHit(HitType.Exe, od.Scope, exePath, null, od.PackageType, new[] { "OrphanProbe" }, 0, ev2));
                                                 if (!scored.Any(h => h.Type == HitType.InstallDir && string.Equals(h.Path, vdir, StringComparison.OrdinalIgnoreCase)))
                                                 {
-                                                    Dictionary<string,string>? dirEv2 = null;
+                                                    Dictionary<string, string>? dirEv2 = null;
                                                     if (evidence)
                                                     {
                                                         dirEv2 = new(StringComparer.OrdinalIgnoreCase)
@@ -789,7 +795,7 @@ public static class Program
                                     }
                                 }
                             }
-                            DonePattern: ;
+                        DonePattern:;
                         }
                         catch { }
                     }
@@ -801,7 +807,7 @@ public static class Program
                         {
                             if (scoreBreakdown)
                             {
-                                var (s,b) = Ranker.ScoreWithBreakdown(normalized, h);
+                                var (s, b) = Ranker.ScoreWithBreakdown(normalized, h);
                                 scored[i] = h with { Confidence = s, Breakdown = b };
                             }
                             else
@@ -870,15 +876,15 @@ public static class Program
                 {
                     // Synthetic directory hit (rare). Clone minimal evidence from its exe.
                     var exeRef = selected.First(e => e.Type == HitType.Exe && System.IO.Path.GetDirectoryName(e.Path) == dir);
-                    Dictionary<string,string>? ev = null;
+                    Dictionary<string, string>? ev = null;
                     if (evidence && exeRef.Evidence != null)
                     {
-                        ev = new Dictionary<string,string>(exeRef.Evidence, StringComparer.OrdinalIgnoreCase);
+                        ev = new Dictionary<string, string>(exeRef.Evidence, StringComparer.OrdinalIgnoreCase);
                         ev["AutoPair"] = "1";
                     }
                     else if (evidence)
                     {
-                        ev = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase) { { "AutoPair", "1" } };
+                        ev = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { { "AutoPair", "1" } };
                     }
                     selected.Add(new AppHit(HitType.InstallDir, exeRef.Scope, dir!, exeRef.Version, exeRef.PackageType, exeRef.Source, Math.Min(exeRef.Confidence, 0.50), ev));
                 }
@@ -891,8 +897,8 @@ public static class Program
                 {
                     var nameA = System.IO.Path.GetFileName(a).ToLowerInvariant();
                     var nameB = System.IO.Path.GetFileName(b).ToLowerInvariant();
-                    var tokensA = nameA.Split(new[]{' ','-','_'}, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                    var tokensB = nameB.Split(new[]{' ','-','_'}, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    var tokensA = nameA.Split(new[] { ' ', '-', '_' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    var tokensB = nameB.Split(new[] { ' ', '-', '_' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                     if (tokensA.Length < 2 || tokensB.Length < 2) return false;
                     return tokensA[0] == tokensB[0] && tokensA[1] == tokensB[1];
                 }
@@ -914,7 +920,7 @@ public static class Program
                     if (selected.Any(h => h.Type == HitType.InstallDir && string.Equals(h.Path, cand.Path, StringComparison.OrdinalIgnoreCase))) continue;
                     if (!SameVariantFamily(primaryInstall.Path, cand.Path)) continue;
                     if (cand.Confidence < primaryInstall.Confidence - 0.12) continue;
-                    var ev = cand.Evidence != null ? new Dictionary<string,string>(cand.Evidence, StringComparer.OrdinalIgnoreCase) : new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                    var ev = cand.Evidence != null ? new Dictionary<string, string>(cand.Evidence, StringComparer.OrdinalIgnoreCase) : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                     ev["VariantSibling"] = primaryInstall.Path;
                     selected.Add(cand with { Evidence = ev });
                     addedVariants++;
@@ -987,10 +993,10 @@ public static class Program
                 var srcSet = new HashSet<string>(exist.Source, StringComparer.OrdinalIgnoreCase);
                 foreach (var s in h.Source) srcSet.Add(s);
                 // Merge evidence (union, append distinct values pipe-separated)
-                Dictionary<string,string>? evidenceMerged = null;
+                Dictionary<string, string>? evidenceMerged = null;
                 if (exist.Evidence != null || h.Evidence != null)
                 {
-                    evidenceMerged = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                    evidenceMerged = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                     if (exist.Evidence != null)
                         foreach (var kv in exist.Evidence) evidenceMerged[kv.Key] = kv.Value;
                     if (h.Evidence != null)
@@ -1026,19 +1032,19 @@ public static class Program
             }
         }
 
-    if (filtered.Count == 0) return 1;
-    if (verbose)
+        if (filtered.Count == 0) return 1;
+        if (verbose)
         {
             try
             {
                 var typeCounts = filtered.GroupBy(h => h.Type).Select(g => $"{g.Key}={g.Count()}");
-        Console.Error.WriteLine($"[verbose] pre-emit counts: {string.Join(",", typeCounts)} showPackageSources={showPackageSources}");
+                Console.Error.WriteLine($"[verbose] pre-emit counts: {string.Join(",", typeCounts)} showPackageSources={showPackageSources}");
                 if (filtered.Count > 0)
                 {
-                    var sample = string.Join(" | ", filtered.Take(5).Select(h => h.Type+":"+System.IO.Path.GetFileName(h.Path)));
+                    var sample = string.Join(" | ", filtered.Take(5).Select(h => h.Type + ":" + System.IO.Path.GetFileName(h.Path)));
                     Console.Error.WriteLine($"[verbose] sample: {sample}");
                 }
-        Console.Error.WriteLine("[verbose] marker-before-emit");
+                Console.Error.WriteLine("[verbose] marker-before-emit");
             }
             catch { }
         }
@@ -1061,7 +1067,7 @@ public static class Program
                     continue;
                 }
                 // Deterministic ordering: rebuild dictionary with keys sorted ascending
-                var ordered = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+                var ordered = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var k in ev.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase)) ordered[k] = ev[k];
                 filtered[i] = filtered[i] with { Evidence = ordered };
             }
@@ -1074,9 +1080,9 @@ public static class Program
                     filtered[i] = filtered[i] with { Evidence = null };
         }
 
-    // (index persistence removed)
+        // (index persistence removed)
 
-    EmitResults(filtered, json, csv, text, noColor, showPackageSources, scoreBreakdown);
+        EmitResults(filtered, json, csv, text, noColor, showPackageSources, scoreBreakdown);
         return 0;
     }
     // BuildCompositeKey removed with cache layer.
@@ -1085,7 +1091,7 @@ public static class Program
     {
         // Lightweight alias normalization so single-token shorthand maps to canonical token that sources can match.
         // (Ranking layer has richer bidirectional alias equivalence, but sources doing token presence checks need canonicalization.)
-        var map = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase)
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { "vscode", "code" },
             { "ohmyposh", "oh my posh" },

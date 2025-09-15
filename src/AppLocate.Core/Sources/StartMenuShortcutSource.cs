@@ -20,6 +20,7 @@ public sealed class StartMenuShortcutSource : ISource
     {
         Environment.ExpandEnvironmentVariables("%AppData%\\Microsoft\\Windows\\Start Menu\\Programs")
     };
+
     private static string[] GetCommonRoots() => new[]
     {
         Environment.ExpandEnvironmentVariables("%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs").Replace("\n", string.Empty)
@@ -86,10 +87,10 @@ public sealed class StartMenuShortcutSource : ISource
                     yield break;
                 }
                 var fileName = Path.GetFileNameWithoutExtension(lnk).ToLowerInvariant();
-                    if (!Matches(fileName, norm, tokens, options.Strict))
-                    {
-                        continue;
-                    }
+                if (!Matches(fileName, norm, tokens, options.Strict))
+                {
+                    continue;
+                }
                 string? target = null;
                 try { target = ResolveShortcut(lnk); } catch { }
                 if (string.IsNullOrWhiteSpace(target))
@@ -109,7 +110,7 @@ public sealed class StartMenuShortcutSource : ISource
                 {
                     continue;
                 }
-                var evidence = options.IncludeEvidence ? new Dictionary<string,string> { { EvidenceKeys.Shortcut, lnk } } : null;
+                var evidence = options.IncludeEvidence ? new Dictionary<string, string> { { EvidenceKeys.Shortcut, lnk } } : null;
                 yield return new AppHit(HitType.Exe, scope, target, null, PackageType.EXE, SingleNameSourceArray, 0, evidence);
                 var dir = Path.GetDirectoryName(target);
                 if (!string.IsNullOrEmpty(dir) && dedup.Add(dir + "::install"))

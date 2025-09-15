@@ -7,14 +7,15 @@ namespace AppLocate.Core.Tests;
 
 public class RankingRefinementTests
 {
-    private static AppHit Make(string path, HitType type = HitType.Exe, Dictionary<string,string>? evidence = null, string[]? sources = null)
-        => new(type, Scope.User, path, null, PackageType.EXE, sources ?? new[]{"Test"}, 0, evidence);
+    private static readonly string[] DefaultSources = ["Test"]; // CA1861 reuse
+    private static AppHit Make(string path, HitType type = HitType.Exe, Dictionary<string, string>? evidence = null, string[]? sources = null)
+        => new(type, Scope.User, path, null, PackageType.EXE, sources ?? DefaultSources, 0, evidence);
 
     [Fact]
     public void EvidenceAliasOutweighsImplicitAlias()
     {
         var implicitAlias = Make("C:/apps/vscode.exe"); // query 'code' triggers implicit alias equivalence
-        var evidenceAlias = Make("C:/apps/vscode.exe", evidence: new Dictionary<string,string>{{"AliasMatched","vscode"}});
+        var evidenceAlias = Make("C:/apps/vscode.exe", evidence: new Dictionary<string, string> { { "AliasMatched", "vscode" } });
         var q = "code";
         var sImplicit = Ranker.Score(q, implicitAlias);
         var sEvidence = Ranker.Score(q, evidenceAlias);
@@ -24,9 +25,9 @@ public class RankingRefinementTests
     [Fact]
     public void HarmonicMultiSourceShowsDiminishingReturns()
     {
-        var two = Make("C:/apps/app.exe", sources: new[]{"A","B"});
-        var three = Make("C:/apps/app.exe", sources: new[]{"A","B","C"});
-        var six = Make("C:/apps/app.exe", sources: new[]{"A","B","C","D","E","F"});
+        var two = Make("C:/apps/app.exe", sources: new[] { "A", "B" });
+        var three = Make("C:/apps/app.exe", sources: new[] { "A", "B", "C" });
+        var six = Make("C:/apps/app.exe", sources: new[] { "A", "B", "C", "D", "E", "F" });
         var q = "app";
         var s2 = Ranker.Score(q, two);
         var s3 = Ranker.Score(q, three);
@@ -42,13 +43,13 @@ public class RankingRefinementTests
     [Fact]
     public void TokenSpanBoostAppliedWhenContiguous()
     {
-    var contiguous = Make("C:/apps/googlechrome.exe");
-    // Insert separator tokens that break contiguous span and add an extra unrelated token to avoid accidental union boost parity
-    var spaced = Make("C:/apps/google_x_util_chrome.exe");
+        var contiguous = Make("C:/apps/googlechrome.exe");
+        // Insert separator tokens that break contiguous span and add an extra unrelated token to avoid accidental union boost parity
+        var spaced = Make("C:/apps/google_x_util_chrome.exe");
         var q = "google chrome";
-    var sContig = Ranker.Score(q, contiguous);
-    var sSpaced = Ranker.Score(q, spaced);
-    // Allow spaced variant to be higher due to extra tokens; just ensure contiguous is not dramatically worse (>0.15 difference)
-    Assert.True(sSpaced - sContig < 0.15, $"Span boost regression: contiguous {sContig} vs spaced {sSpaced}");
+        var sContig = Ranker.Score(q, contiguous);
+        var sSpaced = Ranker.Score(q, spaced);
+        // Allow spaced variant to be higher due to extra tokens; just ensure contiguous is not dramatically worse (>0.15 difference)
+        Assert.True(sSpaced - sContig < 0.15, $"Span boost regression: contiguous {sContig} vs spaced {sSpaced}");
     }
 }

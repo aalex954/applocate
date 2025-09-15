@@ -78,7 +78,7 @@ public sealed class PathSearchSource : ISource
                         if (!File.Exists(line)) continue;
                         if (!yielded.Add(line)) continue;
                         var scope = InferScope(line);
-                        var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{EvidenceKeys.WhereQuery, wc}} : null;
+                        var evidence = options.IncludeEvidence ? new Dictionary<string, string> { { EvidenceKeys.WhereQuery, wc } } : null;
                         buffered ??= new List<AppHit>();
                         buffered.Add(new AppHit(HitType.Exe, scope, line, null, PackageType.EXE, new[] { Name }, 0, evidence));
                         var dir = Path.GetDirectoryName(line);
@@ -146,19 +146,19 @@ public sealed class PathSearchSource : ISource
                 if (!File.Exists(file)) continue;
                 if (!yielded.Add(file)) continue;
                 var scope = InferScope(file);
-                Dictionary<string,string>? evidence = null;
+                Dictionary<string, string>? evidence = null;
                 if (options.IncludeEvidence)
                 {
-                    evidence = new Dictionary<string,string>{{EvidenceKeys.PATH, dir},{EvidenceKeys.ExeName, Path.GetFileName(file)}};
+                    evidence = new Dictionary<string, string> { { EvidenceKeys.PATH, dir }, { EvidenceKeys.ExeName, Path.GetFileName(file) } };
                 }
                 buffered ??= new List<AppHit>();
                 buffered.Add(new AppHit(HitType.Exe, scope, file, null, PackageType.EXE, new[] { Name }, 0, evidence));
                 var dirName = Path.GetDirectoryName(file);
                 if (!string.IsNullOrEmpty(dirName) && yielded.Add(dirName + "::install"))
                 {
-                    Dictionary<string,string>? dirEvidence = evidence;
+                    Dictionary<string, string>? dirEvidence = evidence;
                     if (options.IncludeEvidence && dirEvidence != null && !dirEvidence.ContainsKey(EvidenceKeys.DirMatch))
-                        dirEvidence = new Dictionary<string,string>(dirEvidence) { {EvidenceKeys.DirMatch,"true"} };
+                        dirEvidence = new Dictionary<string, string>(dirEvidence) { { EvidenceKeys.DirMatch, "true" } };
                     buffered.Add(new AppHit(HitType.InstallDir, scope, dirName!, null, PackageType.EXE, new[] { Name }, 0, dirEvidence));
                 }
             }
@@ -189,7 +189,7 @@ public sealed class PathSearchSource : ISource
                 foreach (var root in roots)
                 {
                     if (ct.IsCancellationRequested) break;
-                    var candidates = new []
+                    var candidates = new[]
                     {
                         Path.Combine(root, variant, "bin", variant + ".exe"),
                         Path.Combine(root, variant, variant + ".exe"),
@@ -203,13 +203,13 @@ public sealed class PathSearchSource : ISource
                         if (!File.Exists(cand)) continue;
                         if (!yielded.Add(cand)) continue;
                         var scope = InferScope(cand);
-                        Dictionary<string,string>? evidence = null;
+                        Dictionary<string, string>? evidence = null;
                         if (options.IncludeEvidence)
-                            evidence = new Dictionary<string,string>{{EvidenceKeys.VariantProbe, variant},{EvidenceKeys.Root, root}};
-                        yield return new AppHit(HitType.Exe, scope, cand, null, PackageType.EXE, new[]{ Name }, 0, evidence);
+                            evidence = new Dictionary<string, string> { { EvidenceKeys.VariantProbe, variant }, { EvidenceKeys.Root, root } };
+                        yield return new AppHit(HitType.Exe, scope, cand, null, PackageType.EXE, new[] { Name }, 0, evidence);
                         var dirOut = Path.GetDirectoryName(cand);
                         if (!string.IsNullOrEmpty(dirOut) && yielded.Add(dirOut + "::install"))
-                            yield return new AppHit(HitType.InstallDir, scope, dirOut!, null, PackageType.EXE, new[]{ Name }, 0, evidence);
+                            yield return new AppHit(HitType.InstallDir, scope, dirOut!, null, PackageType.EXE, new[] { Name }, 0, evidence);
                     }
                 }
             }

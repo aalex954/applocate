@@ -1,4 +1,8 @@
-using System.Diagnostics;using System.IO;using System.Linq;using System.Text.RegularExpressions;using Xunit;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using Xunit;
 
 namespace AppLocate.Cli.Tests;
 
@@ -46,7 +50,7 @@ public class DuplicateCollapseTests
         }
         // Parse lines: format like "[0.83] Exe C:\Path\To\Code.exe" OR "Exe C:\Path" (when confidence omitted in some styles)
         // We'll extract type + path via regex.
-        var lines = stdout.Split(new[]{'\r','\n'}, System.StringSplitOptions.RemoveEmptyEntries);
+        var lines = stdout.Split(new[] { '\r', '\n' }, System.StringSplitOptions.RemoveEmptyEntries);
         var rx = new Regex(@"^(?:\[[0-9]+\.[0-9]+\]\s+)?(Exe|InstallDir|Config|Data)\s+(.+)$", RegexOptions.IgnoreCase);
         var set = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
         foreach (var line in lines)

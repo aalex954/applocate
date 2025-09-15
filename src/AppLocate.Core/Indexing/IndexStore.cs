@@ -101,11 +101,11 @@ public sealed class IndexStore : IIndexStore
             record = IndexRecord.Create(normalizedQuery, now);
             file.Records.Add(record);
         }
-    // Replace record with updated LastRefreshUtc (records are immutable due to positional record model)
-    var updatedRecord = new IndexRecord(record.Query, record.Entries, now);
-    var recIdx = file.Records.IndexOf(record);
-    if (recIdx >= 0) file.Records[recIdx] = updatedRecord; else file.Records.Add(updatedRecord);
-    record = updatedRecord;
+        // Replace record with updated LastRefreshUtc (records are immutable due to positional record model)
+        var updatedRecord = new IndexRecord(record.Query, record.Entries, now);
+        var recIdx = file.Records.IndexOf(record);
+        if (recIdx >= 0) file.Records[recIdx] = updatedRecord; else file.Records.Add(updatedRecord);
+        record = updatedRecord;
         foreach (var h in hits)
         {
             var existing = record.Entries.FirstOrDefault(e => e.Type == h.Type && e.Scope == h.Scope && string.Equals(e.Path, h.Path, StringComparison.OrdinalIgnoreCase));
@@ -143,13 +143,13 @@ public sealed class IndexStore : IIndexStore
     /// Placeholder for external invalidation integration (e.g. comparing Start Menu or registry snapshot hashes).
     /// Currently always returns false (no external invalidation triggered).
     /// </summary>
-    public bool IsExternallyInvalidated() => false;
+    public static bool IsExternallyInvalidated(IndexFile file) => false;
 
     /// <summary>
     /// Removes legacy or invalid records whose query key does not match the current composite key pattern.
     /// Returns true if any records were removed.
     /// </summary>
-    public bool Prune(IndexFile file, DateTimeOffset now, bool removeLegacy = true)
+    public static bool Prune(IndexFile file, DateTimeOffset now, bool removeLegacy = true)
     {
         if (file.Records.Count == 0) return false;
         // Composite key pattern segments (11 parts separated by '|'). Relaxed first segment (query tokens).
@@ -207,20 +207,21 @@ public sealed class IndexStore : IIndexStore
         {
             // Cheap hash inputs: day stamp + ProgramData start menu last write + LocalAppData last write (coarse heuristic)
             var sb = new System.Text.StringBuilder();
-            sb.Append(DateTime.UtcNow.Date.ToString("yyyyMMdd"));
+            sb.Append(DateTime.UtcNow.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture));
             string? sm = Environment.ExpandEnvironmentVariables("%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs");
             if (!string.IsNullOrEmpty(sm) && Directory.Exists(sm))
             {
-                try { sb.Append(new DirectoryInfo(sm).LastWriteTimeUtc.Ticks.ToString()); } catch { }
+                try { sb.Append(new DirectoryInfo(sm).LastWriteTimeUtc.Ticks); } catch { }
             }
             string? la = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             if (!string.IsNullOrEmpty(la) && Directory.Exists(la))
             {
-                try { sb.Append(new DirectoryInfo(la).LastWriteTimeUtc.Ticks.ToString()); } catch { }
+                try { sb.Append(new DirectoryInfo(la).LastWriteTimeUtc.Ticks); } catch { }
             }
             // Hash
             var data = System.Text.Encoding.UTF8.GetBytes(sb.ToString());
-            var hash = System.Security.Cryptography.SHA1.HashData(data);
+            // Switched from SHA1 (CA5350) to SHA256 for stronger hashing; output kept hex lowercase for stability.
+            var hash = System.Security.Cryptography.SHA256.HashData(data);
             return Convert.ToHexString(hash);
         }
         catch { return "0"; }

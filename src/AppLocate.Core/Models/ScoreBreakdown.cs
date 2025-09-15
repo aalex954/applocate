@@ -35,5 +35,5 @@ public sealed record ScoreBreakdown(
     double OrphanProbeAdjustments,
     double VariantSiblingBoost,
     double Total,
-    IReadOnlyDictionary<string,double>? RawSignals
+    IReadOnlyDictionary<string, double>? RawSignals
 );

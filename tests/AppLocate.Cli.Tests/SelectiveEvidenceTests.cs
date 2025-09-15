@@ -1,4 +1,9 @@
-using System;using System.Diagnostics;using System.IO;using System.Linq;using System.Text.Json;using Xunit;
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using Xunit;
 
 namespace AppLocate.Cli.Tests;
 
@@ -34,8 +39,8 @@ public class SelectiveEvidenceTests
     [Fact]
     public void EvidenceKeysImplicitlyEnableEvidence()
     {
-    var (code, json, err) = Run("code", "--json", "--evidence-keys", "Shortcut,ProcessId", "--limit", "25");
-        Assert.Contains(code, new[]{0,1});
+        var (code, json, err) = Run("code", "--json", "--evidence-keys", "Shortcut,ProcessId", "--limit", "25");
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
         if (code == 0)
         {
@@ -50,11 +55,11 @@ public class SelectiveEvidenceTests
     [Fact]
     public void EvidenceFilteringRemovesUnlistedKeysAndDropsEmpty()
     {
-    var (codeAll, jsonAll, errAll) = Run("code", "--json", "--evidence", "--limit", "25");
-        Assert.Contains(codeAll, new[]{0,1});
+        var (codeAll, jsonAll, errAll) = Run("code", "--json", "--evidence", "--limit", "25");
+        Assert.Contains(codeAll, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(errAll), $"stderr: {errAll}");
-    var (codeFiltered, jsonFiltered, errFiltered) = Run("code", "--json", "--evidence-keys", "Shortcut", "--limit", "25");
-        Assert.Contains(codeFiltered, new[]{0,1});
+        var (codeFiltered, jsonFiltered, errFiltered) = Run("code", "--json", "--evidence-keys", "Shortcut", "--limit", "25");
+        Assert.Contains(codeFiltered, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(errFiltered), $"stderr: {errFiltered}");
         if (codeAll == 0 && codeFiltered == 0)
         {
@@ -82,8 +87,8 @@ public class SelectiveEvidenceTests
     [Fact]
     public void EvidenceOrderingIsDeterministic()
     {
-    var (code, json, err) = Run("code", "--json", "--evidence", "--limit", "25");
-        Assert.Contains(code, new[]{0,1});
+        var (code, json, err) = Run("code", "--json", "--evidence", "--limit", "25");
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
         if (code == 0)
         {

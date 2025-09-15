@@ -53,10 +53,10 @@ public class CliDeterministicTests
     [Fact]
     public void MissingQuery_Exit2()
     {
-    var (code, _out, err) = Run();
-    Assert.Equal(2, code);
-    // Accept either our custom message or System.CommandLine's grammar message
-    Assert.True(err.Contains("Missing <query>") || err.Contains("Required argument missing"), $"stderr: {err}");
+        var (code, _out, err) = Run();
+        Assert.Equal(2, code);
+        // Accept either our custom message or System.CommandLine's grammar message
+        Assert.True(err.Contains("Missing <query>") || err.Contains("Required argument missing"), $"stderr: {err}");
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class CliDeterministicTests
     {
         var (code, _out, err) = Run("--", "--strange-name--app");
         // Probably no matches; exit 1 or 0 depending on local environment; accept 0/1.
-        Assert.Contains(code, new[] {0,1});
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.True(string.IsNullOrEmpty(err.Trim()), $"Unexpected stderr: {err}");
     }
 

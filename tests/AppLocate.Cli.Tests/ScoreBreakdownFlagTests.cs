@@ -40,7 +40,7 @@ public class ScoreBreakdownFlagTests
     public void Json_Includes_Breakdown_When_Flag()
     {
         var (code, json, err) = Run("code", "--json", "--score-breakdown", "--limit", "10");
-        Assert.Contains(code, new[]{0,1});
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
         if (code == 0)
         {
@@ -57,7 +57,7 @@ public class ScoreBreakdownFlagTests
     public void Json_Excludes_Breakdown_When_NoFlag()
     {
         var (code, json, err) = Run("code", "--json", "--limit", "10");
-        Assert.Contains(code, new[]{0,1});
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
         if (code == 0)
         {
@@ -74,12 +74,12 @@ public class ScoreBreakdownFlagTests
     public void Text_Mode_Shows_Breakdown_Line()
     {
         var (code, stdout, err) = Run("code", "--score-breakdown", "--limit", "5", "--no-color");
-        Assert.Contains(code, new[]{0,1});
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
         if (code == 0)
         {
             // Look for at least one 'breakdown:' line
-            var hasLine = stdout.Split(new[]{'\r','\n'}, StringSplitOptions.RemoveEmptyEntries)
+            var hasLine = stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                                  .Any(l => l.TrimStart().StartsWith("breakdown:", StringComparison.OrdinalIgnoreCase));
             Assert.True(hasLine, "Expected breakdown line in text mode with flag");
         }

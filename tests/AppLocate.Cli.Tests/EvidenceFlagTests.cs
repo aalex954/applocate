@@ -1,4 +1,9 @@
-using System;using System.Diagnostics;using System.IO;using System.Linq;using System.Text.Json;using Xunit;
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using Xunit;
 
 namespace AppLocate.Cli.Tests;
 
@@ -34,11 +39,11 @@ public class EvidenceFlagTests
     [Fact]
     public void EvidenceFlag_AddsEvidenceObjects()
     {
-    var (codeWith, jsonWith, errWith) = Run("code", "--json", "--evidence", "--limit", "20");
-        Assert.Contains(codeWith, new[]{0,1});
+        var (codeWith, jsonWith, errWith) = Run("code", "--json", "--evidence", "--limit", "20");
+        Assert.Contains(codeWith, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(errWith), $"stderr: {errWith}");
-    var (codeNo, jsonNo, errNo) = Run("code", "--json", "--limit", "20");
-        Assert.Contains(codeNo, new[]{0,1});
+        var (codeNo, jsonNo, errNo) = Run("code", "--json", "--limit", "20");
+        Assert.Contains(codeNo, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(errNo), $"stderr: {errNo}");
         if (codeWith == 0 && codeNo == 0)
         {

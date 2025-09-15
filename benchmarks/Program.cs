@@ -45,16 +45,16 @@ class Program
 {
     static int Main(string[] args)
     {
-        var cliDllRelease = Path.Combine(FindRoot(), "src","AppLocate.Cli","bin","Release","net8.0-windows","applocate.dll");
-        var cliDllDebug = Path.Combine(FindRoot(), "src","AppLocate.Cli","bin","Debug","net8.0-windows","applocate.dll");
+        var cliDllRelease = Path.Combine(FindRoot(), "src", "AppLocate.Cli", "bin", "Release", "net8.0-windows", "applocate.dll");
+        var cliDllDebug = Path.Combine(FindRoot(), "src", "AppLocate.Cli", "bin", "Debug", "net8.0-windows", "applocate.dll");
         var cli = File.Exists(cliDllRelease) ? cliDllRelease : cliDllDebug;
-        if(!File.Exists(cli))
+        if (!File.Exists(cli))
         {
             Console.Error.WriteLine("CLI dll not found. Build solution first.");
             return 2;
         }
 
-        var scenarios = new []
+        var scenarios = new[]
         {
             new Scenario { Name = "cold_vscode_threads1", Args = "\"" + cli + "\" code --json --threads 1" },
             new Scenario { Name = "cold_vscode_threadsMax", Args = "\"" + cli + "\" code --json" },
@@ -66,7 +66,7 @@ class Program
         foreach (var sc in scenarios)
         {
             int iterations = sc.Name.StartsWith("warm") ? 5 : 3;
-            for(int i=1;i<=iterations;i++)
+            for (int i = 1; i <= iterations; i++)
             {
                 var r = CliRunner.Run(sc.Name, "dotnet", sc.Args, i);
                 results.Add(r);
@@ -81,7 +81,7 @@ class Program
         Console.WriteLine("SUMMARY (avg ms):");
         foreach (var g in grouped)
         {
-            Console.WriteLine($"{g.Key}: {g.Average(x=>x.Ms):F2} ms avg over {g.Count()} runs");
+            Console.WriteLine($"{g.Key}: {g.Average(x => x.Ms):F2} ms avg over {g.Count()} runs");
         }
         return 0;
     }
@@ -89,9 +89,9 @@ class Program
     static string FindRoot()
     {
         string? cur = AppContext.BaseDirectory;
-        for(int i=0;i<8 && cur!=null;i++)
+        for (int i = 0; i < 8 && cur != null; i++)
         {
-            if(File.Exists(Path.Combine(cur,"AppLocate.sln"))) return cur;
+            if (File.Exists(Path.Combine(cur, "AppLocate.sln"))) return cur;
             cur = Path.GetDirectoryName(cur);
         }
         return AppContext.BaseDirectory;

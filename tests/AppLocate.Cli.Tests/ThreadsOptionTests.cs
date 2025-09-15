@@ -1,4 +1,6 @@
-using System.Diagnostics;using System.IO;using Xunit;
+using System.Diagnostics;
+using System.IO;
+using Xunit;
 
 namespace AppLocate.Cli.Tests;
 
@@ -19,16 +21,16 @@ public class ThreadsOptionTests
     [Fact]
     public void ThreadsOne_SucceedsOrNoHits()
     {
-    var (code, _, err) = Run("code", "--json", "--threads", "1", "--limit", "2");
-        Assert.Contains(code, new[]{0,1});
+        var (code, _, err) = Run("code", "--json", "--threads", "1", "--limit", "2");
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
     }
 
     [Fact]
     public void ThreadsLarge_SucceedsOrNoHits()
     {
-    var (code, _, err) = Run("code", "--json", "--threads", "8", "--limit", "2");
-        Assert.Contains(code, new[]{0,1});
+        var (code, _, err) = Run("code", "--json", "--threads", "8", "--limit", "2");
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
     }
 

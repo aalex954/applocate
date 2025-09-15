@@ -1,4 +1,9 @@
-using System;using System.Diagnostics;using System.IO;using System.Linq;using System.Text.Json;using Xunit;
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using Xunit;
 
 namespace AppLocate.Cli.Tests;
 
@@ -43,7 +48,7 @@ public class RunningAcceptanceTests
             var cmdPath = Environment.ExpandEnvironmentVariables("%SystemRoot%/System32/cmd.exe");
             if (File.Exists(cmdPath))
             {
-                child = Process.Start(new ProcessStartInfo(cmdPath, "/c timeout /t 2 >NUL") { UseShellExecute=false, CreateNoWindow=true, RedirectStandardOutput=true, RedirectStandardError=true });
+                child = Process.Start(new ProcessStartInfo(cmdPath, "/c timeout /t 2 >NUL") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true });
                 query = "cmd"; // executable base name
             }
             else
@@ -53,7 +58,7 @@ public class RunningAcceptanceTests
             }
             System.Threading.Thread.Sleep(300); // ensure OS registers process
             var (code, json, err) = Run(query, "--json", "--running", "--limit", "200");
-            Assert.Contains(code, new[]{0,1});
+            Assert.Contains(code, new[] { 0, 1 });
             Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
             if (code == 0 && child != null && !child.HasExited)
             {
@@ -63,7 +68,8 @@ public class RunningAcceptanceTests
                 var childName = SafePath(() => Path.GetFileNameWithoutExtension(childExe) ?? child.ProcessName)?.ToLowerInvariant();
                 if (!string.IsNullOrEmpty(childName))
                 {
-                    bool nameFound = hits.Any(h => {
+                    bool nameFound = hits.Any(h =>
+                    {
                         var p = h.GetProperty("path").GetString();
                         if (string.IsNullOrEmpty(p)) return false;
                         var fn = Path.GetFileNameWithoutExtension(p)?.ToLowerInvariant();

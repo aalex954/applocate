@@ -1,4 +1,9 @@
-using System;using System.Diagnostics;using System.IO;using System.Linq;using System.Text.Json;using Xunit;
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using Xunit;
 
 namespace AppLocate.Cli.Tests;
 
@@ -39,8 +44,8 @@ public class TypeFilterTests
     [Fact]
     public void ExeFilter_OnlyExeHits()
     {
-    var (code, json, err) = Run("code", "--json", "--exe", "--all", "--limit", "50");
-        Assert.Contains(code, new[]{0,1});
+        var (code, json, err) = Run("code", "--json", "--exe", "--all", "--limit", "50");
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
         if (code == 0)
         {
@@ -53,15 +58,15 @@ public class TypeFilterTests
     [Fact]
     public void MultiFilter_ExeAndInstall()
     {
-    var (code, json, err) = Run("code", "--json", "--exe", "--install-dir", "--all", "--limit", "100");
-        Assert.Contains(code, new[]{0,1});
+        var (code, json, err) = Run("code", "--json", "--exe", "--install-dir", "--all", "--limit", "100");
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(err));
         if (code == 0)
         {
             using var doc = JsonDocument.Parse(json);
             var arr = doc.RootElement.EnumerateArray().ToList();
             // Ensure only allowed types appear
-            Assert.All(arr, el => { var t = el.GetProperty("type").GetInt32(); Assert.Contains(t, new[]{0,1}); });
+            Assert.All(arr, el => { var t = el.GetProperty("type").GetInt32(); Assert.Contains(t, new[] { 0, 1 }); });
         }
     }
 }

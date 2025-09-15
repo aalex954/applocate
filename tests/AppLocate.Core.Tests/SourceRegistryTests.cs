@@ -13,7 +13,7 @@ public sealed class SourceRegistryTests
     {
         public string Name { get; }
         public DummySource(string name) => Name = name;
-    public async IAsyncEnumerable<AppLocate.Core.Models.AppHit> QueryAsync(string query, SourceOptions options, [EnumeratorCancellation] System.Threading.CancellationToken ct)
+        public async IAsyncEnumerable<AppLocate.Core.Models.AppHit> QueryAsync(string query, SourceOptions options, [EnumeratorCancellation] System.Threading.CancellationToken ct)
         {
             await System.Threading.Tasks.Task.Yield();
             yield break;
@@ -29,7 +29,7 @@ public sealed class SourceRegistryTests
             .Add(new DummySource("C"))
             .Build();
         var names = reg.GetSources().Select(s => s.Name).ToArray();
-        Assert.Equal(new[]{"A","B","C"}, names);
+        Assert.Equal(new[] { "A", "B", "C" }, names);
     }
 
     [Fact]
@@ -42,7 +42,7 @@ public sealed class SourceRegistryTests
             .Add(new DummySource("C"))
             .Build();
         var names = reg.GetSources().Select(s => s.Name).ToArray();
-        Assert.Equal(new[]{"A","B","C"}, names);
+        Assert.Equal(new[] { "A", "B", "C" }, names);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public sealed class SourceRegistryTests
             .Add(new DummySource("C"));
         builder.Remove("B");
         var reg = builder.Build();
-        Assert.Equal(new[]{"A","C"}, reg.GetSources().Select(s => s.Name).ToArray());
+        Assert.Equal(new[] { "A", "C" }, reg.GetSources().Select(s => s.Name).ToArray());
     }
 
     [Fact]
@@ -65,7 +65,7 @@ public sealed class SourceRegistryTests
             .Add(new DummySource("C"))
             .InsertBefore("C", new DummySource("B"))
             .Build();
-        Assert.Equal(new[]{"A","B","C"}, reg.GetSources().Select(s => s.Name).ToArray());
+        Assert.Equal(new[] { "A", "B", "C" }, reg.GetSources().Select(s => s.Name).ToArray());
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed class SourceRegistryTests
             .Add(new DummySource("C"))
             .Move("C", 0)
             .Build();
-        Assert.Equal(new[]{"C","A","B"}, reg.GetSources().Select(s => s.Name).ToArray());
+        Assert.Equal(new[] { "C", "A", "B" }, reg.GetSources().Select(s => s.Name).ToArray());
     }
 
     [Fact]

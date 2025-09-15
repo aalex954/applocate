@@ -8,11 +8,11 @@ namespace AppLocate.Core.Tests;
 public class RankingTests
 {
     private static readonly string[] DefaultSources = ["Test"]; // CA1861
-    private static readonly string[] SrcA = ["A"]; 
-    private static readonly string[] SrcABC = ["A","B","C"]; 
-    private static readonly string[] SrcABCD = ["A","B","C","D"]; 
-    private static readonly string[] SrcABCDEFGH = ["A","B","C","D","E","F","G","H"]; 
-    private static AppHit Make(string path, HitType type = HitType.Exe, Dictionary<string,string>? evidence = null, string[]? sources = null)
+    private static readonly string[] SrcA = ["A"];
+    private static readonly string[] SrcABC = ["A", "B", "C"];
+    private static readonly string[] SrcABCD = ["A", "B", "C", "D"];
+    private static readonly string[] SrcABCDEFGH = ["A", "B", "C", "D", "E", "F", "G", "H"];
+    private static AppHit Make(string path, HitType type = HitType.Exe, Dictionary<string, string>? evidence = null, string[]? sources = null)
         => new(type, Scope.User, path, null, PackageType.EXE, sources ?? DefaultSources, 0, evidence);
 
     [Fact]
@@ -30,7 +30,7 @@ public class RankingTests
     public void ShortcutAndProcessBoostIncreaseScore()
     {
         var baseHit = Make("C:/apps/app.exe");
-        var boosted = Make("C:/apps/app.exe", evidence: new Dictionary<string,string>{{"Shortcut","x"},{"ProcessId","123"}});
+        var boosted = Make("C:/apps/app.exe", evidence: new Dictionary<string, string> { { "Shortcut", "x" }, { "ProcessId", "123" } });
         var q = "app";
         var sBase = Ranker.Score(q, baseHit);
         var sBoost = Ranker.Score(q, boosted);
@@ -40,8 +40,8 @@ public class RankingTests
     [Fact]
     public void MultiSourceAddsBoost()
     {
-    var single = Make("C:/apps/tool.exe", sources: SrcA);
-    var multi = Make("C:/apps/tool.exe", sources: SrcABC);
+        var single = Make("C:/apps/tool.exe", sources: SrcA);
+        var multi = Make("C:/apps/tool.exe", sources: SrcABC);
         var q = "tool";
         var sSingle = Ranker.Score(q, single);
         var sMulti = Ranker.Score(q, multi);
@@ -52,9 +52,9 @@ public class RankingTests
     public void ShortcutAndProcessSynergyBeatsIndividual()
     {
         var baseHit = Make("C:/apps/app.exe");
-        var shortcut = Make("C:/apps/app.exe", evidence: new Dictionary<string,string>{{"Shortcut","x"}});
-        var process = Make("C:/apps/app.exe", evidence: new Dictionary<string,string>{{"ProcessId","123"}});
-        var synergy = Make("C:/apps/app.exe", evidence: new Dictionary<string,string>{{"Shortcut","x"},{"ProcessId","123"}});
+        var shortcut = Make("C:/apps/app.exe", evidence: new Dictionary<string, string> { { "Shortcut", "x" } });
+        var process = Make("C:/apps/app.exe", evidence: new Dictionary<string, string> { { "ProcessId", "123" } });
+        var synergy = Make("C:/apps/app.exe", evidence: new Dictionary<string, string> { { "Shortcut", "x" }, { "ProcessId", "123" } });
         var q = "app";
         var sBase = Ranker.Score(q, baseHit);
         var sShortcut = Ranker.Score(q, shortcut);
@@ -68,7 +68,7 @@ public class RankingTests
     public void AliasBoostImprovesScore()
     {
         var noAlias = Make("C:/apps/code.exe");
-        var alias = Make("C:/apps/code.exe", evidence: new Dictionary<string,string>{{"AliasMatched","vscode"}});
+        var alias = Make("C:/apps/code.exe", evidence: new Dictionary<string, string> { { "AliasMatched", "vscode" } });
         var q = "code";
         var s1 = Ranker.Score(q, noAlias);
         var s2 = Ranker.Score(q, alias);
@@ -79,7 +79,7 @@ public class RankingTests
     public void BrokenShortcutPenaltyLowersScore()
     {
         var normal = Make("C:/apps/tool.exe");
-        var penalized = Make("C:/apps/tool.exe", evidence: new Dictionary<string,string>{{"BrokenShortcut","true"}});
+        var penalized = Make("C:/apps/tool.exe", evidence: new Dictionary<string, string> { { "BrokenShortcut", "true" } });
         var q = "tool";
         var s1 = Ranker.Score(q, normal);
         var s2 = Ranker.Score(q, penalized);
@@ -89,8 +89,8 @@ public class RankingTests
     [Fact]
     public void MultiSourceSaturation()
     {
-    var four = Make("C:/apps/app.exe", sources: SrcABCD);
-    var eight = Make("C:/apps/app.exe", sources: SrcABCDEFGH);
+        var four = Make("C:/apps/app.exe", sources: SrcABCD);
+        var eight = Make("C:/apps/app.exe", sources: SrcABCDEFGH);
         var q = "app";
         var s4 = Ranker.Score(q, four);
         var s8 = Ranker.Score(q, eight);

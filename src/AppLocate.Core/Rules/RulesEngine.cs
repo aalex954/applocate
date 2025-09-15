@@ -21,7 +21,7 @@ public sealed class RulesEngine
     /// - data: ["%LOCALAPPDATA%/..." ]
     /// This avoids a heavy YAML dependency; upgrade to YamlDotNet later if schema grows.
     /// </summary>
-    public Task<IReadOnlyList<ResolvedRule>> LoadAsync(string file, CancellationToken ct)
+    public static Task<IReadOnlyList<ResolvedRule>> LoadAsync(string file, CancellationToken ct)
     {
         if (!File.Exists(file)) return Task.FromResult<IReadOnlyList<ResolvedRule>>(Array.Empty<ResolvedRule>());
         var lines = File.ReadAllLines(file);

@@ -18,17 +18,17 @@ public class ModuleSmokeTests
             RedirectStandardError = true,
             UseShellExecute = false
         };
-    try { using var check = Process.Start(psiCheck)!; check.WaitForExit(5000); if(check.ExitCode != 0) throw new Exception("pwsh not available"); }
-    catch { return; } // gracefully exit test if pwsh missing
+        try { using var check = Process.Start(psiCheck)!; check.WaitForExit(5000); if (check.ExitCode != 0) throw new Exception("pwsh not available"); }
+        catch { return; } // gracefully exit test if pwsh missing
 
         var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
         var modulePath = Path.Combine(root, "AppLocate.psm1");
-        if(!File.Exists(modulePath))
+        if (!File.Exists(modulePath))
             return; // benign: module not yet part of test context
 
         // Use config min to ensure deterministic small output
-    // Use backtick to escape nested braces or use here-string style construction
-    var script = $"Import-Module '{modulePath}'; $res = Get-AppLocateJson -Query 'code' -Limit 1; if($null -eq $res){{ exit 5 }}; $res | ConvertTo-Json -Depth 5";
+        // Use backtick to escape nested braces or use here-string style construction
+        var script = $"Import-Module '{modulePath}'; $res = Get-AppLocateJson -Query 'code' -Limit 1; if($null -eq $res){{ exit 5 }}; $res | ConvertTo-Json -Depth 5";
 
         var psi = new ProcessStartInfo(pwsh, $"-nologo -noprofile -c \"{script}\"")
         {

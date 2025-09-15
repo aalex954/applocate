@@ -19,10 +19,10 @@ public static class PathUtils
         try
         {
             var s = Environment.ExpandEnvironmentVariables(raw.Trim().Trim('\"'));
-                if (s.Length == 0)
-                {
-                    return null;
-                }
+            if (s.Length == 0)
+            {
+                return null;
+            }
             s = s.Replace('/', '\\');
             // Collapse duplicate backslashes (but keep leading \\ for UNC) 
             if (s.StartsWith("\\\\", StringComparison.Ordinal))
@@ -35,17 +35,17 @@ public static class PathUtils
                 while (i < len)
                 {
                     char c = span[i++];
-                        if (c == '\\')
+                    if (c == '\\')
                     {
                         backslashRun++;
-                            if (unc && backslashRun <= 2)
-                            {
-                                sb.Append('\\');
-                            }
-                            else if (!unc && backslashRun == 1)
-                            {
-                                sb.Append('\\');
-                            }
+                        if (unc && backslashRun <= 2)
+                        {
+                            sb.Append('\\');
+                        }
+                        else if (!unc && backslashRun == 1)
+                        {
+                            sb.Append('\\');
+                        }
                     }
                     else
                     {
@@ -66,7 +66,7 @@ public static class PathUtils
             // Remove trailing slash unless root (e.g., C:\)
             if (s.Length > 3 && (s.EndsWith('\\') || s.EndsWith('/')))
             {
-                s = s.TrimEnd('\\','/');
+                s = s.TrimEnd('\\', '/');
             }
             return s;
         }

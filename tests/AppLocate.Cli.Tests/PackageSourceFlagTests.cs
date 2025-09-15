@@ -1,4 +1,8 @@
-using System;using System.Diagnostics;using System.IO;using System.Linq;using Xunit;
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using Xunit;
 
 namespace AppLocate.Cli.Tests;
 
@@ -21,12 +25,12 @@ public class PackageSourceFlagTests
     [Fact]
     public void TextOutput_IncludesPkgAndSrc_WhenFlag()
     {
-    var (code, stdout, stderr) = Run("code", "--limit", "3", "--package-source");
-        Assert.Contains(code, new[]{0,1});
+        var (code, stdout, stderr) = Run("code", "--limit", "3", "--package-source");
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(stderr), $"stderr: {stderr}");
         if (code == 0)
         {
-            var lines = stdout.Split(new[]{'\r','\n'}, StringSplitOptions.RemoveEmptyEntries);
+            var lines = stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             // At least one line should contain (pkg= and src=
             Assert.Contains(lines, l => l.Contains("(pkg=") && l.Contains("src="));
         }
@@ -35,12 +39,12 @@ public class PackageSourceFlagTests
     [Fact]
     public void CsvOutput_AddsSourcesColumn()
     {
-    var (code, stdout, stderr) = Run("code", "--csv", "--limit", "3", "--package-source");
-        Assert.Contains(code, new[]{0,1});
+        var (code, stdout, stderr) = Run("code", "--csv", "--limit", "3", "--package-source");
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(stderr));
         if (code == 0)
         {
-            var lines = stdout.Split(new[]{'\r','\n'}, StringSplitOptions.RemoveEmptyEntries);
+            var lines = stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             Assert.True(lines.Length >= 2, "Expected header + at least one row");
             Assert.Equal("Type,Scope,Path,Version,PackageType,Sources,Confidence", lines[0]);
         }
@@ -49,12 +53,12 @@ public class PackageSourceFlagTests
     [Fact]
     public void CsvOutput_NoSourcesColumnWithoutFlag()
     {
-    var (code, stdout, stderr) = Run("code", "--csv", "--limit", "3");
-        Assert.Contains(code, new[]{0,1});
+        var (code, stdout, stderr) = Run("code", "--csv", "--limit", "3");
+        Assert.Contains(code, new[] { 0, 1 });
         Assert.True(string.IsNullOrWhiteSpace(stderr));
         if (code == 0)
         {
-            var lines = stdout.Split(new[]{'\r','\n'}, StringSplitOptions.RemoveEmptyEntries);
+            var lines = stdout.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             Assert.True(lines.Length >= 2);
             Assert.Equal("Type,Scope,Path,Version,PackageType,Confidence", lines[0]);
         }

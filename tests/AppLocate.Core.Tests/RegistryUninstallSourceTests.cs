@@ -18,7 +18,7 @@ public class RegistryUninstallSourceTests
         var appId = "AppLocateTestApp_" + Guid.NewGuid().ToString("N");
         using var tempDir = new TempDir();
         var exePath = System.IO.Path.Combine(tempDir.Path, "TestApp.exe");
-        System.IO.File.WriteAllBytes(exePath, new byte[]{0}); // placeholder file
+        System.IO.File.WriteAllBytes(exePath, new byte[] { 0 }); // placeholder file
 
         var keyPath = $"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{appId}";
         using (var k = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(keyPath)!)

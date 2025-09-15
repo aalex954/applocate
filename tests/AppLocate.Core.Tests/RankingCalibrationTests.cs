@@ -7,8 +7,9 @@ namespace AppLocate.Core.Tests;
 
 public class RankingCalibrationTests
 {
-    private static AppHit Make(string path, HitType type = HitType.Exe, Dictionary<string,string>? evidence = null, string[]? sources = null)
-        => new(type, Scope.User, path, null, PackageType.EXE, sources ?? new[]{"Test"}, 0, evidence);
+    private static readonly string[] DefaultSources = ["Test"]; // CA1861 reuse
+    private static AppHit Make(string path, HitType type = HitType.Exe, Dictionary<string, string>? evidence = null, string[]? sources = null)
+        => new(type, Scope.User, path, null, PackageType.EXE, sources ?? DefaultSources, 0, evidence);
 
     [Fact]
     public void AliasEquivalenceBoostsButLessThanExact()
@@ -25,19 +26,19 @@ public class RankingCalibrationTests
     [Fact]
     public void FuzzyPartialTokensAddsIncrementalScore()
     {
-    var partial = Make("C:/apps/googlechromeportable.exe");
-    var qPartial = "google chrome"; // tokens: google, chrome
-    var sPartial = Ranker.Score(qPartial, partial);
-    var unrelated = Make("C:/apps/otherapp.exe");
-    var sUnrelated = Ranker.Score(qPartial, unrelated);
-    Assert.True(sPartial > sUnrelated);
+        var partial = Make("C:/apps/googlechromeportable.exe");
+        var qPartial = "google chrome"; // tokens: google, chrome
+        var sPartial = Ranker.Score(qPartial, partial);
+        var unrelated = Make("C:/apps/otherapp.exe");
+        var sUnrelated = Ranker.Score(qPartial, unrelated);
+        Assert.True(sPartial > sUnrelated);
     }
 
     [Fact]
     public void TempInstallerPenaltyReducesScore()
     {
-    var normal = Make("C:/apps/app.exe");
-    var temp = Make("C:/apps/Temp/app.exe"); // ensure casing variant still triggers penalty
+        var normal = Make("C:/apps/app.exe");
+        var temp = Make("C:/apps/Temp/app.exe"); // ensure casing variant still triggers penalty
         var q = "app";
         var sNormal = Ranker.Score(q, normal);
         var sTemp = Ranker.Score(q, temp);
@@ -47,7 +48,7 @@ public class RankingCalibrationTests
     [Fact]
     public void BrokenShortcutPenaltyStillKeepsNonZeroWhenOtherSignalsStrong()
     {
-        var penalized = Make("C:/apps/code.exe", evidence: new Dictionary<string,string>{{"BrokenShortcut","1"},{"ProcessId","123"}});
+        var penalized = Make("C:/apps/code.exe", evidence: new Dictionary<string, string> { { "BrokenShortcut", "1" }, { "ProcessId", "123" } });
         var q = "code";
         var s = Ranker.Score(q, penalized);
         Assert.True(s > 0); // penalty doesn't zero out

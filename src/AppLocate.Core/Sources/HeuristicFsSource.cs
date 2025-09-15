@@ -80,7 +80,7 @@ public sealed class HeuristicFsSource : ISource
                 bool dirMatch = options.Strict ? tokens.All(t => lowerDir.Contains(t)) : lowerDir.Contains(norm);
                 if (dirMatch && yieldedDirs.Add(current))
                 {
-                    var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{EvidenceKeys.DirMatch, namePart}} : null;
+                    var evidence = options.IncludeEvidence ? new Dictionary<string, string> { { EvidenceKeys.DirMatch, namePart } } : null;
                     yield return new AppHit(HitType.InstallDir, scope, current, null, PackageType.Unknown, new[] { Name }, 0, evidence);
                 }
             }
@@ -102,12 +102,12 @@ public sealed class HeuristicFsSource : ISource
                     if (!File.Exists(exe)) continue;
                     if (yieldedExe.Add(exe))
                     {
-                        var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{EvidenceKeys.ExeName, fileName}} : null;
+                        var evidence = options.IncludeEvidence ? new Dictionary<string, string> { { EvidenceKeys.ExeName, fileName } } : null;
                         yield return new AppHit(HitType.Exe, scope, exe, null, PackageType.Unknown, new[] { Name }, 0, evidence);
                         var dir = Path.GetDirectoryName(exe);
                         if (!string.IsNullOrEmpty(dir) && yieldedDirs.Add(dir))
                         {
-                            var dirEvidence = options.IncludeEvidence ? new Dictionary<string,string>{{EvidenceKeys.FromExeDir, fileName}} : null;
+                            var dirEvidence = options.IncludeEvidence ? new Dictionary<string, string> { { EvidenceKeys.FromExeDir, fileName } } : null;
                             yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.Unknown, new[] { Name }, 0, dirEvidence);
                         }
                     }

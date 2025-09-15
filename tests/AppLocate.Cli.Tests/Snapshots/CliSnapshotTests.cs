@@ -17,7 +17,7 @@ public class CliSnapshotTests
         return (asmPath, false); // run via dotnet
     }
 
-    private static async Task<VerifyResult> RunAndVerifyAsync(string query, Dictionary<string,string>? env = null, params string[] extraArgs)
+    private static async Task<VerifyResult> RunAndVerifyAsync(string query, Dictionary<string, string>? env = null, params string[] extraArgs)
     {
         var args = new List<string>();
         args.Add(query);
@@ -111,7 +111,7 @@ public class CliSnapshotTests
         return lines.Length == 1 ? (object)lines[0] : lines;
     }
 
-    private static Dictionary<string,string> CreateVscodeFixture()
+    private static Dictionary<string, string> CreateVscodeFixture()
     {
         // Synthetic VSCode per-user layout matching acceptance test approach.
         var root = Path.Combine(Path.GetTempPath(), "applocate_snapshot_vscode");
@@ -122,12 +122,12 @@ public class CliSnapshotTests
         var progDir = Path.Combine(local, "Programs", "Microsoft VS Code");
         Directory.CreateDirectory(progDir);
         var exePath = Path.Combine(progDir, "Code.exe");
-        if (!File.Exists(exePath)) File.WriteAllBytes(exePath, new byte[]{0});
+        if (!File.Exists(exePath)) File.WriteAllBytes(exePath, new byte[] { 0 });
         var settingsDir = Path.Combine(roaming, "Code", "User");
         Directory.CreateDirectory(settingsDir);
         File.WriteAllText(Path.Combine(settingsDir, "settings.json"), "{}");
         // Restrict PATH to only program dir to make discovery deterministic.
-        return new Dictionary<string,string>
+        return new Dictionary<string, string>
         {
             ["LOCALAPPDATA"] = local,
             ["APPDATA"] = roaming,
@@ -139,20 +139,20 @@ public class CliSnapshotTests
     public async Task Query_Code_Json()
     {
         var env = CreateVscodeFixture();
-    await RunAndVerifyAsync("code", env, "--json", "--limit", "5");
+        await RunAndVerifyAsync("code", env, "--json", "--limit", "5");
     }
 
     [Fact]
     public async Task Query_Chrome_Json()
     {
-    // Temporarily disabled: environment dependent until acceptance fixtures prepared
-    await Task.CompletedTask;
+        // Temporarily disabled: environment dependent until acceptance fixtures prepared
+        await Task.CompletedTask;
     }
 
     [Fact]
     public async Task Query_Code_Strict_Json()
     {
         var env = CreateVscodeFixture();
-    await RunAndVerifyAsync("code", env, "--json", "--strict", "--limit", "5");
+        await RunAndVerifyAsync("code", env, "--json", "--strict", "--limit", "5");
     }
 }

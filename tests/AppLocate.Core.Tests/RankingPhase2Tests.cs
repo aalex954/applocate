@@ -14,8 +14,9 @@ namespace AppLocate.Core.Tests;
 /// </summary>
 public class RankingPhase2Tests
 {
-    private static AppHit Make(string path, HitType type = HitType.Exe, Dictionary<string,string>? evidence = null, string[]? sources = null)
-        => new(type, Scope.User, path, null, PackageType.EXE, sources ?? new[]{"Test"}, 0, evidence);
+    private static readonly string[] DefaultSources = ["Test"]; // CA1861 reuse
+    private static AppHit Make(string path, HitType type = HitType.Exe, Dictionary<string, string>? evidence = null, string[]? sources = null)
+        => new(type, Scope.User, path, null, PackageType.EXE, sources ?? DefaultSources, 0, evidence);
 
     [Fact]
     public void ContiguousSpanBeatsSeparatedNoise()
@@ -32,9 +33,9 @@ public class RankingPhase2Tests
     [Fact]
     public void EarlyMultiSourceGainOutweighsLateGain()
     {
-        var one = Make("C:/apps/app.exe", sources: new[]{"A"});
-        var three = Make("C:/apps/app.exe", sources: new[]{"A","B","C"});
-        var six = Make("C:/apps/app.exe", sources: new[]{"A","B","C","D","E","F"});
+        var one = Make("C:/apps/app.exe", sources: new[] { "A" });
+        var three = Make("C:/apps/app.exe", sources: new[] { "A", "B", "C" });
+        var six = Make("C:/apps/app.exe", sources: new[] { "A", "B", "C", "D", "E", "F" });
         var q = "app";
         var s1 = Ranker.Score(q, one);
         var s3 = Ranker.Score(q, three);

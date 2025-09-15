@@ -8,7 +8,7 @@ public class CliExitCodeTests
     [Fact]
     public async Task Returns1WhenNoHits()
     {
-    var code = await Program.RunAsync(new[] { "nonexistent-app-xyz" });
-    Assert.Equal(1, code);
+        var code = await Program.RunAsync(new[] { "nonexistent-app-xyz" });
+        Assert.Equal(1, code);
     }
 }

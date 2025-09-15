@@ -17,7 +17,7 @@ public class AcceptanceTests
         return (asmPath, false);
     }
 
-    private static (int exitCode, string stdout, string stderr) RunWithEnv(string[] args, params (string key,string value)[] env)
+    private static (int exitCode, string stdout, string stderr) RunWithEnv(string[] args, params (string key, string value)[] env)
     {
         var (cli, direct) = LocateCli();
         var psi = new ProcessStartInfo
@@ -38,7 +38,7 @@ public class AcceptanceTests
             psi.ArgumentList.Add(cli);
             foreach (var a in args) psi.ArgumentList.Add(a);
         }
-        foreach (var (k,v) in env) psi.Environment[k] = v;
+        foreach (var (k, v) in env) psi.Environment[k] = v;
         var p = Process.Start(psi)!;
         string so = p.StandardOutput.ReadToEnd();
         string se = p.StandardError.ReadToEnd();
@@ -51,24 +51,24 @@ public class AcceptanceTests
         Directory.CreateDirectory(dir);
         var path = Path.Combine(dir, name);
         // Write a minimal PE stub? Not needed; existence check only. Create empty file with .exe extension.
-        if (!File.Exists(path)) File.WriteAllBytes(path, new byte[]{0});
+        if (!File.Exists(path)) File.WriteAllBytes(path, new byte[] { 0 });
         return path;
     }
 
     [Fact]
     public void VscodeScenario_ExeAndConfig()
     {
-    var fixture = CreateVscodeFixture();
-    var localAppData = fixture.local;
-    var roaming = fixture.roaming;
-    var progDir = fixture.programDir;
-    var pathEnv = progDir;
+        var fixture = CreateVscodeFixture();
+        var localAppData = fixture.local;
+        var roaming = fixture.roaming;
+        var progDir = fixture.programDir;
+        var pathEnv = progDir;
 
         // Act
-    var (code, stdout, stderr) = RunWithEnv(new[]{"code","--json","--limit","10"},
-            ("LOCALAPPDATA", localAppData),
-            ("APPDATA", roaming),
-            ("PATH", pathEnv));
+        var (code, stdout, stderr) = RunWithEnv(new[] { "code", "--json", "--limit", "10" },
+                ("LOCALAPPDATA", localAppData),
+                ("APPDATA", roaming),
+                ("PATH", pathEnv));
 
         // Assert basic success (allow 0 or 1 if ranking filters, but expect 0)
         Assert.Equal(0, code);
@@ -76,14 +76,14 @@ public class AcceptanceTests
         var doc = JsonDocument.Parse(stdout);
         var hits = doc.RootElement.EnumerateArray().ToList();
         Assert.NotEmpty(hits);
-    // Accept enum serialized as number or string.
-    bool hasExe = hits.Any(h => IsType(h, "exe", 1) && h.GetProperty("path").GetString()!.EndsWith("Code.exe", StringComparison.OrdinalIgnoreCase));
-    bool hasConfig = hits.Any(h => IsType(h, "config", 2) && h.GetProperty("path").GetString()!.EndsWith("settings.json", StringComparison.OrdinalIgnoreCase));
-    // Accept either exe or config; config proves rules expansion works even if sources miss exe in edge CI env.
-    Assert.True(hasExe || hasConfig, $"Expected at least one of exe or config hits. exe={hasExe} config={hasConfig}. Raw count={hits.Count}");
+        // Accept enum serialized as number or string.
+        bool hasExe = hits.Any(h => IsType(h, "exe", 1) && h.GetProperty("path").GetString()!.EndsWith("Code.exe", StringComparison.OrdinalIgnoreCase));
+        bool hasConfig = hits.Any(h => IsType(h, "config", 2) && h.GetProperty("path").GetString()!.EndsWith("settings.json", StringComparison.OrdinalIgnoreCase));
+        // Accept either exe or config; config proves rules expansion works even if sources miss exe in edge CI env.
+        Assert.True(hasExe || hasConfig, $"Expected at least one of exe or config hits. exe={hasExe} config={hasConfig}. Raw count={hits.Count}");
     }
 
-    private static (string root,string local,string roaming,string programDir) CreateVscodeFixture()
+    private static (string root, string local, string roaming, string programDir) CreateVscodeFixture()
     {
         var root = Path.Combine(Path.GetTempPath(), "applocate_accept_vscode");
         if (Directory.Exists(root)) Directory.Delete(root, true);
@@ -126,14 +126,14 @@ public class AcceptanceTests
         var exe = CreateDummyExe(portableDir, "FooApp.exe");
         var pathEnv = portableDir; // Aid PATH search
 
-    var (code, stdout, stderr) = RunWithEnv(new[]{"fooapp","--json","--limit","10"}, ("PATH", pathEnv));
+        var (code, stdout, stderr) = RunWithEnv(new[] { "fooapp", "--json", "--limit", "10" }, ("PATH", pathEnv));
         Assert.Equal(0, code);
         Assert.True(string.IsNullOrWhiteSpace(stderr), $"Unexpected stderr: {stderr}");
         var doc = JsonDocument.Parse(stdout);
         var hits = doc.RootElement.EnumerateArray().ToList();
         Assert.NotEmpty(hits);
-    bool hasExe = hits.Any(h => IsType(h, "exe", 1) && h.GetProperty("path").GetString()!.EndsWith("FooApp.exe", StringComparison.OrdinalIgnoreCase));
-    bool hasInstall = hits.Any(h => IsType(h, "install_dir", 0) && h.GetProperty("path").GetString()!.Equals(portableDir, StringComparison.OrdinalIgnoreCase));
+        bool hasExe = hits.Any(h => IsType(h, "exe", 1) && h.GetProperty("path").GetString()!.EndsWith("FooApp.exe", StringComparison.OrdinalIgnoreCase));
+        bool hasInstall = hits.Any(h => IsType(h, "install_dir", 0) && h.GetProperty("path").GetString()!.Equals(portableDir, StringComparison.OrdinalIgnoreCase));
         Assert.True(hasExe, "Expected exe hit for portable app");
         Assert.True(hasInstall, "Expected install_dir hit for portable app");
     }
@@ -152,18 +152,18 @@ public class AcceptanceTests
         var exePath = CreateDummyExe(appDir, "chrome.exe");
         var userData = Path.Combine(local, "Google", "Chrome", "User Data", "Default");
         Directory.CreateDirectory(userData);
-        File.WriteAllText(Path.Combine(userData, "Preferences"), "{}" );
+        File.WriteAllText(Path.Combine(userData, "Preferences"), "{}");
         var pathEnv = appDir;
-    var (code, stdout, stderr) = RunWithEnv(new[]{"chrome","--json","--limit","15"},
-            ("LOCALAPPDATA", local),
-            ("PATH", pathEnv));
+        var (code, stdout, stderr) = RunWithEnv(new[] { "chrome", "--json", "--limit", "15" },
+                ("LOCALAPPDATA", local),
+                ("PATH", pathEnv));
         Assert.Equal(0, code);
         Assert.True(string.IsNullOrWhiteSpace(stderr), $"stderr: {stderr}");
         var doc = JsonDocument.Parse(stdout);
         var hits = doc.RootElement.EnumerateArray().ToList();
         Assert.NotEmpty(hits);
-    // Config detection may rely on future rule expansion; for now we assert exe presence only to avoid flakiness.
-    bool hasExe = hits.Any(h => IsType(h, "exe", 1) && h.GetProperty("path").GetString()!.EndsWith("chrome.exe", StringComparison.OrdinalIgnoreCase));
+        // Config detection may rely on future rule expansion; for now we assert exe presence only to avoid flakiness.
+        bool hasExe = hits.Any(h => IsType(h, "exe", 1) && h.GetProperty("path").GetString()!.EndsWith("chrome.exe", StringComparison.OrdinalIgnoreCase));
         Assert.True(hasExe, "Expected chrome.exe hit in synthetic Chrome scenario");
     }
 
@@ -171,7 +171,7 @@ public class AcceptanceTests
     public void ShortcutScenario_StartMenuExe()
     {
         // Synthetic Start Menu layout
-    var root = Path.Combine(Path.GetTempPath(), "applocate_accept_shortcut_" + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Path.GetTempPath(), "applocate_accept_shortcut_" + Guid.NewGuid().ToString("N"));
         if (Directory.Exists(root)) Directory.Delete(root, true);
         var appData = Path.Combine(root, "Roaming");
         var programs = Path.Combine(appData, "Microsoft", "Windows", "Start Menu", "Programs");
@@ -185,7 +185,7 @@ public class AcceptanceTests
         Environment.SetEnvironmentVariable("APPDATA", appData);
         try
         {
-            var (code, stdout, stderr) = RunWithEnv(new[]{"shortcut app","--json","--limit","10"}, ("PATH", appDir));
+            var (code, stdout, stderr) = RunWithEnv(new[] { "shortcut app", "--json", "--limit", "10" }, ("PATH", appDir));
             Assert.Equal(0, code);
             Assert.True(string.IsNullOrWhiteSpace(stderr), $"stderr: {stderr}");
             var doc = JsonDocument.Parse(stdout);
@@ -203,7 +203,7 @@ public class AcceptanceTests
         }
     }
 
-    [Fact(Skip="MSIX deterministic fixture pending – requires abstraction seam for MsixStoreSource to inject fake packages without PowerShell.")]
+    [Fact(Skip = "MSIX deterministic fixture pending – requires abstraction seam for MsixStoreSource to inject fake packages without PowerShell.")]
     public void MsixScenario_Placeholder()
     {
         // Will simulate a package with InstallLocation and exe once injection seam exists.
@@ -219,14 +219,14 @@ public class AcceptanceTests
         var install = Path.Combine(root, "FakeMsix.App_1.0.0.0_x64__12345", "App");
         var exe = CreateDummyExe(install, "FakeMsixApp.exe");
         var payload = $"[{{\"name\":\"FakeMsixApp\",\"family\":\"FakeMsixApp_12345\",\"install\":\"{install.Replace("\\", "\\\\")}\",\"version\":\"1.0.0.0\"}}]"; // escape backslashes for JSON
-    var (code, stdout, stderr) = RunWithEnv(new[]{"FakeMsixApp","--json","--limit","10"}, ("APPLOCATE_MSIX_FAKE", payload));
+        var (code, stdout, stderr) = RunWithEnv(new[] { "FakeMsixApp", "--json", "--limit", "10" }, ("APPLOCATE_MSIX_FAKE", payload));
         Assert.Equal(0, code);
         Assert.True(string.IsNullOrWhiteSpace(stderr), $"stderr: {stderr}");
         var doc = JsonDocument.Parse(stdout);
         var hits = doc.RootElement.EnumerateArray().ToList();
         Assert.NotEmpty(hits);
-    bool hasInstall = hits.Any(h => IsType(h, "install_dir", 0) && h.GetProperty("path").GetString()!.Equals(install, StringComparison.OrdinalIgnoreCase));
-    bool hasExe = hits.Any(h => IsType(h, "exe", 1) && h.GetProperty("path").GetString()!.EndsWith("FakeMsixApp.exe", StringComparison.OrdinalIgnoreCase));
+        bool hasInstall = hits.Any(h => IsType(h, "install_dir", 0) && h.GetProperty("path").GetString()!.Equals(install, StringComparison.OrdinalIgnoreCase));
+        bool hasExe = hits.Any(h => IsType(h, "exe", 1) && h.GetProperty("path").GetString()!.EndsWith("FakeMsixApp.exe", StringComparison.OrdinalIgnoreCase));
         Assert.True(hasInstall, "Expected install_dir from fake MSIX provider");
         // EXE enumeration may not occur if no top-level exe scan triggers; allow either presence or absence but prefer presence.
         Assert.True(hasExe || hasInstall, "At minimum expect install_dir; exe optional depending on enumeration logic");

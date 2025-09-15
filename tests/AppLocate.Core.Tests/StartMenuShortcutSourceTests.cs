@@ -18,19 +18,19 @@ public class StartMenuShortcutSourceTests
     {
         // Arrange synthetic Start Menu structure under a temp AppData
         using var layout = new TempLayout();
-    // APPDATA root is layout.Root; StartMenu path = %APPDATA%\Microsoft\Windows\Start Menu\Programs
-    var startMenuPrograms = Path.Combine(layout.Root, "Microsoft", "Windows", "Start Menu", "Programs");
-    Directory.CreateDirectory(startMenuPrograms);
-    var appDir = Path.Combine(startMenuPrograms, "TestApp");
+        // APPDATA root is layout.Root; StartMenu path = %APPDATA%\Microsoft\Windows\Start Menu\Programs
+        var startMenuPrograms = Path.Combine(layout.Root, "Microsoft", "Windows", "Start Menu", "Programs");
+        Directory.CreateDirectory(startMenuPrograms);
+        var appDir = Path.Combine(startMenuPrograms, "TestApp");
         Directory.CreateDirectory(appDir);
         var exePath = Path.Combine(appDir, "TestApp.exe");
-        File.WriteAllBytes(exePath, new byte[]{0});
+        File.WriteAllBytes(exePath, new byte[] { 0 });
         var lnkPath = Path.Combine(appDir, "TestApp.lnk");
         CreateShellLink(exePath, lnkPath, "Test App");
 
         // Point %AppData% used by source to our synthetic tree
         var originalAppData = Environment.GetEnvironmentVariable("APPDATA");
-    Environment.SetEnvironmentVariable("APPDATA", layout.Root);
+        Environment.SetEnvironmentVariable("APPDATA", layout.Root);
         try
         {
             var src = new StartMenuShortcutSource();

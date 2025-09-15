@@ -7,13 +7,14 @@ namespace AppLocate.Core.Tests;
 
 public class RankingSynergyTests
 {
-    private static AppHit Make(Dictionary<string,string>? evidence) => new(
+    private static readonly string[] DefaultSources = ["Test"]; // CA1861 reuse
+    private static AppHit Make(Dictionary<string, string>? evidence) => new(
         HitType.Exe,
         Scope.User,
         "C:/apps/testapp/test.exe",
         null,
         PackageType.EXE,
-        new[]{"Test"},
+        DefaultSources,
         0,
         evidence
     );
@@ -22,9 +23,9 @@ public class RankingSynergyTests
     public void ShortcutPlusProcessBeatsSingleSignal()
     {
         var q = "testapp";
-        var shortcutOnly = Make(new Dictionary<string,string>{{"Shortcut","foo.lnk"}});
-        var processOnly = Make(new Dictionary<string,string>{{"ProcessId","1234"}});
-        var both = Make(new Dictionary<string,string>{{"Shortcut","foo.lnk"},{"ProcessId","1234"}});
+        var shortcutOnly = Make(new Dictionary<string, string> { { "Shortcut", "foo.lnk" } });
+        var processOnly = Make(new Dictionary<string, string> { { "ProcessId", "1234" } });
+        var both = Make(new Dictionary<string, string> { { "Shortcut", "foo.lnk" }, { "ProcessId", "1234" } });
 
         var sShortcut = Ranker.Score(q, shortcutOnly);
         var sProcess = Ranker.Score(q, processOnly);

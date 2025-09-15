@@ -16,13 +16,13 @@ public sealed class MsixStoreSource : ISource
 
     internal interface IMsixPackageProvider
     {
-        IEnumerable<(string name,string family,string install,string version)> Enumerate();
+        IEnumerable<(string name, string family, string install, string version)> Enumerate();
     }
     private sealed class PowerShellMsixProvider : IMsixPackageProvider
     {
-        public IEnumerable<(string name,string family,string install,string version)> Enumerate()
+        public IEnumerable<(string name, string family, string install, string version)> Enumerate()
         {
-            var packages = new List<(string,string,string,string)>();
+            var packages = new List<(string, string, string, string)>();
             try
             {
                 using var p = new System.Diagnostics.Process();
@@ -49,15 +49,15 @@ public sealed class MsixStoreSource : ISource
     }
     private sealed class EnvMsixProvider : IMsixPackageProvider
     {
-        public IEnumerable<(string name,string family,string install,string version)> Enumerate()
+        public IEnumerable<(string name, string family, string install, string version)> Enumerate()
         {
             var json = Environment.GetEnvironmentVariable("APPLOCATE_MSIX_FAKE");
-            if (string.IsNullOrWhiteSpace(json)) return Array.Empty<(string,string,string,string)>();
+            if (string.IsNullOrWhiteSpace(json)) return Array.Empty<(string, string, string, string)>();
             try
             {
                 var arr = System.Text.Json.JsonDocument.Parse(json).RootElement;
-                if (arr.ValueKind != System.Text.Json.JsonValueKind.Array) return Array.Empty<(string,string,string,string)>();
-                var list = new List<(string,string,string,string)>();
+                if (arr.ValueKind != System.Text.Json.JsonValueKind.Array) return Array.Empty<(string, string, string, string)>();
+                var list = new List<(string, string, string, string)>();
                 foreach (var el in arr.EnumerateArray())
                 {
                     var name = el.GetProperty("name").GetString() ?? string.Empty;
@@ -65,11 +65,11 @@ public sealed class MsixStoreSource : ISource
                     var install = el.GetProperty("install").GetString() ?? string.Empty;
                     var version = el.TryGetProperty("version", out var v) ? (v.GetString() ?? "") : "1.0.0.0";
                     if (name.Length == 0 || install.Length == 0) continue;
-                    list.Add((name,family,install,version));
+                    list.Add((name, family, install, version));
                 }
                 return list;
             }
-            catch { return Array.Empty<(string,string,string,string)>(); }
+            catch { return Array.Empty<(string, string, string, string)>(); }
         }
     }
     private static IMsixPackageProvider CreateProvider()
@@ -120,10 +120,10 @@ public sealed class MsixStoreSource : ISource
 
             if (!string.IsNullOrWhiteSpace(pkg.install) && Directory.Exists(pkg.install) && seenInstall.Add(pkg.install))
             {
-                Dictionary<string,string>? evidence = null;
+                Dictionary<string, string>? evidence = null;
                 if (options.IncludeEvidence)
                 {
-                    evidence = new Dictionary<string,string>{{EvidenceKeys.PackageFamilyName, pkg.family},{EvidenceKeys.PackageName, pkg.name}};
+                    evidence = new Dictionary<string, string> { { EvidenceKeys.PackageFamilyName, pkg.family }, { EvidenceKeys.PackageName, pkg.name } };
                     if (!string.IsNullOrEmpty(pkg.version)) evidence[EvidenceKeys.PackageVersion] = pkg.version;
                 }
                 yield return new AppHit(HitType.InstallDir, scope, pkg.install, pkg.version, PackageType.MSIX, new[] { Name }, 0, evidence);
@@ -138,9 +138,9 @@ public sealed class MsixStoreSource : ISource
                     bool exeMatch = options.Strict ? tokens.All(t => exeNameLower.Contains(t)) : exeNameLower.Contains(norm) || match;
                     if (!exeMatch) continue;
                     if (!seenExe.Add(exe)) continue;
-                    Dictionary<string,string>? exeEvidence = evidence;
+                    Dictionary<string, string>? exeEvidence = evidence;
                     if (options.IncludeEvidence)
-                        exeEvidence = new Dictionary<string,string>(evidence ?? new()) {{EvidenceKeys.ExeName, Path.GetFileName(exe)}};
+                        exeEvidence = new Dictionary<string, string>(evidence ?? new()) { { EvidenceKeys.ExeName, Path.GetFileName(exe) } };
                     yield return new AppHit(HitType.Exe, scope, exe, pkg.version, PackageType.MSIX, new[] { Name }, 0, exeEvidence);
                 }
             }
