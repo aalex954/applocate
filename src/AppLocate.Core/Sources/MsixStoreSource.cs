@@ -113,8 +113,8 @@ public sealed class MsixStoreSource : ISource
                 Dictionary<string,string>? evidence = null;
                 if (options.IncludeEvidence)
                 {
-                    evidence = new Dictionary<string,string>{{"PackageFamilyName", pkg.family},{"PackageName", pkg.name}};
-                    if (!string.IsNullOrEmpty(pkg.version)) evidence["PackageVersion"] = pkg.version;
+                    evidence = new Dictionary<string,string>{{EvidenceKeys.PackageFamilyName, pkg.family},{EvidenceKeys.PackageName, pkg.name}};
+                    if (!string.IsNullOrEmpty(pkg.version)) evidence[EvidenceKeys.PackageVersion] = pkg.version;
                 }
                 yield return new AppHit(HitType.InstallDir, scope, pkg.install, pkg.version, PackageType.MSIX, new[] { Name }, 0, evidence);
 
@@ -130,9 +130,7 @@ public sealed class MsixStoreSource : ISource
                     if (!seenExe.Add(exe)) continue;
                     Dictionary<string,string>? exeEvidence = evidence;
                     if (options.IncludeEvidence)
-                    {
-                        exeEvidence = new Dictionary<string,string>(evidence ?? new()) {{"ExeName", Path.GetFileName(exe)}};
-                    }
+                        exeEvidence = new Dictionary<string,string>(evidence ?? new()) {{EvidenceKeys.ExeName, Path.GetFileName(exe)}};
                     yield return new AppHit(HitType.Exe, scope, exe, pkg.version, PackageType.MSIX, new[] { Name }, 0, exeEvidence);
                 }
             }

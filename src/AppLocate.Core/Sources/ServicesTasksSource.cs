@@ -70,18 +70,18 @@ public sealed class ServicesTasksSource : ISource
             Dictionary<string,string>? evidence = null;
             if (options.IncludeEvidence)
             {
-                evidence = new Dictionary<string,string>{{"Service", serviceName},{"ExeName", Path.GetFileName(exeCandidate)}};
-                if (!string.IsNullOrWhiteSpace(displayName)) evidence["ServiceDisplayName"] = displayName!;
+                evidence = new Dictionary<string,string>{{EvidenceKeys.Service, serviceName},{EvidenceKeys.ExeName, Path.GetFileName(exeCandidate)}};
+                if (!string.IsNullOrWhiteSpace(displayName)) evidence[EvidenceKeys.ServiceDisplayName] = displayName!;
                 var dirName = Path.GetFileName(Path.GetDirectoryName(exeCandidate) ?? string.Empty)?.ToLowerInvariant();
-                if (!string.IsNullOrEmpty(dirName) && (options.Strict ? tokens.All(t => dirName.Contains(t)) : dirName.Contains(norm))) evidence["DirMatch"] = dirName;
+                if (!string.IsNullOrEmpty(dirName) && (options.Strict ? tokens.All(t => dirName.Contains(t)) : dirName.Contains(norm))) evidence[EvidenceKeys.DirMatch] = dirName;
             }
             yield return new AppHit(HitType.Exe, scope, exeCandidate, null, PackageType.EXE, new[] { Name }, 0, evidence);
             var dir = Path.GetDirectoryName(exeCandidate);
             if (!string.IsNullOrEmpty(dir) && seenInstall.Add(dir))
             {
                 Dictionary<string,string>? dirEvidence = evidence;
-                if (options.IncludeEvidence && dirEvidence != null && !dirEvidence.ContainsKey("FromService"))
-                    dirEvidence = new Dictionary<string,string>(dirEvidence) { {"FromService","true"} };
+                if (options.IncludeEvidence && dirEvidence != null && !dirEvidence.ContainsKey(EvidenceKeys.FromService))
+                    dirEvidence = new Dictionary<string,string>(dirEvidence) { {EvidenceKeys.FromService,"true"} };
                 yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, dirEvidence);
             }
         }
@@ -123,17 +123,17 @@ public sealed class ServicesTasksSource : ISource
                 if (options.IncludeEvidence)
                 {
                     var taskName = tf.StartsWith(tasksRoot, StringComparison.OrdinalIgnoreCase) ? tf.Substring(tasksRoot.Length).TrimStart(Path.DirectorySeparatorChar) : tf;
-                    evidence = new Dictionary<string,string>{{"TaskFile", tf},{"TaskName", taskName},{"ExeName", Path.GetFileName(exe)}};
+                    evidence = new Dictionary<string,string>{{EvidenceKeys.TaskFile, tf},{EvidenceKeys.TaskName, taskName},{EvidenceKeys.ExeName, Path.GetFileName(exe)}};
                     var dirName = Path.GetFileName(Path.GetDirectoryName(exe) ?? string.Empty)?.ToLowerInvariant();
-                    if (!string.IsNullOrEmpty(dirName) && (options.Strict ? tokens.All(t => dirName.Contains(t)) : dirName.Contains(norm))) evidence["DirMatch"] = dirName;
+                    if (!string.IsNullOrEmpty(dirName) && (options.Strict ? tokens.All(t => dirName.Contains(t)) : dirName.Contains(norm))) evidence[EvidenceKeys.DirMatch] = dirName;
                 }
                 yield return new AppHit(HitType.Exe, scope, exe, null, PackageType.EXE, new[] { Name }, 0, evidence);
                 var dir = Path.GetDirectoryName(exe);
                 if (!string.IsNullOrEmpty(dir) && seenInstall.Add(dir))
                 {
                     Dictionary<string,string>? dirEvidence = evidence;
-                    if (options.IncludeEvidence && dirEvidence != null && !dirEvidence.ContainsKey("FromTask"))
-                        dirEvidence = new Dictionary<string,string>(dirEvidence) { {"FromTask","true"} };
+                    if (options.IncludeEvidence && dirEvidence != null && !dirEvidence.ContainsKey(EvidenceKeys.FromTask))
+                        dirEvidence = new Dictionary<string,string>(dirEvidence) { {EvidenceKeys.FromTask,"true"} };
                     yield return new AppHit(HitType.InstallDir, scope, dir!, null, PackageType.EXE, new[] { Name }, 0, dirEvidence);
                 }
             }

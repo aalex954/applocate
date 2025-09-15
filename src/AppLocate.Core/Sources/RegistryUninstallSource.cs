@@ -94,12 +94,12 @@ public sealed class RegistryUninstallSource : ISource
                         {
                             evidence = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase)
                             {
-                                {"DisplayName", displayName!},
-                                {"Key", sub}
+                                {EvidenceKeys.DisplayName, displayName!},
+                                {EvidenceKeys.Key, sub}
                             };
-                            if (windowsInstaller) evidence["WindowsInstaller"] = "1";
-                            if (installLocation != null) evidence["HasInstallLocation"] = "true";
-                            if (!string.IsNullOrEmpty(displayIconRaw)) evidence["HasDisplayIcon"] = "true";
+                            if (windowsInstaller) evidence[EvidenceKeys.WindowsInstaller] = "1";
+                            if (installLocation != null) evidence[EvidenceKeys.HasInstallLocation] = "true";
+                            if (!string.IsNullOrEmpty(displayIconRaw)) evidence[EvidenceKeys.HasDisplayIcon] = "true";
                         }
 
                         if (installLocation != null && PathIsPlausibleDir(installLocation))

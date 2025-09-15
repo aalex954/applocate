@@ -59,7 +59,7 @@ public sealed class StartMenuShortcutSource : ISource
                 if (!target.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) continue;
                 if (!File.Exists(target)) continue;
                 if (!dedup.Add(target)) continue;
-                var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{"Shortcut", lnk}} : null;
+                var evidence = options.IncludeEvidence ? new Dictionary<string,string>{{EvidenceKeys.Shortcut, lnk}} : null;
                 yield return new AppHit(HitType.Exe, scope, target, null, PackageType.EXE, new[] { Name }, 0, evidence);
                 var dir = Path.GetDirectoryName(target);
                 if (!string.IsNullOrEmpty(dir) && dedup.Add(dir + "::install"))
