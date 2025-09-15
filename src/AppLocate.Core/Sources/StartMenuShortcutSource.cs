@@ -10,6 +10,7 @@ namespace AppLocate.Core.Sources;
 /// <summary>Enumerates Start Menu .lnk shortcuts to infer executables and install directories.</summary>
 public sealed class StartMenuShortcutSource : ISource
 {
+    /// <summary>Unique source identifier used in evidence arrays.</summary>
     public string Name => nameof(StartMenuShortcutSource);
 
     private static string[] GetUserRoots() => new[]
@@ -21,6 +22,15 @@ public sealed class StartMenuShortcutSource : ISource
         Environment.ExpandEnvironmentVariables("%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs").Replace("\n", string.Empty)
     };
 
+    /// <summary>
+    /// Recursively enumerates Start Menu shortcut (.lnk) files (user + common) and resolves targets to executables
+    /// matching the query (strict token all-match or fuzzy substring/collapsed). Emits exe + install directory hits
+    /// with Shortcut evidence key when requested.
+    /// </summary>
+    /// <param name="query">Raw user query.</param>
+    /// <param name="options">Execution options controlling scope, strictness, evidence inclusion.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Async stream of exe and install directory hits derived from shortcuts.</returns>
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await System.Threading.Tasks.Task.Yield();

@@ -11,8 +11,18 @@ namespace AppLocate.Core.Sources;
 /// <summary>Enumerates Windows Services (ImagePath) and Scheduled Tasks for executable paths.</summary>
 public sealed class ServicesTasksSource : ISource
 {
+    /// <summary>Unique source identifier used in evidence arrays.</summary>
     public string Name => nameof(ServicesTasksSource);
 
+    /// <summary>
+    /// Enumerates Windows Services (ImagePath) and Scheduled Task Command entries, extracting executable paths that
+    /// match the query (strict token all-match or fuzzy substring). Emits exe hits plus associated install directory
+    /// hits with evidence indicating originating service or task.
+    /// </summary>
+    /// <param name="query">Raw user query.</param>
+    /// <param name="options">Execution options controlling strictness, evidence inclusion, scope filters.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Async stream of exe and install directory hits derived from services / tasks.</returns>
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await System.Threading.Tasks.Task.Yield();

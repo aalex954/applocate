@@ -11,6 +11,7 @@ namespace AppLocate.Core.Sources;
 /// <summary>Enumerates MSIX / Store packages (PowerShell or env injected) to produce install dir and exe hits.</summary>
 public sealed class MsixStoreSource : ISource
 {
+    /// <summary>Unique source identifier used in evidence arrays.</summary>
     public string Name => nameof(MsixStoreSource);
 
     internal interface IMsixPackageProvider
@@ -77,6 +78,15 @@ public sealed class MsixStoreSource : ISource
         return new PowerShellMsixProvider();
     }
 
+    /// <summary>
+    /// Enumerates MSIX / Store packages (via PowerShell or injected JSON provider) and yields install directory and
+    /// executable hits whose package name or family name match the query (strict token all-match or fuzzy substring).
+    /// Evidence may include package family, name, version and exe name.
+    /// </summary>
+    /// <param name="query">Raw user query.</param>
+    /// <param name="options">Execution options controlling scope, strictness, evidence inclusion.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Async stream of package install and exe hits.</returns>
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await System.Threading.Tasks.Task.Yield();

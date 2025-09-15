@@ -11,8 +11,18 @@ namespace AppLocate.Core.Sources;
 /// <summary>Searches PATH and invokes where.exe to locate executables matching query variants.</summary>
 public sealed class PathSearchSource : ISource
 {
+    /// <summary>Unique source identifier used in evidence arrays.</summary>
     public string Name => nameof(PathSearchSource);
 
+    /// <summary>
+    /// Searches PATH directories and runs where.exe for simple query variants (hyphen/space collapsed) to locate
+    /// executables. Emits exe hits plus inferred install directory hits. Applies strict token mode or fuzzy alias
+    /// matching (collapsed / punctuation removed) and provides evidence for PATH / WhereQuery / DirMatch.
+    /// </summary>
+    /// <param name="query">Raw user query.</param>
+    /// <param name="options">Execution options controlling strictness, timeout, evidence inclusion.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Async stream of exe and install directory hits.</returns>
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await System.Threading.Tasks.Task.Yield();

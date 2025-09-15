@@ -10,8 +10,18 @@ namespace AppLocate.Core.Sources;
 /// <summary>Enumerates running processes for matching executables.</summary>
 public sealed class ProcessSource : ISource
 {
+    /// <summary>Unique source identifier used in evidence arrays.</summary>
     public string Name => nameof(ProcessSource);
 
+    /// <summary>
+    /// Scans currently running system processes (best-effort; may skip access denied processes) and yields executable
+    /// hits whose process name or main module path matches the query tokens (strict all-match or fuzzy substring).
+    /// Evidence can include process id, process name, and exe file name.
+    /// </summary>
+    /// <param name="query">Raw user query.</param>
+    /// <param name="options">Execution options controlling strictness, evidence inclusion, scope filters.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Async stream of running process exe and inferred install directory hits.</returns>
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await System.Threading.Tasks.Task.Yield();

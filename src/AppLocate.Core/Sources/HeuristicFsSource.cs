@@ -11,8 +11,17 @@ namespace AppLocate.Core.Sources;
 /// <summary>Heuristic filesystem scan of known install locations (shallow, bounded).</summary>
 public sealed class HeuristicFsSource : ISource
 {
+    /// <summary>Unique source identifier used in evidence arrays.</summary>
     public string Name => nameof(HeuristicFsSource);
-
+    /// <summary>
+    /// Performs a bounded depth-first scan of common user and machine install roots looking for directories or
+    /// executables whose names match the normalized query tokens (strict = all tokens, fuzzy = substring/collapsed).
+    /// Yields install directory hits and associated exe hits with optional evidence for directory/exe matches.
+    /// </summary>
+    /// <param name="query">Raw user query string.</param>
+    /// <param name="options">Source execution options (scope, timeout, evidence inclusion, strict/fuzzy).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Asynchronous stream of <see cref="AppHit"/> objects.</returns>
     public async IAsyncEnumerable<AppHit> QueryAsync(string query, SourceOptions options, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await System.Threading.Tasks.Task.Yield();
