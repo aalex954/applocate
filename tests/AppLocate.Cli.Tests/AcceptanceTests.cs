@@ -240,6 +240,40 @@ namespace AppLocate.Cli.Tests {
             Assert.True(hasExe || hasInstall, "At minimum expect install_dir; exe optional depending on enumeration logic");
         }
 
+        [Fact]
+        public void MsixScenario_FakeProvider_Manifest() {
+            var root = Path.Combine(Path.GetTempPath(), "applocate_accept_msix_manifest");
+            if (Directory.Exists(root)) {
+                Directory.Delete(root, true);
+            }
+            _ = Directory.CreateDirectory(root);
+            var pkgRoot = Path.Combine(root, "Contoso.App_2.0.0.0_x64__abcde", "App");
+            var exe = CreateDummyExe(pkgRoot, "ContosoMain.exe");
+            // Create AppxManifest.xml with Application Executable reference (relative)
+            var manifest = "<?xml version=\"1.0\" encoding=\"utf-8\"?><Package><Applications><Application Id=\"App\" Executable=\"ContosoMain.exe\" EntryPoint=\"Windows.FullTrustApplication\" /></Applications></Package>";
+            File.WriteAllText(Path.Combine(pkgRoot, "AppxManifest.xml"), manifest);
+            var payload = $"[{{\"name\":\"ContosoApp\",\"family\":\"ContosoApp_abcde\",\"install\":\"{pkgRoot.Replace("\\", "\\\\")}\",\"version\":\"2.0.0.0\"}}]";
+            var (code, stdout, stderr) = RunWithEnv(["ContosoApp", "--json", "--limit", "10", "--evidence"], ("APPLOCATE_MSIX_FAKE", payload));
+            Assert.Equal(0, code);
+            Assert.True(string.IsNullOrWhiteSpace(stderr), $"stderr: {stderr}");
+            var doc = JsonDocument.Parse(stdout);
+            var hits = doc.RootElement.EnumerateArray().ToList();
+            Assert.NotEmpty(hits);
+            // Expect install dir
+            Assert.Contains(hits, h => IsType(h, "install_dir", 0) && h.GetProperty("path").GetString()!.Equals(pkgRoot, StringComparison.OrdinalIgnoreCase));
+            // Expect exe from manifest with evidence MsixManifest
+            var exeHit = hits.FirstOrDefault(h => IsType(h, "exe", 1) && h.GetProperty("path").GetString()!.EndsWith("ContosoMain.exe", StringComparison.OrdinalIgnoreCase));
+            Assert.True(exeHit.ValueKind != JsonValueKind.Undefined, "Expected exe from manifest");
+            // Evidence check
+            if (exeHit.TryGetProperty("evidence", out var ev) && ev.ValueKind == JsonValueKind.Object) {
+                var hasManifest = ev.EnumerateObject().Any(p => p.NameEquals("MsixManifest"));
+                Assert.True(hasManifest, "Expected MsixManifest evidence key");
+            }
+            else {
+                Assert.Fail("Evidence object missing on manifest exe hit");
+            }
+        }
+
         private static bool IsType(JsonElement el, string expectedName, int expectedNumeric) {
             var tp = el.GetProperty("type");
             if (tp.ValueKind == JsonValueKind.String) {
