@@ -393,6 +393,18 @@ namespace AppLocate.Cli {
             var removed = preExistCount - hits.Count;
             if (removed > 0 && verbose) { Console.Error.WriteLine($"[verbose] filtered {removed} non-existent paths (pre-merge)"); }
 
+            // Unified scope normalization & early --user/--machine pruning
+            if (user || machine) {
+                var before = hits.Count;
+                hits = NormalizeAndFilterScopes(hits, user, machine);
+                if (verbose) {
+                    try { Console.Error.WriteLine($"[verbose] scope filter applied ({before}->{hits.Count}) userOnly={user} machineOnly={machine}"); } catch { }
+                }
+            }
+            else {
+                hits = NormalizeAndFilterScopes(hits, false, false);
+            }
+
             var mergedMap = new Dictionary<string, AppHit>(StringComparer.OrdinalIgnoreCase);
             foreach (var h in hits) {
                 var normPath = NormalizePath(h.Path);
@@ -1162,6 +1174,64 @@ namespace AppLocate.Cli {
             }
 
             return string.Join(' ', trimmed.ToLowerInvariant().Split([' '], StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        // Centralized scope inference so all sources converge on consistent user/machine classification.
+        // This reduces leakage where a machine path appears when --user is specified (and vice-versa) due to
+        // per-source heuristics diverging. We keep this conservative: if path clearly under a user profile => User;
+        // if under Program Files / ProgramData => Machine; otherwise retain existing.
+        private static Scope InferScope(string? path, Scope existing) {
+            if (string.IsNullOrWhiteSpace(path)) {
+                return existing;
+            }
+            try {
+                var p = path.Replace('/', '\\');
+                // Normalize casing once
+                var lower = p.ToLowerInvariant();
+                // Quick exits for known machine roots
+                // Program Files variations
+                var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                var pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+                if ((!string.IsNullOrEmpty(pf) && lower.StartsWith(pf, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(pf86) && lower.StartsWith(pf86, StringComparison.OrdinalIgnoreCase))) {
+                    return Scope.Machine;
+                }
+                // ProgramData
+                var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+                if (!string.IsNullOrEmpty(programData) && lower.StartsWith(programData, StringComparison.OrdinalIgnoreCase)) {
+                    return Scope.Machine;
+                }
+                // WindowsApps (MSIX) generally machine-visible but per-user installed; treat as User if under user profile Packages
+                // User profile: detect \users\<name>\
+                if (lower.Contains("\\users\\", StringComparison.OrdinalIgnoreCase)) {
+                    // If under Public treat as machine, else user.
+                    return lower.Contains("\\users\\public\\", StringComparison.OrdinalIgnoreCase) ? Scope.Machine : Scope.User;
+                }
+            }
+            catch { /* swallow and keep existing */ }
+            return existing;
+        }
+
+        // Applies unified scope inference and early pruning for --user / --machine options.
+    private static List<AppHit> NormalizeAndFilterScopes(List<AppHit> hits, bool userOnly, bool machineOnly) {
+            if (hits.Count == 0) { return hits; }
+            var normalized = new List<AppHit>(hits.Count);
+            foreach (var h in hits) {
+                var inferred = InferScope(h.Path, h.Scope);
+                if (inferred != h.Scope) {
+                    normalized.Add(h with { Scope = inferred });
+                }
+                else {
+                    normalized.Add(h);
+                }
+            }
+            if (userOnly) {
+                normalized = [.. normalized.Where(h => h.Scope == Scope.User)];
+            }
+            else if (machineOnly) {
+                normalized = [.. normalized.Where(h => h.Scope == Scope.Machine)];
+            }
+            return normalized;
         }
 
         // Manual PrintHelp removed: System.CommandLine generates help.
