@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace AppLocate.Core.Models;
 
@@ -61,5 +62,5 @@ public sealed record AppHit(
     string[] Source,
     double Confidence,
     Dictionary<string,string>? Evidence,
-    ScoreBreakdown? Breakdown = null
+    [property:JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ScoreBreakdown? Breakdown = null
 );
