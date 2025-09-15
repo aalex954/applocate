@@ -3,6 +3,7 @@ using System.Text.Json;
 
 namespace AppLocate.Cli.Tests {
     public class TypeFilterTests {
+        private static readonly int[] AcceptExitCodes = [0, 1];
         private static (string file, bool directExe) LocateCli() {
             var asmPath = typeof(Program).Assembly.Location;
             var exeCandidate = Path.ChangeExtension(asmPath, ".exe");
@@ -41,7 +42,7 @@ namespace AppLocate.Cli.Tests {
         [Fact]
         public void ExeFilter_OnlyExeHits() {
             var (code, json, err) = Run("code", "--json", "--exe", "--all", "--limit", "50");
-            Assert.Contains(code, new[] { 0, 1 });
+            Assert.Contains(code, AcceptExitCodes);
             Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
             if (code == 0) {
                 using var doc = JsonDocument.Parse(json);
@@ -53,13 +54,13 @@ namespace AppLocate.Cli.Tests {
         [Fact]
         public void MultiFilter_ExeAndInstall() {
             var (code, json, err) = Run("code", "--json", "--exe", "--install-dir", "--all", "--limit", "100");
-            Assert.Contains(code, new[] { 0, 1 });
+            Assert.Contains(code, AcceptExitCodes);
             Assert.True(string.IsNullOrWhiteSpace(err));
             if (code == 0) {
                 using var doc = JsonDocument.Parse(json);
                 var arr = doc.RootElement.EnumerateArray().ToList();
                 // Ensure only allowed types appear
-                Assert.All(arr, el => { var t = el.GetProperty("type").GetInt32(); Assert.Contains(t, new[] { 0, 1 }); });
+                Assert.All(arr, el => { var t = el.GetProperty("type").GetInt32(); Assert.Contains(t, AcceptExitCodes); });
             }
         }
     }

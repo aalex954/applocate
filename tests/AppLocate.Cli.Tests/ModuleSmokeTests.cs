@@ -13,7 +13,7 @@ namespace AppLocate.Cli.Tests {
             };
             try {
                 using var check = Process.Start(psiCheck)!; _ = check.WaitForExit(5000); if (check.ExitCode != 0) {
-                    throw new Exception("pwsh not available");
+                    throw new InvalidOperationException("pwsh not available");
                 }
             }
             catch { return; } // gracefully exit test if pwsh missing

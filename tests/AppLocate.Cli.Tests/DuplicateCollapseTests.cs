@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace AppLocate.Cli.Tests {
-    public class DuplicateCollapseTests {
+    public partial class DuplicateCollapseTests {
         private static (string file, bool directExe) LocateCli() {
             var asmPath = typeof(Program).Assembly.Location;
             var exeCandidate = Path.ChangeExtension(asmPath, ".exe");
@@ -52,7 +52,7 @@ namespace AppLocate.Cli.Tests {
             // Parse lines: format like "[0.83] Exe C:\Path\To\Code.exe" OR "Exe C:\Path" (when confidence omitted in some styles)
             // We'll extract type + path via regex.
             var lines = stdout.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
-            var rx = new Regex(@"^(?:\[[0-9]+\.[0-9]+\]\s+)?(Exe|InstallDir|Config|Data)\s+(.+)$", RegexOptions.IgnoreCase);
+            var rx = HitLineRegex();
             var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var line in lines) {
                 var m = rx.Match(line.Trim());
@@ -66,5 +66,7 @@ namespace AppLocate.Cli.Tests {
                 Assert.True(set.Add(key), $"Duplicate Type+Path pair found in output: {key}\nFull output:\n{stdout}");
             }
         }
+        [GeneratedRegex(@"^(?:\[[0-9]+\.[0-9]+\]\s+)?(Exe|InstallDir|Config|Data)\s+(.+)$", RegexOptions.IgnoreCase)]
+        private static partial Regex HitLineRegex();
     }
 }

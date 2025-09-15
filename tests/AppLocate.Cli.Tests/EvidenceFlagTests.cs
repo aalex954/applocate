@@ -3,6 +3,7 @@ using System.Text.Json;
 
 namespace AppLocate.Cli.Tests {
     public class EvidenceFlagTests {
+        private static readonly int[] AcceptExitCodes = [0, 1];
         private static (string file, bool directExe) LocateCli() {
             var asmPath = typeof(Program).Assembly.Location;
             var exeCandidate = Path.ChangeExtension(asmPath, ".exe");
@@ -41,10 +42,10 @@ namespace AppLocate.Cli.Tests {
         [Fact]
         public void EvidenceFlag_AddsEvidenceObjects() {
             var (codeWith, jsonWith, errWith) = Run("code", "--json", "--evidence", "--limit", "20");
-            Assert.Contains(codeWith, new[] { 0, 1 });
+            Assert.Contains(codeWith, AcceptExitCodes);
             Assert.True(string.IsNullOrWhiteSpace(errWith), $"stderr: {errWith}");
             var (codeNo, jsonNo, errNo) = Run("code", "--json", "--limit", "20");
-            Assert.Contains(codeNo, new[] { 0, 1 });
+            Assert.Contains(codeNo, AcceptExitCodes);
             Assert.True(string.IsNullOrWhiteSpace(errNo), $"stderr: {errNo}");
             if (codeWith == 0 && codeNo == 0) {
                 using var docWith = JsonDocument.Parse(jsonWith);

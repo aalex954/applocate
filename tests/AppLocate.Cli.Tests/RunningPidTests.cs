@@ -3,6 +3,7 @@ using System.Text.Json;
 
 namespace AppLocate.Cli.Tests {
     public class RunningPidTests {
+        private static readonly int[] AcceptExitCodes = [0, 1];
         private static (string file, bool directExe) LocateCli() {
             var asmPath = typeof(Program).Assembly.Location;
             var exeCandidate = Path.ChangeExtension(asmPath, ".exe");
@@ -41,7 +42,7 @@ namespace AppLocate.Cli.Tests {
         [Fact]
         public void RunningFlag_DoesNotError() {
             var (code, _, err) = Run("code", "--json", "--running", "--limit", "5");
-            Assert.Contains(code, new[] { 0, 1 });
+            Assert.Contains(code, AcceptExitCodes);
             Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
         }
 
@@ -50,7 +51,7 @@ namespace AppLocate.Cli.Tests {
             // Target current process (test runner) to guarantee a valid PID.
             var current = Process.GetCurrentProcess();
             var (code, json, err) = Run(current.ProcessName.ToLowerInvariant(), "--json", "--pid", current.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), "--limit", "50");
-            Assert.Contains(code, new[] { 0, 1 });
+            Assert.Contains(code, AcceptExitCodes);
             Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
             if (code == 0) {
                 using var doc = JsonDocument.Parse(json);

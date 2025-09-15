@@ -2,6 +2,7 @@ using System.Diagnostics;
 
 namespace AppLocate.Cli.Tests {
     public class CliDeterministicTests {
+        private static readonly int[] AcceptExitCodes = [0, 1];
         private static (string file, bool directExe) LocateCli() {
             var asmPath = typeof(Program).Assembly.Location;
             var exeCandidate = Path.ChangeExtension(asmPath, ".exe");
@@ -81,7 +82,7 @@ namespace AppLocate.Cli.Tests {
         public void SentinelTreatsDashesAsQuery() {
             var (code, _, err) = Run("--", "--strange-name--app");
             // Probably no matches; exit 1 or 0 depending on local environment; accept 0/1.
-            Assert.Contains(code, new[] { 0, 1 });
+            Assert.Contains(code, AcceptExitCodes);
             Assert.True(string.IsNullOrEmpty(err.Trim()), $"Unexpected stderr: {err}");
         }
 

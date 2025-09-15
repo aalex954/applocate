@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 
 namespace AppLocate.Cli.Tests {
-    public class RulePackExpansionTests {
+    public partial class RulePackExpansionTests {
         [Fact]
         public void RulePack_HasAtLeastFiftyEntries_AndCoreAppsPresent() {
             // Attempt to resolve rules file relative to repo root (two levels up from test bin usually)
@@ -16,12 +16,14 @@ namespace AppLocate.Cli.Tests {
             Assert.True(path != null, "rules/apps.default.yaml missing");
             var text = File.ReadAllText(path);
             // Count occurrences of top-level '- match:' lines
-            var count = Regex.Matches(text, "^- match:", RegexOptions.Multiline).Count;
+            var count = MatchLineRegex().Matches(text).Count;
             Assert.True(count >= 50, $"Expected >=50 rules, found {count}");
             string[] spot = ["Visual Studio", "GitHub Desktop", "Gradle", "Rust", "Helm", "PowerToys", "Bazel", "MiKTeX"];
             foreach (var token in spot) {
                 Assert.Contains(token, text);
             }
         }
+        [GeneratedRegex("^- match:", RegexOptions.Multiline)]
+        private static partial Regex MatchLineRegex();
     }
 }

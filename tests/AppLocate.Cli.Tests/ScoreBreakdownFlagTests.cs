@@ -3,6 +3,7 @@ using System.Text.Json;
 
 namespace AppLocate.Cli.Tests {
     public class ScoreBreakdownFlagTests {
+        private static readonly int[] AcceptExitCodes = [0, 1];
         private static (string file, bool directExe) LocateCli() {
             var asmPath = typeof(Program).Assembly.Location;
             var exeCandidate = Path.ChangeExtension(asmPath, ".exe");
@@ -41,7 +42,7 @@ namespace AppLocate.Cli.Tests {
         [Fact]
         public void Json_Includes_Breakdown_When_Flag() {
             var (code, json, err) = Run("code", "--json", "--score-breakdown", "--limit", "10");
-            Assert.Contains(code, new[] { 0, 1 });
+            Assert.Contains(code, AcceptExitCodes);
             Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
             if (code == 0) {
                 using var doc = JsonDocument.Parse(json);
@@ -58,7 +59,7 @@ namespace AppLocate.Cli.Tests {
         [Fact]
         public void Json_Excludes_Breakdown_When_NoFlag() {
             var (code, json, err) = Run("code", "--json", "--limit", "10");
-            Assert.Contains(code, new[] { 0, 1 });
+            Assert.Contains(code, AcceptExitCodes);
             Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
             if (code == 0) {
                 using var doc = JsonDocument.Parse(json);
@@ -72,7 +73,7 @@ namespace AppLocate.Cli.Tests {
         [Fact]
         public void Text_Mode_Shows_Breakdown_Line() {
             var (code, stdout, err) = Run("code", "--score-breakdown", "--limit", "5", "--no-color");
-            Assert.Contains(code, new[] { 0, 1 });
+            Assert.Contains(code, AcceptExitCodes);
             Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
             if (code == 0) {
                 // Look for at least one 'breakdown:' line

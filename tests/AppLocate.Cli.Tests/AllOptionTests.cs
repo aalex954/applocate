@@ -3,6 +3,7 @@ using System.Text.Json;
 
 namespace AppLocate.Cli.Tests {
     public class AllOptionTests {
+        private static readonly int[] AcceptExitCodes = [0, 1];
         private static (string file, bool directExe) LocateCli() {
             var asmPath = typeof(Program).Assembly.Location;
             var exeCandidate = Path.ChangeExtension(asmPath, ".exe");
@@ -43,10 +44,10 @@ namespace AppLocate.Cli.Tests {
             // Use a query likely to produce more than one hit of same type in synthetic fixtures (e.g., code) via Start Menu + path + uninstall heuristics.
             // If environment only yields single hits, allow equality but assert no error.
             var (codeCollapsed, jsonCollapsed, errCollapsed) = Run("code", "--json", "--limit", "50");
-            Assert.Contains(codeCollapsed, new[] { 0, 1 });
+            Assert.Contains(codeCollapsed, AcceptExitCodes);
             Assert.True(string.IsNullOrWhiteSpace(errCollapsed), $"stderr (collapsed): {errCollapsed}");
             var (codeAll, jsonAll, errAll) = Run("code", "--json", "--all", "--limit", "50");
-            Assert.Contains(codeAll, new[] { 0, 1 });
+            Assert.Contains(codeAll, AcceptExitCodes);
             Assert.True(string.IsNullOrWhiteSpace(errAll), $"stderr (all): {errAll}");
             if (codeCollapsed == 0 && codeAll == 0) {
                 static int Count(string json) { try { using var doc = JsonDocument.Parse(json); return doc.RootElement.GetArrayLength(); } catch { return 0; } }

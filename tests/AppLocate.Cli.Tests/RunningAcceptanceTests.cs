@@ -3,6 +3,7 @@ using System.Text.Json;
 
 namespace AppLocate.Cli.Tests {
     public class RunningAcceptanceTests {
+        private static readonly int[] AcceptExitCodes = [0, 1];
         private static (string file, bool directExe) LocateCli() {
             var asmPath = typeof(Program).Assembly.Location;
             var exeCandidate = Path.ChangeExtension(asmPath, ".exe");
@@ -56,7 +57,7 @@ namespace AppLocate.Cli.Tests {
                 }
                 Thread.Sleep(300); // ensure OS registers process
                 var (code, json, err) = Run(query, "--json", "--running", "--limit", "200");
-                Assert.Contains(code, new[] { 0, 1 });
+                Assert.Contains(code, AcceptExitCodes);
                 Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
                 if (code == 0 && child != null && !child.HasExited) {
                     using var doc = JsonDocument.Parse(json);
