@@ -22,7 +22,8 @@ namespace AppLocate.Core.Tests {
                 .Add(new DummySource("C"))
                 .Build();
             var names = reg.GetSources().Select(s => s.Name).ToArray();
-            Assert.Equal(new[] { "A", "B", "C" }, names);
+            string[] expected1 = ["A", "B", "C"]; // avoid span overload ambiguity
+            Assert.Equal(expected1, names);
         }
 
         [Fact]
@@ -34,7 +35,8 @@ namespace AppLocate.Core.Tests {
                 .Add(new DummySource("C"))
                 .Build();
             var names = reg.GetSources().Select(s => s.Name).ToArray();
-            Assert.Equal(new[] { "A", "B", "C" }, names);
+            string[] expected2 = ["A", "B", "C"]; // avoid span overload ambiguity
+            Assert.Equal(expected2, names);
         }
 
         [Fact]
@@ -45,7 +47,9 @@ namespace AppLocate.Core.Tests {
                 .Add(new DummySource("C"));
             _ = builder.Remove("B");
             var reg = builder.Build();
-            Assert.Equal(new[] { "A", "C" }, [.. reg.GetSources().Select(s => s.Name)]);
+            string[] expected3 = ["A", "C"]; // avoid span overload ambiguity
+            var actual3 = reg.GetSources().Select(s => s.Name).ToArray();
+            Assert.Equal(expected3, actual3);
         }
 
         [Fact]
@@ -55,7 +59,9 @@ namespace AppLocate.Core.Tests {
                 .Add(new DummySource("C"))
                 .InsertBefore("C", new DummySource("B"))
                 .Build();
-            Assert.Equal(new[] { "A", "B", "C" }, [.. reg.GetSources().Select(s => s.Name)]);
+            string[] expected4 = ["A", "B", "C"]; // avoid span overload ambiguity
+            var actual4 = reg.GetSources().Select(s => s.Name).ToArray();
+            Assert.Equal(expected4, actual4);
         }
 
         [Fact]
@@ -66,7 +72,9 @@ namespace AppLocate.Core.Tests {
                 .Add(new DummySource("C"))
                 .Move("C", 0)
                 .Build();
-            Assert.Equal(new[] { "C", "A", "B" }, [.. reg.GetSources().Select(s => s.Name)]);
+            string[] expected5 = ["C", "A", "B"]; // avoid span overload ambiguity
+            var actual5 = reg.GetSources().Select(s => s.Name).ToArray();
+            Assert.Equal(expected5, actual5);
         }
 
         [Fact]
