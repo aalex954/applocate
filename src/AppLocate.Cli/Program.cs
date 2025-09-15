@@ -37,7 +37,8 @@ namespace AppLocate.Cli {
             var textOpt = new Option<bool>("--text") { Description = "Force text output (default if neither --json nor --csv)" };
             var userOpt = new Option<bool>("--user") { Description = "Limit to user-scope results" };
             var machineOpt = new Option<bool>("--machine") { Description = "Limit to machine-scope results" };
-            var strictOpt = new Option<bool>("--strict") { Description = "Disable fuzzy/alias matching (exact tokens only)" };
+            // Removed: strict mode (was --strict). Behavior folded into improved generic noise suppression; option retained as hidden noop for backward compatibility.
+            var strictOpt = new Option<bool>("--strict") { Description = "(Deprecated) Previously enforced exact token filtering; now ignored." };
             var allOpt = new Option<bool>("--all") { Description = "Return all hits (default returns best per type)" };
             var exeOpt = new Option<bool>("--exe") { Description = "Include only executable hits (can combine with others)" };
             var installDirOpt = new Option<bool>("--install-dir") { Description = "Include only install directory hits" };
@@ -149,7 +150,7 @@ namespace AppLocate.Cli {
             var text = !json && !csv; // default text
             var user = Has("--user");
             var machine = Has("--machine");
-            var strict = Has("--strict");
+            var strict = false; // deprecated flag ignored
             var all = Has("--all");
             var onlyExe = Has("--exe");
             var onlyInstall = Has("--install-dir");
@@ -249,7 +250,7 @@ namespace AppLocate.Cli {
                 }
                 catch { }
             }
-            var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
+            var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), false, evidence);
             var normalized = Normalize(query);
             var normTokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             // (index/cache removed)
@@ -461,29 +462,46 @@ namespace AppLocate.Cli {
                 }
             }
 
-            // Strict mode: require every normalized query token to appear in either the file/directory name segment
-            // (case-insensitive) or the DisplayName-related evidence (if present). For now we only inspect path tokens
-            // to keep it deterministic and fast. This sharply reduces noisy extension/service binaries for short queries.
-            if (strict && normTokens.Length > 0) {
-                var beforeStrict = scored.Count;
-                scored = scored.Where(h => {
-                    try {
-                        var name = Path.GetFileName(h.Path).ToLowerInvariant();
-                        // If directory (InstallDir) take last segment
-                        if (string.IsNullOrEmpty(name)) {
-                            name = h.Path.Replace('\\', '/').TrimEnd('/').Split('/').LastOrDefault()?.ToLowerInvariant() ?? string.Empty;
-                        }
-                        foreach (var t in normTokens) {
-                            if (!name.Contains(t)) {
-                                return false; // all tokens must appear
-                            }
-                        }
-                        return true;
-                    }
-                    catch { return false; }
-                }).ToList();
+            // Generic noise suppression pass (post-scoring, pre-collapse) to remove low-value ancillary items unless --all.
+            // Rules:
+            //  * Uninstall/Updater executables already heavily penalized in ranking; drop entirely here unless explicitly queried for 'uninstall' or --all.
+            //  * Cache/temporary directories (Code Cache, VideoDecodeStats, IndexedDB, module_data, winget temp, update-cache) dropped.
+            //  * Documentation/help directories ("User's Guide", "docs", "help") dropped when confidence < 0.65.
+            //  * Installer staging directories under %TEMP% removed.
+            if (!all) {
+                var beforeNoise = scored.Count;
+                bool IsUninstallExe(AppHit h) {
+                    if (h.Type != HitType.Exe) { return false; }
+                    var fn = Path.GetFileName(h.Path)?.ToLowerInvariant() ?? string.Empty;
+                    if (string.IsNullOrEmpty(fn)) { return false; }
+                    if (normalized.Contains("uninstall")) { return false; } // user intent explicit
+                    return fn.StartsWith("unins", StringComparison.Ordinal)
+                           || fn.Contains("uninstall", StringComparison.Ordinal)
+                           || fn.Contains("unins000", StringComparison.Ordinal)
+                           || fn == "update.exe"
+                           || fn.Contains("updater", StringComparison.Ordinal)
+                           || (fn.Contains("setup", StringComparison.Ordinal) && fn.EndsWith(".exe", StringComparison.Ordinal));
+                }
+                bool IsCacheOrTemp(AppHit h) {
+                    var p = h.Path.ToLowerInvariant();
+                    if (p.Contains("code cache") || p.Contains("videodecodestats") || p.Contains("video\\decode") || p.Contains("video\\decodestats")) { return true; }
+                    if (p.Contains("indexeddb") || p.Contains("module_data") || p.Contains("\\temp\\winget\\")) { return true; }
+                    if (p.Contains("update-cache") || (p.Contains("\\temp\\") && (p.Contains("vscode") || p.Contains("win")))) { return true; }
+                    return false;
+                }
+                bool IsDocHelp(AppHit h) {
+                    if (!(h.Type == HitType.InstallDir || h.Type == HitType.Data || h.Type == HitType.Config)) { return false; }
+                    var leaf = Path.GetFileName(h.Path)?.ToLowerInvariant() ?? string.Empty;
+                    if (leaf.Contains("user's guide") || leaf == "docs" || leaf == "help" || leaf.EndsWith(".chm", StringComparison.Ordinal)) { return true; }
+                    return false;
+                }
+                scored = (from h in scored
+                          where !IsUninstallExe(h)
+                                && !IsCacheOrTemp(h)
+                                && (!(IsDocHelp(h)) || h.Confidence >= 0.65)
+                          select h).ToList();
                 if (verbose) {
-                    try { Console.Error.WriteLine($"[verbose] strict filter reduced hits {beforeStrict}->{scored.Count}"); } catch { }
+                    try { Console.Error.WriteLine($"[verbose] noise filter removed {beforeNoise - scored.Count} hits"); } catch { }
                 }
             }
 
