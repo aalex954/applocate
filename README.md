@@ -2,7 +2,7 @@
 
 [![build-test-release](https://github.com/aalex954/applocate/actions/workflows/build-release.yml/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/build-release.yml)
 
-Windows 11 CLI to locate application install directories, executables, and (in progress) config/data paths. Emits deterministic JSON (plus CSV/text). Core discovery, indexing, ranking scaffold, and baseline tests are now in place.
+Windows 11 CLI to locate application install directories, executables, and (in progress) config/data paths. Emits deterministic JSON (plus CSV/text). Core discovery, ranking scaffold, and baseline tests are now in place.
 
 ## Features (Snapshot)
 | Area | Implemented | Notes |
@@ -17,7 +17,7 @@ Windows 11 CLI to locate application install directories, executables, and (in p
 | Heuristic FS scan | Yes | Bounded depth/time roots |
 | Index cache | Removed | Will return if cold latency >2s |
 | Ranking | Phase 2 | Span compactness, noise penalties, refined diminishing returns |
-| Config/Data rules | Yes | YAML rule pack (≥50 apps) |
+| Config/Data rules | Partial | Seeded YAML rule pack; expanding |
 | Existence filtering | Yes | Drops non-existent paths (live + cache sanitize) |
 | Evidence emission | Yes | Optional via --evidence |
 | Snapshot tests | Yes | Verify deterministic outputs |
@@ -38,7 +38,7 @@ Options (implemented CLI surface):
 	--json | --csv | --text    Output (default text)
 	--limit <N>                Max hits after filtering (applied after optional collapse)
 	--confidence-min <f>       Filter threshold (0-1)
-	--strict                   Disable fuzzy / alias matching
+	--strict                   Deprecated/no-op (behavior integrated into default heuristics)
 	--user | --machine         Scope filters
 	--all                      Return ALL hits (no per-type collapsing)
 	--exe | --install-dir | --config | --data  Type filters (any combination)
@@ -184,23 +184,24 @@ Completed / Phase 1 Foundation:
 - [x] Deterministic CLI argument validation tests
 - [x] YAML rules engine (phase 1 subset) for config/data expansion
 - [x] Ranking calibration pass (alias & fuzzy weighting baseline)
-- [x] Composite cache key (query + flags) variant separation
-- [x] Legacy cache pruning (removal of pre-composite keys)
-- [x] Cache short-circuit path applies type filters & package-source formatting
 - [x] `--package-source` output integration
-- [x] `--clear-cache` flag (index reset)
 - [x] Acceptance scenario scaffolding (VSCode, Chrome, portable app; MSIX placeholder)
 - [x] PowerShell module wrapper (Invoke-AppLocate / Get-AppLocateJson)
-- [x] Rule pack expansion (≥50 apps coverage)
+// Indexing/cache layer removed; reconsider only if cold median >2s
+// Completed refinements since v0.1.2
+- [x] Evidence output stabilization & selective evidence emission tests
+- [x] Alias canonicalization pipeline (query variants → canonical form)
+- [x] Generic post-score noise filtering (uninstall/update/setup, cache/temp, docs/help)
+- [x] Generic auxiliary service/host/updater/helper suppression
+- [x] MSIX improvements: AppxManifest exe parsing, multi-token matching, WindowsApps path acceptance
+- [x] App Execution Alias support via PATH search + alias canonicalization (e.g., `wt.exe` for Windows Terminal)
+- [x] Score breakdown output (JSON) with detailed ranking signals
+- [x] DI/registration refactor for sources (builder-based injection seams)
 
 In Progress / Near Term:
-- [x] Running process acceptance scenario (`--running` live capture)
 - [ ] Expanded config/data heuristics acceptance scenarios
-- [x] Ranking refinement (phase 2: distance weighting, diminishing returns tuning, span scoring)
 - [ ] Performance tuning (parallel scheduling, cold vs warm benchmarks)
-- [x] Evidence output stabilization & selective evidence emission tests
 - [ ] Plugin loading (data-only alias & rule packs)
- - [x] DI/registration refactor for sources (builder-based injection seams)
 - [ ] JSON schema contract & versioning documentation
 - [ ] Benchmark harness (cold vs warm index, thread scaling, source timing)
 
@@ -217,17 +218,14 @@ Backlog / Later:
 
 ## Tests
 
-Current summary: 69 total (68 passing, 1 skipped) – includes running process acceptance test.
-
-Categories:
-- Core & Models: Validate `AppHit` serialization and JSON determinism.
-- Ranking: Tokenization, fuzzy scoring, boosts, penalties.
-- CLI Deterministic: Argument parsing, validation, exit codes.
-- Snapshot (Verify): Golden projections with volatile fields stripped.
-- Rules Parsing: YAML subset correctness & expansion.
-- Synthetic Acceptance: VSCode (query "code"), Portable app, Chrome, MSIX fake provider.
-- Skipped: One placeholder scenario reserved for future expansion.
-- Cache & Index Variants: Composite key separation, short-circuit behavior, pruning, clear cache flag.
+Categories (representative):
+- Core & Models: `AppHit` serialization, deterministic JSON shape.
+- Ranking: tokenization, alias equivalence vs evidence alias, fuzzy distance, boosts/penalties, Steam auxiliary demotion, span/coverage.
+- CLI Deterministic: argument parsing/validation, exit codes, type filters, `--package-source`, selective `--evidence-keys`.
+- Snapshot (Verify): golden projections with volatile fields stripped.
+- Rules Parsing: YAML subset correctness and expansion.
+- Acceptance (synthetic): VS Code (code/vscode), portable app, MSIX fake provider; PATH alias discovery (oh‑my‑posh), running process (`--running`).
+- Score breakdown: JSON `breakdown` presence and stability.
 
 Run all tests:
 ```pwsh
@@ -249,9 +247,9 @@ Snapshots:
 3. Approve by replacing .verified files (commit rationale).
 
 Synthetic acceptance tips:
--- Override `LOCALAPPDATA`, `APPDATA`, `PATH` to point to temp fixtures.
--- Inject MSIX packages via `APPLOCATE_MSIX_FAKE` (JSON array) for deterministic enumeration.
--- Use .lnk shortcuts to exercise Start Menu + evidence synergy.
+- Override `LOCALAPPDATA`, `APPDATA`, `PATH` to point to temp fixtures.
+- Inject MSIX packages via `APPLOCATE_MSIX_FAKE` (JSON array) for deterministic enumeration.
+- Use .lnk shortcuts to exercise Start Menu + evidence synergy.
 
 Adding acceptance scenarios:
 1. Build temp layout & dummy exe(s).
