@@ -49,7 +49,7 @@ namespace AppLocate.Cli.Tests {
         public void PidFlag_AddsProcessPath() {
             // Target current process (test runner) to guarantee a valid PID.
             var current = Process.GetCurrentProcess();
-            var (code, json, err) = Run(current.ProcessName.ToLowerInvariant(), "--json", "--pid", current.Id.ToString(), "--limit", "50");
+            var (code, json, err) = Run(current.ProcessName.ToLowerInvariant(), "--json", "--pid", current.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), "--limit", "50");
             Assert.Contains(code, new[] { 0, 1 });
             Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
             if (code == 0) {

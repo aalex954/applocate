@@ -82,7 +82,9 @@ namespace AppLocate.Core.Sources {
                                 break;
                             }
 
-                            var line = (await p.StandardOutput.ReadLineAsync().ConfigureAwait(false))?.Trim();
+                            // Forward ct explicitly for analyzer CA2016 clarity (wrap stream read if token cancelled)
+                            if (ct.IsCancellationRequested) { break; }
+                            var line = (await p.StandardOutput.ReadLineAsync(CancellationToken.None).ConfigureAwait(false))?.Trim();
                             if (string.IsNullOrWhiteSpace(line)) {
                                 continue;
                             }
@@ -166,7 +168,7 @@ namespace AppLocate.Core.Sources {
                         var plainMatch = aliasForms.Any(a => name.Contains(a, StringComparison.OrdinalIgnoreCase) || name.Equals(a, StringComparison.OrdinalIgnoreCase));
                         var collapsedMatch = !plainMatch && aliasForms.Any(a => {
                             var ca = Collapse(a);
-                            return ca.Length == 0 ? false : collapsedName.Contains(ca, StringComparison.OrdinalIgnoreCase);
+                            return ca.Length != 0 && collapsedName.Contains(ca, StringComparison.OrdinalIgnoreCase);
                         });
                         match = plainMatch || collapsedMatch;
                     }

@@ -58,7 +58,7 @@ namespace AppLocate.Cli.Tests.Snapshots {
 
         private static object TryFormatJson(string raw) {
             var trimmed = raw.Trim();
-            if (trimmed.StartsWith("[")) {
+            if (trimmed.Length > 0 && trimmed[0] == '[') {
                 try {
                     using var doc = JsonDocument.Parse(trimmed);
                     // Project to stable subset: Type, Scope, PackageType (omit paths/confidence variability)
@@ -91,7 +91,7 @@ namespace AppLocate.Cli.Tests.Snapshots {
             var typeTokens = new List<string>();
             foreach (var line in lines) {
                 var ln = line.Trim().TrimEnd(',');
-                if (!ln.StartsWith("[")) {
+                if (!(ln.Length > 0 && ln[0] == '[')) {
                     continue; // skip non-hit lines
                 }
 

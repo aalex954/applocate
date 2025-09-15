@@ -13,9 +13,7 @@ namespace AppLocate.Core.Sources {
         /// <summary>Adds a source instance. Fails if a source with the same <see cref="ISource.Name"/> already exists.</summary>
         /// <exception cref="InvalidOperationException">Thrown if build already finalized or duplicate name.</exception>
         public SourceRegistryBuilder Add(ISource source) {
-            if (source == null) {
-                throw new ArgumentNullException(nameof(source));
-            }
+            ArgumentNullException.ThrowIfNull(source);
 
             EnsureNotBuilt();
             if (!_names.Add(source.Name)) {
@@ -28,9 +26,7 @@ namespace AppLocate.Core.Sources {
 
         /// <summary>Replaces an existing source with the same name or adds if missing.</summary>
         public SourceRegistryBuilder AddOrReplace(ISource source) {
-            if (source == null) {
-                throw new ArgumentNullException(nameof(source));
-            }
+            ArgumentNullException.ThrowIfNull(source);
 
             EnsureNotBuilt();
             for (var i = 0; i < _sources.Count; i++) {
@@ -63,9 +59,7 @@ namespace AppLocate.Core.Sources {
 
         /// <summary>Inserts a source before another named source; if target not found behaves like <see cref="Add"/>.</summary>
         public SourceRegistryBuilder InsertBefore(string existingName, ISource source) {
-            if (source == null) {
-                throw new ArgumentNullException(nameof(source));
-            }
+            ArgumentNullException.ThrowIfNull(source);
 
             EnsureNotBuilt();
             if (!_names.Add(source.Name)) {
