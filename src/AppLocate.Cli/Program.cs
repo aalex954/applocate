@@ -251,7 +251,9 @@ namespace AppLocate.Cli {
                 catch { }
             }
             var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), false, evidence);
-            var normalized = Normalize(query);
+            // Alias canonicalization (variant -> canonical) before source queries so token presence filters align.
+            var originalQueryLower = string.Join(' ', query.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            var normalized = AliasCanonicalizer.Canonicalize(query, out var aliasChanged);
             var normTokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             // (index/cache removed)
 
@@ -462,6 +464,19 @@ namespace AppLocate.Cli {
                 }
             }
 
+            // If canonicalization changed the query, annotate evidence after initial scoring (neutral to rank ordering).
+            if (aliasChanged && evidence) {
+                for (var i = 0; i < scored.Count; i++) {
+                    var ev = scored[i].Evidence != null
+                        ? new Dictionary<string, string>(scored[i].Evidence!, StringComparer.OrdinalIgnoreCase)
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    if (!ev.ContainsKey("AliasCanonical")) {
+                        ev["AliasCanonical"] = originalQueryLower + "=>" + normalized;
+                        scored[i] = scored[i] with { Evidence = ev };
+                    }
+                }
+            }
+
             // Generic noise suppression pass (post-scoring, pre-collapse) to remove low-value ancillary items unless --all.
             // Rules:
             //  * Uninstall/Updater executables already heavily penalized in ranking; drop entirely here unless explicitly queried for 'uninstall' or --all.
@@ -473,8 +488,7 @@ namespace AppLocate.Cli {
                 bool IsUninstallExe(AppHit h) {
                     if (h.Type != HitType.Exe) { return false; }
                     var fn = Path.GetFileName(h.Path)?.ToLowerInvariant() ?? string.Empty;
-                    if (string.IsNullOrEmpty(fn)) { return false; }
-                    if (normalized.Contains("uninstall")) { return false; } // user intent explicit
+                    if (string.IsNullOrEmpty(fn) || normalized.Contains("uninstall")) { return false; } // user intent explicit
                     return fn.StartsWith("unins", StringComparison.Ordinal)
                            || fn.Contains("uninstall", StringComparison.Ordinal)
                            || fn.Contains("unins000", StringComparison.Ordinal)
@@ -486,20 +500,34 @@ namespace AppLocate.Cli {
                     var p = h.Path.ToLowerInvariant();
                     if (p.Contains("code cache") || p.Contains("videodecodestats") || p.Contains("video\\decode") || p.Contains("video\\decodestats")) { return true; }
                     if (p.Contains("indexeddb") || p.Contains("module_data") || p.Contains("\\temp\\winget\\")) { return true; }
-                    if (p.Contains("update-cache") || (p.Contains("\\temp\\") && (p.Contains("vscode") || p.Contains("win")))) { return true; }
-                    return false;
+                    return p.Contains("update-cache") || (p.Contains("\\temp\\") && p.Contains("vscode"));
+                }
+                // Generic auxiliary service/host/server helper suppression: single-token queries only; allow high-confidence keepers
+                bool IsAuxService(AppHit h) {
+                    if (h.Type != HitType.Exe) { return false; }
+                    if (normTokens.Length != 1) { return false; }
+                    var fn = Path.GetFileNameWithoutExtension(h.Path)?.ToLowerInvariant() ?? string.Empty;
+                    if (string.IsNullOrEmpty(fn)) { return false; }
+                    var q = normTokens[0];
+                    if (string.Equals(fn, q, StringComparison.OrdinalIgnoreCase)) { return false; }
+                    // Keep if clearly primary (starts with query and no auxiliary marker)
+                    var markers = new[] { "service", "server", "host", "updater", "helper" };
+                    var hasMarker = false; foreach (var m in markers) { if (fn.Contains(m)) { hasMarker = true; break; } }
+                    if (!hasMarker) { return false; }
+                    // Do not remove strong matches
+                    if (h.Confidence >= 0.75) {
+                        return false;
+                    }
+                    return true;
                 }
                 bool IsDocHelp(AppHit h) {
-                    if (!(h.Type == HitType.InstallDir || h.Type == HitType.Data || h.Type == HitType.Config)) { return false; }
+                    if (h.Type is not (HitType.InstallDir or HitType.Data or HitType.Config)) { return false; }
                     var leaf = Path.GetFileName(h.Path)?.ToLowerInvariant() ?? string.Empty;
-                    if (leaf.Contains("user's guide") || leaf == "docs" || leaf == "help" || leaf.EndsWith(".chm", StringComparison.Ordinal)) { return true; }
-                    return false;
+                    return leaf.Contains("user's guide") || leaf == "docs" || leaf == "help" || leaf.EndsWith(".chm", StringComparison.Ordinal);
                 }
-                scored = (from h in scored
-                          where !IsUninstallExe(h)
-                                && !IsCacheOrTemp(h)
-                                && (!(IsDocHelp(h)) || h.Confidence >= 0.65)
-                          select h).ToList();
+                scored = scored
+                    .Where(h => !IsUninstallExe(h) && !IsCacheOrTemp(h) && !IsAuxService(h) && (!IsDocHelp(h) || h.Confidence >= 0.65))
+                    .ToList();
                 if (verbose) {
                     try { Console.Error.WriteLine($"[verbose] noise filter removed {beforeNoise - scored.Count} hits"); } catch { }
                 }
@@ -981,7 +1009,10 @@ namespace AppLocate.Cli {
                         var nameB = Path.GetFileName(b).ToLowerInvariant();
                         var tokensA = nameA.Split([' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                         var tokensB = nameB.Split([' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                        return tokensA.Length < 2 || tokensB.Length < 2 ? false : tokensA[0] == tokensB[0] && tokensA[1] == tokensB[1];
+                        if (tokensA.Length < 2 || tokensB.Length < 2) {
+                            return false;
+                        }
+                        return tokensA[0] == tokensB[0] && tokensA[1] == tokensB[1];
                     }
                     catch { return false; }
                 }
@@ -1201,25 +1232,7 @@ namespace AppLocate.Cli {
         }
         // BuildCompositeKey removed with cache layer.
 
-        private static string Normalize(string query) {
-            // Lightweight alias normalization so single-token shorthand maps to canonical token that sources can match.
-            // (Ranking layer has richer bidirectional alias equivalence, but sources doing token presence checks need canonicalization.)
-            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                { "vscode", "code" },
-                { "ohmyposh", "oh my posh" },
-                { "oh-my-posh", "oh my posh" },
-                { "oh_my_posh", "oh my posh" },
-                { "notepadpp", "notepad++" },
-                { "pwsh", "powershell" }
-            };
-            var trimmed = query.Trim();
-            if (map.TryGetValue(trimmed, out var mapped)) {
-                trimmed = mapped;
-            }
-
-            return string.Join(' ', trimmed.ToLowerInvariant().Split([' '], StringSplitOptions.RemoveEmptyEntries));
-        }
+    // (Removed) Legacy Normalize method no longer needed.
 
         // Centralized scope inference so all sources converge on consistent user/machine classification.
         // This reduces leakage where a machine path appears when --user is specified (and vice-versa) due to
@@ -1281,13 +1294,7 @@ namespace AppLocate.Cli {
 
         // Manual PrintHelp removed: System.CommandLine generates help.
 
-        private static ConsoleColor ConfidenceColor(double c) {
-            if (c >= 0.80) {
-                return ConsoleColor.Green;
-            }
-
-            return c >= 0.50 ? ConsoleColor.Yellow : ConsoleColor.DarkGray;
-        }
+    private static ConsoleColor ConfidenceColor(double c) => c >= 0.80 ? ConsoleColor.Green : c >= 0.50 ? ConsoleColor.Yellow : ConsoleColor.DarkGray;
 
         private static void EmitResults(List<AppHit> filtered, bool json, bool csv, bool text, bool noColor, bool showPackageSources = false, bool scoreBreakdown = false) {
             if (filtered.Count == 0) {

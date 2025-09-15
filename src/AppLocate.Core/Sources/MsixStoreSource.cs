@@ -112,9 +112,16 @@ namespace AppLocate.Core.Sources {
                 bool match;
                 var nameLower = name.ToLowerInvariant();
                 var famLower = family.ToLowerInvariant();
-                match = options.Strict
-                    ? tokens.All(t => nameLower.Contains(t) || famLower.Contains(t))
-                    : nameLower.Contains(norm) || famLower.Contains(norm);
+                if (options.Strict) {
+                    match = tokens.All(t => nameLower.Contains(t) || famLower.Contains(t));
+                }
+                else {
+                    match = nameLower.Contains(norm) || famLower.Contains(norm);
+                    if (!match && tokens.Length > 1) {
+                        // Multi-token fuzzy: require all tokens to be present across name or family
+                        match = tokens.All(t => nameLower.Contains(t) || famLower.Contains(t));
+                    }
+                }
                 if (!match) {
                     continue;
                 }
@@ -186,7 +193,13 @@ namespace AppLocate.Core.Sources {
                         }
 
                         var exeNameLower = Path.GetFileNameWithoutExtension(exe).ToLowerInvariant();
-                        var exeMatch = options.Strict ? tokens.All(exeNameLower.Contains) : exeNameLower.Contains(norm) || match;
+                        bool exeMatch;
+                        if (options.Strict) {
+                            exeMatch = tokens.All(exeNameLower.Contains);
+                        }
+                        else {
+                            exeMatch = exeNameLower.Contains(norm) || match || (tokens.Length > 1 && tokens.All(exeNameLower.Contains));
+                        }
                         if (!exeMatch) {
                             continue;
                         }
