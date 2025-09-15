@@ -121,7 +121,7 @@ public static class Program
             {
                 var tk = tokens[i];
                 if (tk.Type != System.CommandLine.Parsing.TokenType.Argument) continue;
-                if (tk.Value.StartsWith('-')) continue; // flag itself
+                if (tk.Value.Length > 0 && tk.Value[0] == '-') continue; // flag itself
                 // Skip if this token is a value for the previous option that expects a value
                 if (i > 0 && valueOptions.Contains(tokens[i - 1].Value)) continue;
                 // Skip if this token is numeric and immediately preceded by a known numeric option name (already covered above but double-safe)
@@ -129,7 +129,7 @@ public static class Program
             }
             if (parts.Count > 0) query = string.Join(' ', parts);
             // Fallback: first non-dash arg
-            query ??= args.FirstOrDefault(a => !a.StartsWith('-'));
+            query ??= args.FirstOrDefault(a => !(a.Length > 0 && a[0] == '-'));
         }
         if (string.IsNullOrWhiteSpace(query)) { Console.Error.WriteLine("Missing <query>. Usage: applocate <query> [options] <name>"); return 2; }
 
@@ -168,7 +168,7 @@ public static class Program
             if (string.Equals(tokens[i].Value, "--evidence-keys", StringComparison.OrdinalIgnoreCase))
             {
                 var candidate = tokens[i + 1].Value;
-                if (!candidate.StartsWith('-')) evidenceKeysRaw = candidate; // raw CSV
+                if (!(candidate.Length > 0 && candidate[0] == '-')) evidenceKeysRaw = candidate; // raw CSV
             }
         }
         HashSet<string>? evidenceKeyFilter = null;
@@ -364,7 +364,7 @@ public static class Program
                 var full = Path.GetFullPath(p).TrimEnd();
                 full = full.Replace('/', Path.DirectorySeparatorChar);
                 // Trim trailing directory separator (except root like C:\)
-                if (full.Length > 3 && (full.EndsWith("\\") || full.EndsWith("/")))
+                if (full.Length > 3 && (full.EndsWith('\\') || full.EndsWith('/')))
                     full = full.TrimEnd('\\','/');
                 return full;
             }
@@ -550,7 +550,10 @@ public static class Program
                 var h = scored[i];
                 if (h.Type != HitType.InstallDir) continue;
                 var p = h.Path.ToLowerInvariant();
-                bool generic = p.EndsWith("\\system32") || p.EndsWith("/system32") || p.EndsWith("\\bin") || p.EndsWith("/bin");
+                bool generic = p.EndsWith("\\system32", StringComparison.Ordinal)
+                                || p.EndsWith("/system32", StringComparison.Ordinal)
+                                || p.EndsWith("\\bin", StringComparison.Ordinal)
+                                || p.EndsWith("/bin", StringComparison.Ordinal);
                 if (!generic) continue;
                 if (exeByDir.TryGetValue(h.Path, out var exConf) && exConf >= h.Confidence)
                 {

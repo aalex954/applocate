@@ -278,7 +278,11 @@ public static class Ranker
         if (hit.Type == HitType.Exe)
         {
             var fn = Safe(() => System.IO.Path.GetFileName(hit.Path)?.ToLowerInvariant()) ?? string.Empty;
-            bool uninstallLike = fn.StartsWith("unins") || fn.Contains("uninstall") || fn.Contains("unins000") || fn.Contains("update-cache") || (fn.Contains("setup") && fn.EndsWith(".exe"));
+            bool uninstallLike = fn.StartsWith("unins", StringComparison.Ordinal)
+                                 || fn.Contains("uninstall", StringComparison.Ordinal)
+                                 || fn.Contains("unins000", StringComparison.Ordinal)
+                                 || fn.Contains("update-cache", StringComparison.Ordinal)
+                                 || (fn.Contains("setup", StringComparison.Ordinal) && fn.EndsWith(".exe", StringComparison.Ordinal));
             if (uninstallLike && !query.Contains("uninstall")) { score -= 0.25; if (signals!=null) signals["UninstallPenalty"] = -0.25; if (score < 0) score = 0; }
             // (5) Steam auxiliary dampening: if query is 'steam' and filename contains helper patterns (webhelper, errorreporter, service, xboxutil, sysinfo)
             if (query == "steam")

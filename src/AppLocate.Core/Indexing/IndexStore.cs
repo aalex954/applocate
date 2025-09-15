@@ -175,12 +175,12 @@ public sealed class IndexStore : IIndexStore
                         && segs[2] is "m0" or "m1"
                         && segs[3] is "s0" or "s1"
                         && segs[4] is "r0" or "r1"
-                        && segs[5].StartsWith("p") && segs[5].Length > 1 && segs[5].Skip(1).All(char.IsDigit)
-                        && segs[6].StartsWith("te")
-                        && segs[7].StartsWith("ti")
-                        && segs[8].StartsWith("tc")
-                        && segs[9].StartsWith("td")
-                        && segs[10].StartsWith("c");
+                        && segs[5].Length > 1 && segs[5][0] == 'p' && segs[5].Skip(1).All(char.IsDigit)
+                        && segs[6].StartsWith("te", StringComparison.Ordinal)
+                        && segs[7].StartsWith("ti", StringComparison.Ordinal)
+                        && segs[8].StartsWith("tc", StringComparison.Ordinal)
+                        && segs[9].StartsWith("td", StringComparison.Ordinal)
+                        && segs[10].Length > 0 && segs[10][0] == 'c';
                     // Additional minimal numeric validation for confidence segment (after 'c')
                     if (ok && segs[10].Length > 1)
                     {
