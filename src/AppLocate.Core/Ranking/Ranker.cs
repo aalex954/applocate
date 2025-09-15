@@ -222,13 +222,13 @@ public static class Ranker
 
             if (contiguous)
             {
-                score += 0.14; if (signals!=null) signals["ContiguousSpan"] = 0.14;
-                if (extraTokens > 2) { score -= 0.01; if (signals!=null) signals["NoisePenalties"] = (signals.ContainsKey("NoisePenalties")?signals["NoisePenalties"]:0) -0.01; }
+                score += 0.14; AddSignal(signals, "ContiguousSpan", 0.14);
+                if (extraTokens > 2) { score -= 0.01; AddOrAccumulate(signals, "NoisePenalties", -0.01); }
             }
             else if (extraTokens > 1 && tokenCoverage < 1)
             {
                 var sub = Math.Min(0.12, 0.02 * extraTokens);
-                score -= sub; if (signals!=null) signals["NoisePenalties"] = (signals.ContainsKey("NoisePenalties")?signals["NoisePenalties"]:0) -sub;
+                score -= sub; AddOrAccumulate(signals, "NoisePenalties", -sub);
             }
         }
 
@@ -236,7 +236,7 @@ public static class Ranker
         if (extraTokenCountForCandidate >= 4 && tokenCoverage < 1)
         {
             var sub = Math.Min(0.06, 0.01 * extraTokenCountForCandidate);
-            score -= sub; if (signals!=null) signals["NoisePenalties"] = (signals.ContainsKey("NoisePenalties")?signals["NoisePenalties"]:0) -sub;
+            score -= sub; AddOrAccumulate(signals, "NoisePenalties", -sub);
         }
 
         // 5. Multi-source diminishing returns (harmonic series scaling) cap +0.18
@@ -283,11 +283,11 @@ public static class Ranker
                                  || fn.Contains("unins000", StringComparison.Ordinal)
                                  || fn.Contains("update-cache", StringComparison.Ordinal)
                                  || (fn.Contains("setup", StringComparison.Ordinal) && fn.EndsWith(".exe", StringComparison.Ordinal));
-            if (uninstallLike && !query.Contains("uninstall")) { score -= 0.25; if (signals!=null) signals["UninstallPenalty"] = -0.25; if (score < 0) score = 0; }
+            if (uninstallLike && !query.Contains("uninstall")) { score -= 0.25; AddSignal(signals, "UninstallPenalty", -0.25); if (score < 0) score = 0; }
             // (5) Steam auxiliary dampening: if query is 'steam' and filename contains helper patterns (webhelper, errorreporter, service, xboxutil, sysinfo)
             if (query == "steam")
             {
-                if (fn.Contains("webhelper") || fn.Contains("errorreporter") || fn.Contains("service") || fn.Contains("xboxutil") || fn.Contains("sysinfo") || fn.Contains("steamservice")) { score -= 0.18; if (signals!=null) signals["SteamAuxPenalty"] = -0.18; if (score < 0) score = 0; }
+                if (fn.Contains("webhelper") || fn.Contains("errorreporter") || fn.Contains("service") || fn.Contains("xboxutil") || fn.Contains("sysinfo") || fn.Contains("steamservice")) { score -= 0.18; AddSignal(signals, "SteamAuxPenalty", -0.18); if (score < 0) score = 0; }
             }
         }
 
@@ -295,14 +295,14 @@ public static class Ranker
         if (lowerPath.Contains("fl cloud plugins"))
         {
             bool related = query.Contains("fl") || query.Contains("cloud") || query.Contains("plugin");
-            if (!related) { score -= 0.35; if (signals!=null) signals["PluginSuppression"] = -0.35; if (score < 0) score = 0; }
+            if (!related) { score -= 0.35; AddSignal(signals, "PluginSuppression", -0.35); if (score < 0) score = 0; }
         }
 
         // (4d) Cache / transient artifact demotion (Code Cache, VideoDecodeStats, update-cache, Winget temp version folders)
-    if (lowerPath.Contains("code cache") || lowerPath.Contains("video\\decode") || lowerPath.Contains("videodecodestats") || lowerPath.Contains("video\\decodestats")) { score -= 0.25; if (signals!=null) signals["CacheArtifactPenalty"] = (signals.ContainsKey("CacheArtifactPenalty")?signals["CacheArtifactPenalty"]:0) -0.25; if (score < 0) score = 0; }
-    if (lowerPath.Contains("\\update-cache\\") || lowerPath.EndsWith("\\update-cache", StringComparison.OrdinalIgnoreCase)) { score -= 0.22; if (signals!=null) signals["CacheArtifactPenalty"] = (signals.ContainsKey("CacheArtifactPenalty")?signals["CacheArtifactPenalty"]:0) -0.22; if (score < 0) score = 0; }
-    if (lowerPath.Contains("\\temp\\winget\\") || lowerPath.Contains("winget.")) { score -= 0.10; if (signals!=null) signals["CacheArtifactPenalty"] = (signals.ContainsKey("CacheArtifactPenalty")?signals["CacheArtifactPenalty"]:0) -0.10; if (score < 0) score = 0; }
-    if (signals!=null) signals["Total"] = score;
+    if (lowerPath.Contains("code cache") || lowerPath.Contains("video\\decode") || lowerPath.Contains("videodecodestats") || lowerPath.Contains("video\\decodestats")) { score -= 0.25; AddOrAccumulate(signals, "CacheArtifactPenalty", -0.25); if (score < 0) score = 0; }
+    if (lowerPath.Contains("\\update-cache\\") || lowerPath.EndsWith("\\update-cache", StringComparison.OrdinalIgnoreCase)) { score -= 0.22; AddOrAccumulate(signals, "CacheArtifactPenalty", -0.22); if (score < 0) score = 0; }
+    if (lowerPath.Contains("\\temp\\winget\\") || lowerPath.Contains("winget.")) { score -= 0.10; AddOrAccumulate(signals, "CacheArtifactPenalty", -0.10); if (score < 0) score = 0; }
+    AddSignal(signals, "Total", score);
     return score;
     }
 
@@ -312,12 +312,25 @@ public static class Ranker
     {
         var set = new System.Collections.Generic.HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrWhiteSpace(value)) return set;
-        var parts = value.Split(new[]{' ','-','_','.'}, StringSplitOptions.RemoveEmptyEntries);
+    var parts = value.Split(Separators, StringSplitOptions.RemoveEmptyEntries);
         foreach (var p in parts)
         {
             var t = p.Trim();
             if (t.Length == 0) continue;
             set.Add(t);
+    private static readonly char[] Separators = new[] { ' ', '-', '_', '.' };
+
+    private static void AddSignal(System.Collections.Generic.Dictionary<string,double>? map, string key, double value)
+    {
+        if (map == null) return;
+        map[key] = value;
+    }
+
+    private static void AddOrAccumulate(System.Collections.Generic.Dictionary<string,double>? map, string key, double delta)
+    {
+        if (map == null) return;
+        if (map.TryGetValue(key, out var existing)) map[key] = existing + delta; else map[key] = delta;
+    }
         }
         return set;
     }
