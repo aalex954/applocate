@@ -4,3 +4,4 @@
 dotnet_diagnostic.CA1707.severity = none
 # Allow intentionally skipped tests placeholder without failing build (optional)
 dotnet_diagnostic.xUnit1004.severity = silent
+csharp_new_line_before_open_brace = none
