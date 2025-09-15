@@ -5,6 +5,7 @@ using AppLocate.Core.Abstractions;
 using AppLocate.Core.Sources;
 using AppLocate.Core.Ranking;
 using AppLocate.Core.Rules;
+// (Indexing removed)
 
 namespace AppLocate.Cli;
 
@@ -34,9 +35,9 @@ public static class Program
         var jsonOpt = new Option<bool>("--json") { Description = "Output results as JSON array" };
         var csvOpt = new Option<bool>("--csv") { Description = "Output results as CSV" };
         var textOpt = new Option<bool>("--text") { Description = "Force text output (default if neither --json nor --csv)" };
-        var userOpt = new Option<bool>("--user") { Description = "Limit to user-scope results" };
-        var machineOpt = new Option<bool>("--machine") { Description = "Limit to machine-scope results" };
-        var strictOpt = new Option<bool>("--strict") { Description = "Disable fuzzy/alias matching (exact tokens only)" };
+    var userOpt = new Option<bool>("--user") { Description = "Limit to user-scope results" };
+    var machineOpt = new Option<bool>("--machine") { Description = "Limit to machine-scope results" };
+    var strictOpt = new Option<bool>("--strict") { Description = "Disable fuzzy/alias matching (exact tokens only)" };
     var allOpt = new Option<bool>("--all") { Description = "Return all hits (default returns best per type)" };
     var exeOpt = new Option<bool>("--exe") { Description = "Include only executable hits (can combine with others)" };
     var installDirOpt = new Option<bool>("--install-dir") { Description = "Include only install directory hits" };
@@ -176,18 +177,7 @@ public static class Program
         }
         bool verbose = Has("--verbose");
         bool noColor = Has("--no-color");
-        bool refreshIndex = Has("--refresh-index");
-    bool clearCache = Has("--clear-cache");
-        string? indexPath = null;
-        // Extract index path argument manually
-        for (int i = 0; i < tokens.Count - 1; i++)
-        {
-            if (string.Equals(tokens[i].Value, "--index-path", StringComparison.OrdinalIgnoreCase))
-            {
-                var candidate = tokens[i + 1].Value;
-                if (!candidate.StartsWith('-')) indexPath = candidate;
-            }
-        }
+    // (index/cache options removed)
 
         int? IntAfter(string name)
         {
@@ -249,9 +239,9 @@ public static class Program
             }
             catch { }
         }
-        var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
-        var normalized = Normalize(query);
-    // Cache removed: future snapshot/index may be reintroduced when more expensive sources added.
+    var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), strict, evidence);
+    var normalized = Normalize(query);
+    // (index/cache removed)
 
     var hits = new List<AppHit>();
         using var cts = new CancellationTokenSource();
@@ -1054,6 +1044,8 @@ public static class Program
                     filtered[i] = filtered[i] with { Evidence = null };
         }
 
+    // (index persistence removed)
+
         EmitResults(filtered, json, csv, text, noColor, showPackageSources);
         return 0;
     }
@@ -1061,7 +1053,20 @@ public static class Program
 
     private static string Normalize(string query)
     {
-        return string.Join(' ', query.Trim().ToLowerInvariant().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+        // Lightweight alias normalization so single-token shorthand maps to canonical token that sources can match.
+        // (Ranking layer has richer bidirectional alias equivalence, but sources doing token presence checks need canonicalization.)
+        var map = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "vscode", "code" },
+            { "ohmyposh", "oh my posh" },
+            { "oh-my-posh", "oh my posh" },
+            { "oh_my_posh", "oh my posh" },
+            { "notepadpp", "notepad++" },
+            { "pwsh", "powershell" }
+        };
+        var trimmed = query.Trim();
+        if (map.TryGetValue(trimmed, out var mapped)) trimmed = mapped;
+        return string.Join(' ', trimmed.ToLowerInvariant().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
     }
 
     // Manual PrintHelp removed: System.CommandLine generates help.

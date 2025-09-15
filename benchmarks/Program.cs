@@ -56,10 +56,10 @@ class Program
 
         var scenarios = new []
         {
-            new Scenario { Name = "cold_vscode_threads1", Args = "\"" + cli + "\" code --json --threads 1 --refresh-index" },
-            new Scenario { Name = "cold_vscode_threadsMax", Args = "\"" + cli + "\" code --json --refresh-index" },
+            new Scenario { Name = "cold_vscode_threads1", Args = "\"" + cli + "\" code --json --threads 1" },
+            new Scenario { Name = "cold_vscode_threadsMax", Args = "\"" + cli + "\" code --json" },
             new Scenario { Name = "warm_vscode", Args = "\"" + cli + "\" code --json" },
-            new Scenario { Name = "cold_chrome", Args = "\"" + cli + "\" chrome --json --refresh-index" },
+            new Scenario { Name = "cold_chrome", Args = "\"" + cli + "\" chrome --json" },
         };
 
         var results = new List<BenchResult>();

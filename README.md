@@ -81,7 +81,7 @@ For deterministic tests:
 Example:
 ```pwsh
 $env:APPLOCATE_MSIX_FAKE='[{"name":"SampleApp","family":"Sample.App_123","install":"C:/tmp/sample","version":"1.0.0.0"}]'
-applocate sample --json --refresh-index
+applocate sample --json
 ```
 
 ## Minimal JSON Hit Example
@@ -249,15 +249,14 @@ Snapshots:
 3. Approve by replacing .verified files (commit rationale).
 
 Synthetic acceptance tips:
-- Always pass `--refresh-index` to avoid stale index hits or cached misses.
-- Override `LOCALAPPDATA`, `APPDATA`, `PATH` to point to temp fixtures.
-- Inject MSIX packages via `APPLOCATE_MSIX_FAKE` (JSON array) for deterministic enumeration.
-- Use .lnk shortcuts to exercise Start Menu + evidence synergy.
+-- Override `LOCALAPPDATA`, `APPDATA`, `PATH` to point to temp fixtures.
+-- Inject MSIX packages via `APPLOCATE_MSIX_FAKE` (JSON array) for deterministic enumeration.
+-- Use .lnk shortcuts to exercise Start Menu + evidence synergy.
 
 Adding acceptance scenarios:
 1. Build temp layout & dummy exe(s).
 2. Optionally add rule entries in `rules/apps.default.yaml` for config/data.
-3. Invoke CLI with `--refresh-index`; assert required hit types & confidence ≥0.8.
+3. Invoke CLI and assert required hit types & confidence ≥0.8.
 4. Avoid dependence on real machine installs.
 
 Contributor guidelines:
@@ -272,33 +271,7 @@ Planned test expansions:
 - Live `--running` process capture scenario.
 - Performance regression timing harness.
 
-## Indexing
-The tool maintains a lightweight JSON cache at `%LOCALAPPDATA%/AppLocate/index.json` using a composite key including query + relevant flag state. Each record stores:
-- Timestamp of last refresh.
-- List of scored entries with first/last seen timestamps.
-
-Composite key format example:
-```
-code|u0|m0|s0|r0|p0|te0|ti0|tc0|td0|c0.00
-```
-Segments: query | user flag | machine flag | strict | running | pid | exe filter | install filter | config filter | data filter | confidence threshold.
-
-Pruning removes legacy single-segment keys on load (logged with `--verbose`).
-
-Current behavior:
-1. (Optional) `--clear-cache` deletes index file before any load.
-2. Load index & compute environment hash; invalidate if mismatch.
-3. Prune legacy keys; persist if mutations.
-4. If composite key record exists and not `--refresh-index`, apply confidence & type filters then emit (short‑circuit).
-5. If cached empty record (known miss) and not `--refresh-index`, exit 1.
-6. Otherwise query sources (parallel bounded), rank, apply filters, persist composite record.
-
-Options:
-`--index-path <file>` Override default index location.
-`--refresh-index` Ignore any cached record for this query (even if fresh).
-`--clear-cache` Remove the entire index file before running (full rebuild).
-
-The cache is opportunistic; load/save failures are non-fatal (diagnosed with `--verbose`).
+<!-- Indexing layer removed; section intentionally pruned. -->
 
 ## Contributing
 See `.github/copilot-instructions.md` for design/extension guidance. Keep `AppHit` schema backward compatible.

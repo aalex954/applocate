@@ -10,10 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- No external packages currently required. -->
-  </ItemGroup>
-  <ItemGroup>
-    <InternalsVisibleTo Include="AppLocate.Core.Tests" />
-    <InternalsVisibleTo Include="AppLocate.Cli" />
+  <!-- Indexing removed -->
     <InternalsVisibleTo Include="applocate" />
   </ItemGroup>
 </Project>
