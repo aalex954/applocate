@@ -131,7 +131,24 @@ namespace AppLocate.Core.Sources {
                     continue;
                 }
 
-                if (!string.IsNullOrWhiteSpace(install) && Directory.Exists(install) && seenInstall.Add(install)) {
+                // Accept Program Files WindowsApps paths even if Directory.Exists returns false (ACL prevents listing)
+                static bool LooksLikeWindowsApps(string p) {
+                    if (string.IsNullOrWhiteSpace(p)) { return false; }
+                    try {
+                        var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+                        if (!string.IsNullOrEmpty(pf)) {
+                            var wa = Path.Combine(pf, "WindowsApps");
+                            if (p.StartsWith(wa, StringComparison.OrdinalIgnoreCase)) {
+                                return true;
+                            }
+                        }
+                    }
+                    catch { }
+                    return p.Contains("\\WindowsApps\\", StringComparison.OrdinalIgnoreCase);
+                }
+
+                var installLooksValid = !string.IsNullOrWhiteSpace(install) && (Directory.Exists(install) || LooksLikeWindowsApps(install));
+                if (installLooksValid && seenInstall.Add(install)) {
                     Dictionary<string, string>? evidence = null;
                     if (options.IncludeEvidence) {
                         evidence = new Dictionary<string, string> { { EvidenceKeys.PackageFamilyName, family }, { EvidenceKeys.PackageName, name } };
@@ -155,7 +172,7 @@ namespace AppLocate.Core.Sources {
                                 if (appTag < 0) { break; }
                                 var close = xml.IndexOf('>', appTag + 12);
                                 if (close < 0) { break; }
-                                var segment = xml.Substring(appTag, close - appTag);
+                                var segment = xml.AsSpan(appTag, close - appTag).ToString();
                                 var exeAttrIdx = segment.IndexOf("Executable=", StringComparison.OrdinalIgnoreCase);
                                 if (exeAttrIdx >= 0) {
                                     var quoteStart = segment.IndexOf('"', exeAttrIdx);

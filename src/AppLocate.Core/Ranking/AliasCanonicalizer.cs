@@ -16,6 +16,8 @@ namespace AppLocate.Core.Ranking {
             ["notepad++", "notepadpp", "npp"],
             ["powershell", "pwsh"],
             ["oh-my-posh", "oh my posh", "ohmyposh", "oh_my_posh", "jandedobbeleer.ohmyposh"],
+            // Windows Terminal (App Execution Alias: wt.exe)
+            ["wt", "windows terminal", "wt.exe", "microsoft windows terminal"],
         ];
 
         private static readonly ConcurrentDictionary<string, string> _map = new(StringComparer.OrdinalIgnoreCase);
