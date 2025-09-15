@@ -48,17 +48,35 @@ public sealed class RulesEngine
         }
         foreach (var raw in lines)
         {
-            if (ct.IsCancellationRequested) break;
+            if (ct.IsCancellationRequested)
+            {
+                break;
+            }
             var line = raw.Trim();
-            if (line.StartsWith("#") || line.Length == 0) continue;
-            if (line.StartsWith("- match")) { Flush(); continue; }
-            if (line.StartsWith("anyOf:"))
+            if ((line.Length > 0 && line[0] == '#') || line.Length == 0)
+            {
+                continue;
+            }
+            if (line.StartsWith("- match", StringComparison.Ordinal))
+            {
+                Flush();
+                continue;
+            }
+            if (line.StartsWith("anyOf:", StringComparison.Ordinal))
             {
                 currentMatch = ParseInlineArray(line);
                 continue;
             }
-            if (line.StartsWith("config:")) { currentConfig = ParseInlineArray(line); continue; }
-            if (line.StartsWith("data:")) { currentData = ParseInlineArray(line); continue; }
+            if (line.StartsWith("config:", StringComparison.Ordinal))
+            {
+                currentConfig = ParseInlineArray(line);
+                continue;
+            }
+            if (line.StartsWith("data:", StringComparison.Ordinal))
+            {
+                currentData = ParseInlineArray(line);
+                continue;
+            }
         }
         Flush();
         return Task.FromResult<IReadOnlyList<ResolvedRule>>(rules);

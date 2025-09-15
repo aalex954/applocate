@@ -12,14 +12,20 @@ public static class PathUtils
     /// </summary>
     public static string? NormalizePath(string? raw)
     {
-        if (string.IsNullOrWhiteSpace(raw)) return null;
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return null;
+        }
         try
         {
             var s = Environment.ExpandEnvironmentVariables(raw.Trim().Trim('\"'));
-            if (s.Length == 0) return null;
+                if (s.Length == 0)
+                {
+                    return null;
+                }
             s = s.Replace('/', '\\');
             // Collapse duplicate backslashes (but keep leading \\ for UNC) 
-            if (s.StartsWith("\\\\"))
+            if (s.StartsWith("\\\\", StringComparison.Ordinal))
             {
                 var unc = true; // preserve initial UNC designator
                 var span = s.AsSpan();
@@ -29,11 +35,17 @@ public static class PathUtils
                 while (i < len)
                 {
                     char c = span[i++];
-                    if (c == '\\')
+                        if (c == '\\')
                     {
                         backslashRun++;
-                        if (unc && backslashRun <= 2) sb.Append('\\');
-                        else if (!unc && backslashRun == 1) sb.Append('\\');
+                            if (unc && backslashRun <= 2)
+                            {
+                                sb.Append('\\');
+                            }
+                            else if (!unc && backslashRun == 1)
+                            {
+                                sb.Append('\\');
+                            }
                     }
                     else
                     {
@@ -46,10 +58,16 @@ public static class PathUtils
             }
             else
             {
-                while (s.Contains("\\\\")) s = s.Replace("\\\\", "\\");
+                while (s.Contains("\\\\", StringComparison.Ordinal))
+                {
+                    s = s.Replace("\\\\", "\\");
+                }
             }
             // Remove trailing slash unless root (e.g., C:\)
-            if (s.Length > 3 && (s.EndsWith('\\') || s.EndsWith('/'))) s = s.TrimEnd('\\','/');
+            if (s.Length > 3 && (s.EndsWith('\\') || s.EndsWith('/')))
+            {
+                s = s.TrimEnd('\\','/');
+            }
             return s;
         }
         catch { return raw; }
