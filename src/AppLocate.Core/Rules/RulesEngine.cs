@@ -35,7 +35,7 @@ namespace AppLocate.Core.Rules {
             }
             void Flush() {
                 if (currentMatch != null) {
-                    rules.Add(new ResolvedRule([.. currentMatch], [.. (currentConfig ?? [])], [.. (currentData ?? [])]));
+                    rules.Add(new ResolvedRule([.. currentMatch], [.. currentConfig ?? []], [.. currentData ?? []]));
                     currentMatch = null; currentConfig = null; currentData = null;
                 }
             }

@@ -662,9 +662,9 @@ namespace AppLocate.Cli {
                                 // Probe first-level subdirectories for a bin folder OR token-matching folder.
                                 var primaryLeaf = subDirs.FirstOrDefault(d => Path.GetFileName(d).Equals("bin", StringComparison.OrdinalIgnoreCase));
                                 primaryLeaf ??= subDirs.FirstOrDefault(d => {
-                                        var leaf = Path.GetFileName(d).ToLowerInvariant();
-                                        return normTokens.Length > 0 && normTokens.All(t => leaf.Contains(t));
-                                    });
+                                    var leaf = Path.GetFileName(d).ToLowerInvariant();
+                                    return normTokens.Length > 0 && normTokens.All(t => leaf.Contains(t));
+                                });
                                 string? depth2Root = null;
                                 var depth2 = false;
                                 // Depth=2 heuristic (Winget portable): look for a single *version* dir then bin beneath OR a single bin beneath any version-like dir.
