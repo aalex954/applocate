@@ -63,16 +63,30 @@ public static class Ranker
     ///  - Add lightweight fuzzy ratio scaling using normalized Levenshtein distance on filename vs query (capped influence +0.06, only when no exact match).
     ///  - Additional path quality penalties for known ephemeral / cache roots (AppData Temp, Installer, Edge update stubs) for ranking stability.
     /// </summary>
-    public static double Score(string normalizedQuery, AppHit hit)
+    public static double Score(string normalizedQuery, AppHit hit) => ScoreInternal(normalizedQuery, hit, null);
+    /// <summary>
+    /// Computes the score for an <see cref="AppHit"/> while also returning a structured <see cref="ScoreBreakdown"/> of component contributions.
+    /// </summary>
+    /// <param name="normalizedQuery">Lowercase, token normalized query.</param>
+    /// <param name="hit">Hit to evaluate.</param>
+    /// <returns>Tuple containing the final score (0..1) and a populated <see cref="ScoreBreakdown"/>.</returns>
+    public static (double score, ScoreBreakdown breakdown) ScoreWithBreakdown(string normalizedQuery, AppHit hit)
+    {
+        var signals = new System.Collections.Generic.Dictionary<string,double>(StringComparer.OrdinalIgnoreCase);
+        var s = ScoreInternal(normalizedQuery, hit, signals);
+        var breakdown = BuildBreakdown(signals, s);
+        return (s, breakdown);
+    }
+
+    private static double ScoreInternal(string normalizedQuery, AppHit hit, System.Collections.Generic.Dictionary<string,double>? signals)
     {
         if (string.IsNullOrEmpty(normalizedQuery)) return 0;
         var path = hit.Path ?? string.Empty;
         var lowerPath = path.ToLowerInvariant();
         var query = normalizedQuery.ToLowerInvariant();
-    double score = 0;
-    // (1) Multi-token alias normalization: collapse spaces & punctuation for alias equivalence/fuzzy (e.g., "oh my posh")
-    string collapsedQuery = new string(query.Where(ch => !(ch == ' ' || ch == '-' || ch == '.')).ToArray());
-    if (collapsedQuery.Length < 2) collapsedQuery = query;
+        double score = 0;
+        string collapsedQuery = new string(query.Where(ch => !(ch == ' ' || ch == '-' || ch == '.')).ToArray());
+        if (collapsedQuery.Length < 2) collapsedQuery = query;
 
         // 1. Token set similarity (Jaccard) over filename & parent directory names
         var fileName = Safe(() => System.IO.Path.GetFileNameWithoutExtension(path)?.ToLowerInvariant());
@@ -99,20 +113,17 @@ public static class Ranker
         {
             int match = 0;
             foreach (var t in tokensQ) if (tokensCand.Contains(t)) match++;
-            tokenCoverage = (double)match / tokensQ.Count; // 0..1
-            score += tokenCoverage * 0.25; // up to +0.25 replacing older substring/partial boosts
+            tokenCoverage = (double)match / tokensQ.Count;
+            var add = tokenCoverage * 0.25;
+            score += add; if (signals!=null) signals["TokenCoverage"] = add;
         }
-        else if (lowerPath.Contains(query))
-        {
-            score += 0.15; // fallback simple substring when tokenization gives nothing
-        }
+        else if (lowerPath.Contains(query)) { score += 0.15; if (signals!=null) signals["CollapsedSubstring"] = 0.15; }
 
         // 1c. Collapsed substring fuzzy: if no token coverage and no direct substring (with spaces), try collapsed comparison
         if (tokenCoverage == 0)
         {
             var collapsedName = (fileName ?? string.Empty).Replace(" ", string.Empty);
-            if (!string.IsNullOrEmpty(collapsedQuery) && collapsedName.Contains(collapsedQuery) && !fileName!.Equals(query, StringComparison.OrdinalIgnoreCase))
-                score += 0.08; // moderate fuzzy boost
+            if (!string.IsNullOrEmpty(collapsedQuery) && collapsedName.Contains(collapsedQuery) && !fileName!.Equals(query, StringComparison.OrdinalIgnoreCase)) { score += 0.08; if (signals!=null) signals["CollapsedSubstring"] = 0.08; }
         }
 
         int extraTokenCountForCandidate = 0; // track tokens not in query for later noise penalty
@@ -128,14 +139,13 @@ public static class Ranker
             int inter = 0; foreach (var t in tokensQ) if (tokensCand.Contains(t)) inter++;
             if (union.Count > 0)
             {
-                var jaccard = (double)inter / union.Count; // 0..1
-                if (jaccard > 0 && jaccard < 1) // only partial matches
+                var jaccard = (double)inter / union.Count;
+                if (jaccard > 0 && jaccard < 1)
                 {
-                    // If there are many extra tokens (noise), dampen this partial boost so noisy names don't dominate
                     double noiseFactor = 1.0;
                     if (extraTokenCountForCandidate >= 2) noiseFactor = 0.6;
                     if (extraTokenCountForCandidate >= 4) noiseFactor = 0.4;
-                    score += jaccard * 0.08 * noiseFactor;
+                    var add = jaccard * 0.08 * noiseFactor; score += add; if (signals!=null) signals["PartialTokenJaccard"] = add;
                 }
             }
         }
@@ -143,44 +153,49 @@ public static class Ranker
     // 2. Exact filename match (strong) – additive but within reasonable cap. Alias equivalence considered.
         if (!string.IsNullOrEmpty(fileName))
         {
-            if (fileName.Equals(query, StringComparison.OrdinalIgnoreCase)) score += 0.30;
-            else if (AliasEquivalent(query, fileName, out var alias))
-            {
-        score += 0.22; // slight reduction to differentiate from explicit evidence-based alias matches
-            }
-            else if (tokenCoverage == 0 && fileName.Contains(query)) score += 0.12; // legacy partial boost if tokens missed
+            if (fileName.Equals(query, StringComparison.OrdinalIgnoreCase)) { score += 0.30; if (signals!=null) signals["FilenameExactOrPartial"] = 0.30; }
+            else if (AliasEquivalent(query, fileName, out var alias)) { score += 0.22; if (signals!=null) signals["AliasEquivalence"] = 0.22; }
+            else if (tokenCoverage == 0 && fileName.Contains(query)) { score += 0.12; if (signals!=null) signals["FilenameExactOrPartial"] = 0.12; }
         }
 
         // 2b. For Config/Data hits, allow directory-name alias equivalence to contribute (common pattern: query 'vscode' directory 'Code')
         if ((hit.Type == HitType.Config || hit.Type == HitType.Data) && !string.IsNullOrEmpty(dirName))
         {
-            if (dirName.Equals(query, StringComparison.OrdinalIgnoreCase)) score += 0.20;
-            else if (AliasEquivalent(query, dirName!, out var dirAlias)) score += 0.18; // moderate boost; less than exe alias boost
+            if (dirName.Equals(query, StringComparison.OrdinalIgnoreCase)) { score += 0.20; if (signals!=null) signals["DirAlias"] = 0.20; }
+            else if (AliasEquivalent(query, dirName!, out var dirAlias)) { score += 0.18; if (signals!=null) signals["DirAlias"] = 0.18; }
         }
 
         // 3. Evidence-based boosts & synergies
         var ev = hit.Evidence;
         if (ev != null)
         {
-            // Map encoded alias evidence to a consistent boost (may have been added by source layer)
             bool shortcut = ev.ContainsKey("Shortcut");
             bool process = ev.ContainsKey("ProcessId");
-            if (shortcut) score += 0.10;
-            if (process) score += 0.08;
-            if (shortcut && process) score += 0.05; // synergy: user launched + Start Menu presence
-            if (ev.ContainsKey("where")) score += 0.05;
-            if (ev.ContainsKey("DirMatch")) score += 0.06;
-            if (ev.ContainsKey("ExeName")) score += 0.04;
-            if (ev.ContainsKey("AliasMatched")) score += 0.14; // evidence-driven alias stronger than inferred equivalence
-            if (ev.ContainsKey("BrokenShortcut")) score -= 0.15; // penalty
+            double evidenceAdds=0, evidenceSynergy=0, evidencePenalties=0;
+            if (shortcut) { score += 0.10; evidenceAdds+=0.10; }
+            if (process) { score += 0.08; evidenceAdds+=0.08; }
+            if (shortcut && process) { score += 0.05; evidenceSynergy+=0.05; }
+            if (ev.ContainsKey("where")) { score += 0.05; evidenceAdds+=0.05; }
+            if (ev.ContainsKey("DirMatch")) { score += 0.06; evidenceAdds+=0.06; }
+            if (ev.ContainsKey("ExeName")) { score += 0.04; evidenceAdds+=0.04; }
+            if (ev.ContainsKey("AliasMatched")) { score += 0.14; evidenceAdds+=0.14; }
+            if (ev.ContainsKey("BrokenShortcut")) { score -= 0.15; evidencePenalties-=0.15; }
+            if (signals!=null)
+            {
+                if (evidenceAdds!=0) signals["EvidenceBoosts"] = evidenceAdds;
+                if (evidenceSynergy!=0) signals["EvidenceSynergy"] = evidenceSynergy;
+                if (evidencePenalties!=0) signals["EvidencePenalties"] = evidencePenalties;
+            }
         }
 
     // 4. Path quality penalties (extend to installer caches & ephemeral roots) – stronger temp/staging demotion
+    double pathPenalties = 0;
     bool tempLike = lowerPath.Contains("\\temp\\") || lowerPath.Contains("/temp/") || lowerPath.Contains("%temp%") || lowerPath.Contains("appdata\\local\\temp");
-    if (tempLike) score -= 0.18;
-    if (lowerPath.Contains("\\installer\\") || lowerPath.EndsWith(".tmp.exe", StringComparison.OrdinalIgnoreCase)) score -= 0.10;
-    if (lowerPath.Contains("edgeupdate\\temp")) score -= 0.06; // updater staging area
-    if (lowerPath.Contains("\\temp\\winget\\") || lowerPath.Contains("/temp/winget/")) score -= 0.15; // winget staging
+    if (tempLike) { score -= 0.18; pathPenalties -= 0.18; }
+    if (lowerPath.Contains("\\installer\\") || lowerPath.EndsWith(".tmp.exe", StringComparison.OrdinalIgnoreCase)) { score -= 0.10; pathPenalties -= 0.10; }
+    if (lowerPath.Contains("edgeupdate\\temp")) { score -= 0.06; pathPenalties -= 0.06; }
+    if (lowerPath.Contains("\\temp\\winget\\") || lowerPath.Contains("/temp/winget/")) { score -= 0.15; pathPenalties -= 0.15; }
+    if (signals!=null && pathPenalties!=0) signals["PathPenalties"] = pathPenalties;
 
         // 4b. Token span tightness & noise penalty: contiguous coverage wins over spaced with many unrelated inserts
         if (tokensQ.Count > 1 && !string.IsNullOrEmpty(fileName))
@@ -207,36 +222,35 @@ public static class Ranker
 
             if (contiguous)
             {
-                score += 0.14; // stronger tight span reward
-                if (extraTokens > 2) score -= 0.01; // mild dampener
+                score += 0.14; if (signals!=null) signals["ContiguousSpan"] = 0.14;
+                if (extraTokens > 2) { score -= 0.01; if (signals!=null) signals["NoisePenalties"] = (signals.ContainsKey("NoisePenalties")?signals["NoisePenalties"]:0) -0.01; }
             }
             else if (extraTokens > 1 && tokenCoverage < 1)
             {
-                // Penalize noisy separation so a contiguous clean filename is not overshadowed
-                score -= Math.Min(0.12, 0.02 * extraTokens); // up to -0.12
+                var sub = Math.Min(0.12, 0.02 * extraTokens);
+                score -= sub; if (signals!=null) signals["NoisePenalties"] = (signals.ContainsKey("NoisePenalties")?signals["NoisePenalties"]:0) -sub;
             }
         }
 
         // 4c. Global noise penalty (post primary boosts) if excessive extra tokens without contiguous span or exact match
         if (extraTokenCountForCandidate >= 4 && tokenCoverage < 1)
         {
-            score -= Math.Min(0.06, 0.01 * extraTokenCountForCandidate); // additional dampening
+            var sub = Math.Min(0.06, 0.01 * extraTokenCountForCandidate);
+            score -= sub; if (signals!=null) signals["NoisePenalties"] = (signals.ContainsKey("NoisePenalties")?signals["NoisePenalties"]:0) -sub;
         }
 
         // 5. Multi-source diminishing returns (harmonic series scaling) cap +0.18
         var sourceCount = hit.Source?.Length ?? 0;
         if (sourceCount > 1)
         {
-            double harmonic = 0; // H_n - 1 (exclude the first source's baseline)
-            for (int i = 2; i <= sourceCount; i++) harmonic += 1.0 / i; // starts with 1/2
-            // Normalize relative to an expected practical max, e.g., 6 sources -> H_6 -1 ~= 1.45 -1 = 0.45; scale to [0,1]
-            double norm = harmonic / 0.9; // allow >6 sources to saturate towards 1
-            if (norm > 1) norm = 1;
-            score += norm * 0.18;
+            double harmonic = 0;
+            for (int i = 2; i <= sourceCount; i++) harmonic += 1.0 / i;
+            double norm = harmonic / 0.9; if (norm > 1) norm = 1;
+            var add = norm * 0.18; score += add; if (signals!=null) signals["MultiSource"] = add;
         }
 
         // 6. Type baseline weighting
-        score += hit.Type switch
+        var typeAdd = hit.Type switch
         {
             HitType.Exe => 0.08,
             HitType.Config => 0.05,
@@ -244,20 +258,17 @@ public static class Ranker
             HitType.Data => 0.03,
             _ => 0
         };
+        score += typeAdd; if (signals!=null && typeAdd!=0) signals["TypeBaseline"] = typeAdd;
 
         // 7. Fuzzy filename vs query Levenshtein (only when not exact / alias exact). Lightweight manual impl bounded length.
         if (!string.IsNullOrEmpty(fileName) && !fileName.Equals(query, StringComparison.OrdinalIgnoreCase))
         {
             var fuzzy = FuzzyRatio(fileName, query); // 0..1 similarity
-            if (fuzzy > 0.5 && tokenCoverage < 1) // only contribute when not perfect token coverage
-            {
-                score += (fuzzy - 0.5) * 0.12; // maps 0.5..1 -> 0..0.06
-            }
+            if (fuzzy > 0.5 && tokenCoverage < 1) { var add=(fuzzy-0.5)*0.12; score+=add; if (signals!=null) signals["FuzzyLevenshtein"] = add; }
         }
 
         // 8. Post adjustments: mild reward for deeper token coverage precision (all tokens matched and exact file)
-        if (tokenCoverage == 1 && !string.IsNullOrEmpty(fileName) && fileName.Equals(query, StringComparison.OrdinalIgnoreCase))
-            score += 0.05;
+    if (tokenCoverage == 1 && !string.IsNullOrEmpty(fileName) && fileName.Equals(query, StringComparison.OrdinalIgnoreCase)) { score += 0.05; if (signals!=null) signals["ExactMatchBonus"] = 0.05; }
 
         // Clamp
         if (score > 1.0) score = 1.0;
@@ -268,19 +279,11 @@ public static class Ranker
         {
             var fn = Safe(() => System.IO.Path.GetFileName(hit.Path)?.ToLowerInvariant()) ?? string.Empty;
             bool uninstallLike = fn.StartsWith("unins") || fn.Contains("uninstall") || fn.Contains("unins000") || fn.Contains("update-cache") || (fn.Contains("setup") && fn.EndsWith(".exe"));
-            if (uninstallLike && !query.Contains("uninstall"))
-            {
-                score -= 0.25;
-                if (score < 0) score = 0;
-            }
+            if (uninstallLike && !query.Contains("uninstall")) { score -= 0.25; if (signals!=null) signals["UninstallPenalty"] = -0.25; if (score < 0) score = 0; }
             // (5) Steam auxiliary dampening: if query is 'steam' and filename contains helper patterns (webhelper, errorreporter, service, xboxutil, sysinfo)
             if (query == "steam")
             {
-                if (fn.Contains("webhelper") || fn.Contains("errorreporter") || fn.Contains("service") || fn.Contains("xboxutil") || fn.Contains("sysinfo") || fn.Contains("steamservice"))
-                {
-                    score -= 0.18; // strong dampening so primary steam.exe remains clearly highest
-                    if (score < 0) score = 0;
-                }
+                if (fn.Contains("webhelper") || fn.Contains("errorreporter") || fn.Contains("service") || fn.Contains("xboxutil") || fn.Contains("sysinfo") || fn.Contains("steamservice")) { score -= 0.18; if (signals!=null) signals["SteamAuxPenalty"] = -0.18; if (score < 0) score = 0; }
             }
         }
 
@@ -288,31 +291,15 @@ public static class Ranker
         if (lowerPath.Contains("fl cloud plugins"))
         {
             bool related = query.Contains("fl") || query.Contains("cloud") || query.Contains("plugin");
-            if (!related)
-            {
-                score -= 0.35; // stronger suppression so mirrors don't pollute top hits
-                if (score < 0) score = 0;
-            }
+            if (!related) { score -= 0.35; if (signals!=null) signals["PluginSuppression"] = -0.35; if (score < 0) score = 0; }
         }
 
         // (4d) Cache / transient artifact demotion (Code Cache, VideoDecodeStats, update-cache, Winget temp version folders)
-    if (lowerPath.Contains("code cache") || lowerPath.Contains("video\\decode") || lowerPath.Contains("videodecodestats") || lowerPath.Contains("video\\decodestats"))
-        {
-            score -= 0.25;
-            if (score < 0) score = 0;
-        }
-        if (lowerPath.Contains("\\update-cache\\") || lowerPath.EndsWith("\\update-cache", StringComparison.OrdinalIgnoreCase))
-        {
-            score -= 0.22;
-            if (score < 0) score = 0;
-        }
-        if (lowerPath.Contains("\\temp\\winget\\") || lowerPath.Contains("winget.")) // versioned staging dirs (already temp penalized, add extra)
-        {
-            score -= 0.10;
-            if (score < 0) score = 0;
-        }
-
-        return score;
+    if (lowerPath.Contains("code cache") || lowerPath.Contains("video\\decode") || lowerPath.Contains("videodecodestats") || lowerPath.Contains("video\\decodestats")) { score -= 0.25; if (signals!=null) signals["CacheArtifactPenalty"] = (signals.ContainsKey("CacheArtifactPenalty")?signals["CacheArtifactPenalty"]:0) -0.25; if (score < 0) score = 0; }
+    if (lowerPath.Contains("\\update-cache\\") || lowerPath.EndsWith("\\update-cache", StringComparison.OrdinalIgnoreCase)) { score -= 0.22; if (signals!=null) signals["CacheArtifactPenalty"] = (signals.ContainsKey("CacheArtifactPenalty")?signals["CacheArtifactPenalty"]:0) -0.22; if (score < 0) score = 0; }
+    if (lowerPath.Contains("\\temp\\winget\\") || lowerPath.Contains("winget.")) { score -= 0.10; if (signals!=null) signals["CacheArtifactPenalty"] = (signals.ContainsKey("CacheArtifactPenalty")?signals["CacheArtifactPenalty"]:0) -0.10; if (score < 0) score = 0; }
+    if (signals!=null) signals["Total"] = score;
+    return score;
     }
 
     private static string? Safe(Func<string?> f) { try { return f(); } catch { return null; } }
@@ -424,5 +411,38 @@ public static class Ranker
         var ratio = 1.0 - (dist / maxLen);
         if (ratio < 0) ratio = 0; if (ratio > 1) ratio = 1;
         return ratio;
+    }
+    private static ScoreBreakdown BuildBreakdown(System.Collections.Generic.Dictionary<string,double> map, double total)
+    {
+        double Get(string k) => map.TryGetValue(k, out var v) ? v : 0;
+        return new ScoreBreakdown(
+            Get("TokenCoverage"),
+            Get("CollapsedSubstring"),
+            Get("PartialTokenJaccard"),
+            Get("FilenameExactOrPartial"),
+            Get("AliasEquivalence"),
+            Get("DirAlias"),
+            Get("EvidenceBoosts"),
+            Get("EvidenceSynergy"),
+            Get("EvidencePenalties"),
+            Get("PathPenalties"),
+            Get("ContiguousSpan"),
+            Get("NoisePenalties"),
+            Get("MultiSource"),
+            Get("TypeBaseline"),
+            Get("FuzzyLevenshtein"),
+            Get("ExactMatchBonus"),
+            Get("UninstallPenalty"),
+            Get("SteamAuxPenalty"),
+            Get("PluginSuppression"),
+            Get("CacheArtifactPenalty"),
+            Get("PairingBoost"),
+            Get("GenericDirPenalty"),
+            Get("DirMinFloor"),
+            Get("OrphanProbeAdjustments"),
+            Get("VariantSiblingBoost"),
+            total,
+            map
+        );
     }
 }

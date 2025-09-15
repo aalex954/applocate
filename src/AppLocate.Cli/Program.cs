@@ -50,6 +50,7 @@ public static class Program
     var traceOpt = new Option<bool>("--trace") { Description = "Emit per-source timing diagnostics" };
         var limitOpt = new Option<int?>("--limit") { Description = "Maximum number of results to return" };
     var confMinOpt = new Option<double>("--confidence-min") { Description = "Minimum confidence threshold (0-1)" };
+    var scoreBreakdownOpt = new Option<bool>("--score-breakdown") { Description = "Include per-hit score component breakdown (JSON adds 'breakdown', text shows extra lines)" };
     var timeoutOpt = new Option<int>("--timeout") { Description = "Per-source timeout seconds (default 5)" };
     var evidenceOpt = new Option<bool>("--evidence") { Description = "Include evidence keys when available" };
     // New: selective evidence filtering (comma-separated list); implicitly enables evidence emission
@@ -61,7 +62,7 @@ public static class Program
             queryArg,
             jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt, allOpt,
             exeOpt, installDirOpt, configOpt, dataOpt, runningOpt, pidOpt, packageSourceOpt, threadsOpt, traceOpt,
-            limitOpt, confMinOpt, timeoutOpt, evidenceOpt, evidenceKeysOpt, verboseOpt, noColorOpt
+            limitOpt, confMinOpt, timeoutOpt, evidenceOpt, evidenceKeysOpt, scoreBreakdownOpt, verboseOpt, noColorOpt
         };
         // Manual token extraction (robust multi-word + -- sentinel)
         var parse = root.Parse(args);
@@ -97,6 +98,7 @@ public static class Program
                               "  (cache removed: future snapshot index may return)\n" +
                               "  --evidence            Include evidence keys\n" +
                               "  --evidence-keys <k1,k2>  Only include specified evidence keys (implies --evidence)\n" +
+                              "  --score-breakdown      Show internal scoring component contributions per result\n" +
                               "  --verbose             Verbose diagnostics\n" +
                               "  --no-color            Disable ANSI colors\n" +
                               "  --                    Treat following tokens as literal query");
@@ -225,17 +227,18 @@ public static class Program
             return 2;
         }
         if (!noColor && (Console.IsOutputRedirected || Console.IsErrorRedirected)) noColor = true;
-    return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, evidenceKeyFilter, verbose, trace, noColor);
+    bool scoreBreakdown = Has("--score-breakdown");
+    return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, evidenceKeyFilter, scoreBreakdown, verbose, trace, noColor);
     }
 
-    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, HashSet<string>? evidenceKeyFilter, bool verbose, bool trace, bool noColor)
+    private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, HashSet<string>? evidenceKeyFilter, bool scoreBreakdown, bool verbose, bool trace, bool noColor)
     {
         if (string.IsNullOrWhiteSpace(query)) return 2;
         if (verbose)
         {
             try
             {
-        Console.Error.WriteLine($"[verbose] query='{query}' strict={strict} all={all} onlyExe={onlyExe} onlyInstall={onlyInstall} onlyConfig={onlyConfig} onlyData={onlyData} running={running} pid={(pid?.ToString() ?? "-")} pkgSrc={showPackageSources} evidence={evidence} evidenceKeys={(evidenceKeyFilter==null?"(all|none)":string.Join(',',evidenceKeyFilter))} json={json} csv={csv} text={text} confMin={confidenceMin} limit={(limit?.ToString() ?? "-")} threads={(threads?.ToString() ?? "-")}");
+    Console.Error.WriteLine($"[verbose] query='{query}' strict={strict} all={all} onlyExe={onlyExe} onlyInstall={onlyInstall} onlyConfig={onlyConfig} onlyData={onlyData} running={running} pid={(pid?.ToString() ?? "-")} pkgSrc={showPackageSources} evidence={evidence} scoreBreakdown={scoreBreakdown} evidenceKeys={(evidenceKeyFilter==null?"(all|none)":string.Join(',',evidenceKeyFilter))} json={json} csv={csv} text={text} confMin={confidenceMin} limit={(limit?.ToString() ?? "-")} threads={(threads?.ToString() ?? "-")}");
             }
             catch { }
         }
@@ -419,7 +422,19 @@ public static class Program
             // Keep existing for now; will rescore after loop.
             mergedMap[key] = existing with { Source = srcSet.ToArray(), Evidence = evidenceMerged };
         }
-        var scored = mergedMap.Values.Select(h => h with { Confidence = Ranker.Score(normalized, h) }).ToList();
+        var scored = new List<AppHit>(mergedMap.Count);
+        foreach (var h in mergedMap.Values)
+        {
+            if (scoreBreakdown)
+            {
+                var (score, breakdown) = Ranker.ScoreWithBreakdown(normalized, h);
+                scored.Add(h with { Confidence = score, Breakdown = breakdown });
+            }
+            else
+            {
+                scored.Add(h with { Confidence = Ranker.Score(normalized, h) });
+            }
+        }
 
         // Post-score path-level consolidation & install-dir pairing boost:
         // Rationale: Some environments surface the same path via multiple sources but (rarely) with scope variance
@@ -777,7 +792,15 @@ public static class Program
                         var h = scored[i];
                         if (h.Type == HitType.Exe && h.Confidence == 0 && h.Source.Length == 1 && h.Source[0] == "OrphanProbe")
                         {
-                            scored[i] = h with { Confidence = Ranker.Score(normalized, h) };
+                            if (scoreBreakdown)
+                            {
+                                var (s,b) = Ranker.ScoreWithBreakdown(normalized, h);
+                                scored[i] = h with { Confidence = s, Breakdown = b };
+                            }
+                            else
+                            {
+                                scored[i] = h with { Confidence = Ranker.Score(normalized, h) };
+                            }
                         }
                     }
                 }
@@ -1046,7 +1069,7 @@ public static class Program
 
     // (index persistence removed)
 
-        EmitResults(filtered, json, csv, text, noColor, showPackageSources);
+    EmitResults(filtered, json, csv, text, noColor, showPackageSources, scoreBreakdown);
         return 0;
     }
     // BuildCompositeKey removed with cache layer.
@@ -1078,7 +1101,7 @@ public static class Program
         return ConsoleColor.DarkGray;
     }
 
-    private static void EmitResults(List<AppHit> filtered, bool json, bool csv, bool text, bool noColor, bool showPackageSources = false)
+    private static void EmitResults(List<AppHit> filtered, bool json, bool csv, bool text, bool noColor, bool showPackageSources = false, bool scoreBreakdown = false)
     {
         if (filtered.Count == 0) return;
         if (json)
@@ -1120,6 +1143,10 @@ public static class Program
                     {
                         Console.Out.WriteLine($"[{h.Confidence:0.00}] {h.Type} {h.Path}");
                     }
+                    if (scoreBreakdown && h.Breakdown != null)
+                    {
+                        Console.Out.WriteLine($"    breakdown: token={h.Breakdown.TokenCoverage:0.###} alias={h.Breakdown.AliasEquivalence:0.###} evidence={h.Breakdown.EvidenceBoosts:0.###} multiSrc={h.Breakdown.MultiSource:0.###} penalties={h.Breakdown.PathPenalties + h.Breakdown.NoisePenalties + h.Breakdown.EvidencePenalties:0.###} total={h.Breakdown.Total:0.###}");
+                    }
                     continue;
                 }
                 var prevColor = Console.ForegroundColor;
@@ -1135,6 +1162,12 @@ public static class Program
                 else
                 {
                     Console.Out.WriteLine($" {h.Path}");
+                }
+                if (scoreBreakdown && h.Breakdown != null)
+                {
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.Out.WriteLine($"    breakdown: token={h.Breakdown.TokenCoverage:0.###} alias={h.Breakdown.AliasEquivalence:0.###} evidence={h.Breakdown.EvidenceBoosts:0.###} multiSrc={h.Breakdown.MultiSource:0.###} penalties={h.Breakdown.PathPenalties + h.Breakdown.NoisePenalties + h.Breakdown.EvidencePenalties:0.###} total={h.Breakdown.Total:0.###}");
+                    Console.ForegroundColor = prevColor;
                 }
             }
         }

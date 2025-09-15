@@ -60,5 +60,6 @@ public sealed record AppHit(
     PackageType PackageType,
     string[] Source,
     double Confidence,
-    Dictionary<string,string>? Evidence
+    Dictionary<string,string>? Evidence,
+    ScoreBreakdown? Breakdown = null
 );
