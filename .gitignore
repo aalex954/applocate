@@ -151,3 +151,4 @@ _ReSharper*/
 
 # Ensure we keep YAML rules
 !rules/*.yaml
+manifests/
