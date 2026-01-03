@@ -254,3 +254,27 @@ jobs:
       - name: Upload Release SBOM (optional placeholder)
         if: false
         run: echo "Add SBOM generation here later"
+
+  winget:
+    name: Submit to Winget
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+    needs: release
+    runs-on: windows-latest
+    steps:
+      - name: Install WingetCreate
+        run: |
+          iwr https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+
+      - name: Submit Manifest
+        env:
+          GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $x64Url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/applocate-win-x64.zip"
+          $arm64Url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/applocate-win-arm64.zip"
+          
+          ./wingetcreate.exe update AppLocate.AppLocate `
+            --version $version `
+            --urls $x64Url $arm64Url `
+            --submit `
+            --token $env:GITHUB_TOKEN
