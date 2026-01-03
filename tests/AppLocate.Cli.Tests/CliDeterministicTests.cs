@@ -50,8 +50,15 @@ namespace AppLocate.Cli.Tests {
         }
 
         [Fact]
-        public void MissingQuery_Exit2() {
-            var (code, _, err) = Run();
+        public void NoArgs_ShowsHelpAndExit0() {
+            var (code, stdout, _) = Run();
+            Assert.Equal(0, code);
+            Assert.Contains("applocate <query>", stdout);
+        }
+
+        [Fact]
+        public void OptionsWithoutQuery_Exit2() {
+            var (code, _, err) = Run("--json");
             Assert.Equal(2, code);
             // Accept either our custom message or System.CommandLine's grammar message
             Assert.True(err.Contains("Missing <query>") || err.Contains("Required argument missing"), $"stderr: {err}");

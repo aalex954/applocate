@@ -65,18 +65,13 @@ namespace AppLocate.Cli {
                 exeOpt, installDirOpt, configOpt, dataOpt, runningOpt, pidOpt, packageSourceOpt, threadsOpt, traceOpt,
                 limitOpt, confMinOpt, timeoutOpt, evidenceOpt, evidenceKeysOpt, scoreBreakdownOpt, verboseOpt, noColorOpt
             };
-            // Manual token extraction (robust multi-word + -- sentinel)
-            var parse = root.Parse(args);
-            var tokens = parse.Tokens;
-            if (parse.Errors?.Count > 0) {
-                Console.Error.WriteLine(string.Join(Environment.NewLine, parse.Errors.Select(e => e.Message)));
-                return 2;
-            }
+
             bool HasRaw(string flag) {
                 return args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
             }
 
-            if (HasRaw("-h") || HasRaw("--help")) {
+            // Show help and exit 0 when no arguments provided or explicit help flag (before parsing)
+            if (args.Length == 0 || HasRaw("-h") || HasRaw("--help")) {
                 Console.WriteLine("applocate <query> [options]\n" +
                                   "  --json                Output JSON\n" +
                                   "  --csv                 Output CSV\n" +
@@ -105,6 +100,14 @@ namespace AppLocate.Cli {
                                   "  --no-color            Disable ANSI colors\n" +
                                   "  --                    Treat following tokens as literal query");
                 return 0;
+            }
+
+            // Manual token extraction (robust multi-word + -- sentinel)
+            var parse = root.Parse(args);
+            var tokens = parse.Tokens;
+            if (parse.Errors?.Count > 0) {
+                Console.Error.WriteLine(string.Join(Environment.NewLine, parse.Errors.Select(e => e.Message)));
+                return 2;
             }
             // If user provided -- sentinel, everything after is treated as query (including dashes)
             var sentinelIdx = Array.IndexOf(args, "--");
