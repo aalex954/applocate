@@ -1,6 +1,7 @@
 # applocate
 
 [![build-test-release](https://github.com/aalex954/applocate/actions/workflows/build-release.yml/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/build-release.yml)
+[![CodeQL](https://github.com/aalex954/applocate/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/github-code-scanning/codeql)
 
 Windows 11 CLI to locate application install directories, executables, and (in progress) config/data paths. Emits deterministic JSON (plus CSV/text). Core discovery, ranking scaffold, and baseline tests are now in place.
 
