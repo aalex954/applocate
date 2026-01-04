@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0078D4"/>
+      <stop offset="100%" style="stop-color:#005A9E"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#50E6FF"/>
+      <stop offset="100%" style="stop-color:#0078D4"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background rounded square -->
+  <rect x="4" y="4" width="120" height="120" rx="24" ry="24" fill="url(#bg)"/>
+  
+  <!-- App grid (2x2) representing applications -->
+  <g fill="#ffffff" opacity="0.95">
+    <!-- Top-left app tile -->
+    <rect x="24" y="24" width="22" height="22" rx="4"/>
+    <!-- Top-right app tile -->
+    <rect x="52" y="24" width="22" height="22" rx="4"/>
+    <!-- Bottom-left app tile -->
+    <rect x="24" y="52" width="22" height="22" rx="4"/>
+    <!-- Bottom-right app tile (target/found) -->
+    <rect x="52" y="52" width="22" height="22" rx="4" fill="url(#glass)"/>
+  </g>
+  
+  <!-- Magnifying glass -->
+  <g stroke="#ffffff" stroke-width="5" fill="none" stroke-linecap="round">
+    <!-- Glass circle -->
+    <circle cx="74" cy="74" r="24" stroke-width="6" opacity="0.9"/>
+    <!-- Handle -->
+    <line x1="92" y1="92" x2="108" y2="108"/>
+  </g>
+  
+  <!-- Location pin dot in center of glass -->
+  <circle cx="74" cy="74" r="8" fill="#50E6FF"/>
+  <circle cx="74" cy="74" r="4" fill="#ffffff"/>
+</svg>

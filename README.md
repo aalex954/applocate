@@ -1,9 +1,17 @@
-# applocate
+<h1>applocate</h1>
 
 [![build-test-release](https://github.com/aalex954/applocate/actions/workflows/build-release.yml/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/build-release.yml)
 [![CodeQL](https://github.com/aalex954/applocate/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/github-code-scanning/codeql)
+<table>
+<tr>
+<td width="96" valign="top"><img src="assets/logo.svg" width="96" alt="applocate logo"/></td>
+<td>
+
 
 Windows 11 CLI to locate application install directories, executables, and config/data paths. Emits deterministic JSON (plus CSV/text). All primary discovery sources are implemented with ranking and a YAML rule pack (147 apps) for config/data expansion.
+</td>
+</tr>
+</table>
 
 ## Features (Snapshot)
 | Area | Implemented | Notes |
@@ -139,7 +147,6 @@ In Progress / Next Focus:
 
 Upcoming Backlog:
 - PowerShell Gallery publishing.
-- JSON schema contract documentation.
 - Code signing (optional).
 
 ## Project Layout
@@ -221,7 +228,6 @@ Completed / Phase 1 Foundation:
 
 In Progress / Near Term:
 - [ ] PowerShell Gallery publishing
-- [ ] JSON schema contract & versioning documentation
 
 Backlog / Later:
 - [ ] Code signing for releases

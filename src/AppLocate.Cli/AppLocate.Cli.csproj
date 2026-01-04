@@ -10,6 +10,7 @@
     <AssemblyName>applocate</AssemblyName>
     <OutputType>Exe</OutputType>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <ApplicationIcon>..\..\assets\logo.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\AppLocate.Core\AppLocate.Core.csproj" />
