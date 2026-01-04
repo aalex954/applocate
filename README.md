@@ -7,14 +7,23 @@
 <td width="96" valign="top"><img src="assets/logo.svg" width="96" alt="applocate logo"/></td>
 <td>
 
+**Find any app on Windows — instantly.**
 
-Windows 11 CLI to locate application install directories, executables, and config/data paths. Emits deterministic JSON (plus CSV/text). All primary discovery sources are implemented with ranking and a YAML rule pack (147 apps) for config/data expansion.
+Ever needed to locate where an application is actually installed? Or find its config files for backup, migration, or troubleshooting? `AppLocate` searches registry keys, Start Menu shortcuts, running processes, package managers, and more. It then ranks results by confidence and returns structured output you can script against.
+
+_Inspired by Linux's locate—but purpose-built for Windows application discovery._
+
 </td>
 </tr>
 </table>
 
-## Features (Snapshot)
-| Area | Implemented | Notes |
+**No admin** required. **No network** calls. **No executing** discovered binaries. Just fast, local discovery with deterministic JSON/CSV/text output.
+
+## Features
+
+`AppLocate` queries multiple discovery sources in parallel, merges and deduplicates results, then ranks them by confidence. Here's what's currently implemented:
+
+| Area | Status | Notes |
 |------|-------------|-------|
 | Registry uninstall | Yes | HKLM/HKCU + WOW6432Node |
 | App Paths | Yes | HKLM/HKCU exe registration |
@@ -34,12 +43,50 @@ Windows 11 CLI to locate application install directories, executables, and confi
 | Single-file publish | Yes | Win x64/ARM64 + SBOM |
 | Plugin system | Pending | Data-only aliases/rules |
 
-## Usage
-Basic:
+## Installation
+
+Pre-built binaries are available for Windows x64 and ARM64. Choose your preferred method:
+
+### WinGet (Windows Package Manager)
 ```pwsh
+winget install AppLocate.AppLocate
+```
+
+Stable releases are automatically submitted to the [Windows Package Manager Community Repository](https://github.com/microsoft/winget-pkgs). Pre-release versions (alpha, beta, rc) are not published to WinGet.
+
+### Manual Download
+Download the latest release from [GitHub Releases](https://github.com/aalex954/applocate/releases):
+- `applocate-win-x64.zip` – Windows x64
+- `applocate-win-arm64.zip` – Windows ARM64
+
+Extract and add to your PATH, or run directly.
+
+## Usage
+
+```css
+PS> applocate curl
+[0.72] Exe C:\Program Files\Git\mingw64\bin\curl.exe
+[0.69] Exe C:\Windows\System32\curl.exe
+[0.62] Exe C:\Users\user\AppData\Local\...\curl-x.xx.x\bin\curl.exe
+```
+
+More examples:
+
+```pwsh
+# Find VS Code installation and config paths
 applocate code
-applocate "visual studio code" --json --limit 5
-applocate chrome --csv --confidence-min 0.75 --evidence
+
+# Get JSON output for scripting (e.g., backup settings)
+applocate "visual studio" --json --config
+
+# Find where a running process lives
+applocate node --running --exe
+
+# Locate Git install directory for PATH debugging  
+applocate git --install-dir --json | ConvertFrom-Json | Select-Object -Expand path
+
+# Find all Chrome data (profiles, cache) with evidence of where it came from
+applocate chrome --data --all --evidence
 ```
 
 Options (implemented CLI surface):
@@ -76,28 +123,9 @@ Exit codes:
 - **1**: No matches found
 - **2**: Argument/validation error
 
-## Evidence & Confidence
-`--evidence` adds key/value provenance. Examples:
-```jsonc
-{"Shortcut":"C:/Users/u/.../Code.lnk"}
-{"ProcessId":"1234","ExeName":"Code.exe"}
-{"DisplayName":"Google Chrome","HasInstallLocation":"true"}
-```
-Confidence heuristic (phase 1): token & fuzzy coverage, exact exe/dir boosts, alias equivalence, evidence synergy (shortcut+process), multi-source diminishing returns, penalties (temp/broken). Scores ∈ [0,1].
+## Output and Evidence
 
-## Environment Overrides
-For deterministic tests:
-* `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`
-* `PATH`
-* `APPLOCATE_MSIX_FAKE` (JSON array of fake MSIX packages)
-
-Example:
-```pwsh
-$env:APPLOCATE_MSIX_FAKE='[{"name":"SampleApp","family":"Sample.App_123","install":"C:/tmp/sample","version":"1.0.0.0"}]'
-applocate sample --json
-```
-
-## Minimal JSON Hit Example
+### Minimal JSON Hit Example
 ```jsonc
 {
 	"type": 1,
@@ -112,35 +140,25 @@ applocate sample --json
 ```
 Fields are append-only; enum values only extend at tail.
 
+### Evidence & Confidence
+`--evidence` adds key/value provenance. Examples:
+```jsonc
+{"Shortcut":"C:/Users/u/.../Code.lnk"}
+{"ProcessId":"1234","ExeName":"Code.exe"}
+{"DisplayName":"Google Chrome","HasInstallLocation":"true"}
+```
+Confidence heuristic (phase 1): token & fuzzy coverage, exact exe/dir boosts, alias equivalence, evidence synergy (shortcut+process), multi-source diminishing returns, penalties (temp/broken). Scores ∈ [0,1].
+
+### Notes
+- No network I/O, no executing discovered binaries.
+- Keep JSON camelCase & deterministic ordering via source generator (`JsonContext`).
+- Ranking: token coverage (+ up to 0.25), partial token Jaccard (+ up to 0.08 noise‑scaled), span compactness (+0.14) with noise penalties for excessive non‑query tokens (up to -0.12), exact filename (+0.30), alias equivalence (+0.22) vs evidence alias (+0.14), fuzzy filename similarity (Levenshtein scaled + up to 0.06), evidence boosts (shortcut/process + synergy, where, dir/exe matches), harmonic multi-source diminishing returns (cap +0.18), type baselines, and penalties (broken shortcut, temp/installer/cache paths). Scores clamped to [0,1].
+
 ## Security & Privacy
 * No network or telemetry
 * Does not execute discovered binaries
 * Least privilege by default
 
-
-<img width="537" height="413" alt="image" src="https://github.com/user-attachments/assets/45fe8756-6988-4091-af84-7097a45b2916" />
-
-
-## Current Status 
-Foundation milestone reached – all primary discovery sources implemented with real enumeration logic.
-
-Implemented:
-- Core contract: `AppHit` record & enums (stable, JSON source generator context in `JsonContext`).
-- Sources (real): Registry Uninstall (HKLM/HKCU, WOW6432Node), App Paths, Start Menu shortcuts (.lnk resolution), Running Processes, PATH search (`where` fallback), Services & Scheduled Tasks (image path extraction), MSIX/Store packages (Appx), Heuristic filesystem scan (bounded depth/timeout, curated token filters), Scoop, Chocolatey, WinGet.
-- Evidence & Merge: Dedup + union of `Source` arrays and merged evidence key/value sets.
-- Ranking: token & fuzzy coverage (Jaccard + collapsed substring), exact exe/dir boosts, alias equivalence (embedded dictionary), evidence synergy (shortcut+process), diminishing returns on multi-source, path quality penalties; final score clamped [0,1].
-- Package manager integration: Scoop (user/global), Chocolatey (machine-scope), WinGet (provenance via export). Sources gracefully no-op if the package manager is not installed.
-- Argument parsing: Manual robust multi-word parsing + `--` sentinel, validation for numeric options, custom help text (uses `System.CommandLine` only for usage surface).
-- Output formats: text (color-aware), JSON, CSV.
-- Rules engine: lightweight YAML (subset) parser expands config/data hits (VSCode, Chrome examples) before ranking.
-- Comprehensive automated test suite (see Tests section).
-
-In Progress / Next Focus:
-- PowerShell Gallery publishing.
-
-Upcoming Backlog:
-- PowerShell Gallery publishing.
-- Code signing (optional).
 
 ## Project Layout
 ```
@@ -160,7 +178,9 @@ assets/                  # Logo (SVG, ICO)
 AppLocate.psm1           # PowerShell module wrapper
 ```
 
-## Quick Start
+## Build
+
+### Quick Start
 ```pwsh
 dotnet restore
 dotnet build
@@ -173,7 +193,7 @@ dotnet run --project src/AppLocate.Cli -- vscode --json
 ```
 Exit codes: 0 (results or help), 1 (no matches), 2 (argument error). See [Usage](#usage) for details.
 
-## Publish Single-File
+### Publish Single-File
 ```pwsh
 pwsh ./build/publish.ps1 -X64 -Arm64 -Configuration Release
 ```
@@ -181,61 +201,6 @@ Artifacts land under `./artifacts/<rid>/`.
 
 Each published RID artifact now includes a CycloneDX SBOM file (`sbom-<rid>.json`) listing dependency components for supply-chain transparency.
 
-## Installation
-
-### WinGet (Windows Package Manager)
-```pwsh
-winget install AppLocate.AppLocate
-```
-
-Stable releases are automatically submitted to the [Windows Package Manager Community Repository](https://github.com/microsoft/winget-pkgs). Pre-release versions (alpha, beta, rc) are not published to WinGet.
-
-### Manual Download
-Download the latest release from [GitHub Releases](https://github.com/aalex954/applocate/releases):
-- `applocate-win-x64.zip` – Windows x64
-- `applocate-win-arm64.zip` – Windows ARM64
-
-Extract and add to your PATH, or run directly.
-
-## Roadmap (abridged – current)
-Completed / Phase 1 Foundation:
-- [x] Reintroduce `System.CommandLine` + full option set
-- [x] Initial ranking heuristics (phase 1)
-// (Removed) JSON indexing cache & related invalidation (to be reconsidered later)
-- [x] Discovery sources (registry uninstall, App Paths, start menu shortcuts, processes, PATH, services/tasks, MSIX/Store, heuristic FS)
-- [x] Golden snapshot tests (Verify) for core queries
-- [x] Deterministic CLI argument validation tests
-- [x] YAML rules engine (phase 1 subset) for config/data expansion
-- [x] Ranking calibration pass (alias & fuzzy weighting baseline)
-- [x] `--package-source` output integration
-- [x] Acceptance scenario scaffolding (VSCode, Chrome, portable app; MSIX placeholder)
-- [x] PowerShell module wrapper (Invoke-AppLocate / Get-AppLocateJson)
-// Indexing/cache layer removed; reconsider only if cold median >2s
-// Completed refinements since v0.1.2
-- [x] Evidence output stabilization & selective evidence emission tests
-- [x] Alias canonicalization pipeline (query variants → canonical form)
-- [x] Generic post-score noise filtering (uninstall/update/setup, cache/temp, docs/help)
-- [x] Generic auxiliary service/host/updater/helper suppression
-- [x] MSIX improvements: AppxManifest exe parsing, multi-token matching, WindowsApps path acceptance
-- [x] App Execution Alias support via PATH search + alias canonicalization (e.g., `wt.exe` for Windows Terminal)
-- [x] Score breakdown output (JSON) with detailed ranking signals
-- [x] DI/registration refactor for sources (builder-based injection seams)
-
-In Progress / Near Term:
-- [ ] PowerShell Gallery publishing
-
-Backlog / Later:
-- [ ] Code signing for releases
-- [ ] Elevation strategy (`--elevate` / `--no-elevate`) & privileged source gating
-
-Completed (formerly backlog):
-- [x] Package manager adapters (Scoop, Chocolatey, WinGet)
-- [x] Rule pack ≥50 apps (now at 147)
-- [x] CI matrix (x64/ARM64) with SBOM generation
-- [x] Benchmark harness (exists in `benchmarks/`)
-- [x] Parallel source execution with bounded concurrency
-- [x] DI/registration refactor for sources
-- [x] Single-file publish with ReadyToRun & compression
 
 ## Tests
 
@@ -290,16 +255,28 @@ Planned test expansions:
 - Live `--running` process capture scenario.
 - Performance regression timing harness.
 
-<!-- Indexing layer removed; section intentionally pruned. -->
+## Advanced 
+
+### Environment Overrides
+For deterministic tests:
+* `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`
+* `PATH`
+* `APPLOCATE_MSIX_FAKE` (JSON array of fake MSIX packages)
+
+Example:
+```pwsh
+$env:APPLOCATE_MSIX_FAKE='[{"name":"SampleApp","family":"Sample.App_123","install":"C:/tmp/sample","version":"1.0.0.0"}]'
+applocate sample --json
+```
+
+## Roadmap
+
+In Progress / Near Term:
+- [ ] PowerShell Gallery publishing
+
+Backlog / Later:
+- [ ] Code signing for releases
+- [ ] Elevation strategy (`--elevate` / `--no-elevate`) & privileged source gating
 
 ## Contributing
 See `.github/copilot-instructions.md` for design/extension guidance. Keep `AppHit` schema backward compatible.
-
-## Notes
-- No network I/O, no executing discovered binaries.
-- Keep JSON camelCase & deterministic ordering via source generator (`JsonContext`).
-- Add XML docs gradually (warnings currently suppressed only by omission).
-- Ranking: token coverage (+ up to 0.25), partial token Jaccard (+ up to 0.08 noise‑scaled), span compactness (+0.14) with noise penalties for excessive non‑query tokens (up to -0.12), exact filename (+0.30), alias equivalence (+0.22) vs evidence alias (+0.14), fuzzy filename similarity (Levenshtein scaled + up to 0.06), evidence boosts (shortcut/process + synergy, where, dir/exe matches), harmonic multi-source diminishing returns (cap +0.18), type baselines, and penalties (broken shortcut, temp/installer/cache paths). Scores clamped to [0,1].
-
----
-This README reflects the discovery + indexing + baseline test milestone; update with each subsequent milestone (ranking calibration, rules, performance, packaging).
