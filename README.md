@@ -3,7 +3,7 @@
 [![build-test-release](https://github.com/aalex954/applocate/actions/workflows/build-release.yml/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/build-release.yml)
 [![CodeQL](https://github.com/aalex954/applocate/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/github-code-scanning/codeql)
 
-Windows 11 CLI to locate application install directories, executables, and (in progress) config/data paths. Emits deterministic JSON (plus CSV/text). Core discovery, ranking scaffold, and baseline tests are now in place.
+Windows 11 CLI to locate application install directories, executables, and config/data paths. Emits deterministic JSON (plus CSV/text). All primary discovery sources are implemented with ranking and a YAML rule pack (69 apps) for config/data expansion.
 
 ## Features (Snapshot)
 | Area | Implemented | Notes |
@@ -50,7 +50,7 @@ Options (implemented CLI surface):
 	--trace                    Per-source timing diagnostics (stderr; prefix [trace])
 	--evidence                 Include evidence dictionary (if available)
 	--evidence-keys <k1,k2>    Only include specified evidence keys (implies --evidence)
-	# (cache/index options removed – may return if future sources are slow)
+	--score-breakdown          Show internal scoring component contributions per result
 	--timeout <sec>            Per-source soft timeout (default 5)
 	--no-color                 Disable ANSI color in text output
 	--verbose                  Verbose diagnostics (warnings)
@@ -62,7 +62,10 @@ Default behavior (without `--all`): results are collapsed to the single best hit
 
 Planned / not yet implemented flags from original design (roadmap): `--fuzzy` (explicit enable), `--elevate` / `--no-elevate`. These remain on the backlog and are intentionally absent from current binary.
 
-Exit codes: 0 (results), 1 (no matches), 2 (argument error), 3 (permission), 4 (internal).
+Exit codes:
+- **0**: Results found, or help displayed (when run without arguments or with `--help`)
+- **1**: No matches found
+- **2**: Argument/validation error
 
 ## Evidence & Confidence
 `--evidence` adds key/value provenance. Examples:
@@ -133,7 +136,7 @@ In Progress / Next Focus:
 - Ranking refinement (alias weighting, fuzzy distance scoring, multi-source diminishing returns calibration).
 - Acceptance scenario fixtures (VSCode, Chrome, portable app, MSIX) with golden expectations.
 - Config/Data heuristics expansion via YAML rule pack (currently minimal seeds in `rules/apps.default.yaml`).
-- Performance tuning (parallel source fan-out, thread cap, profiling cold vs warm index hits).
+- Performance tuning (parallel source fan-out, thread cap, profiling).
 
 Upcoming Backlog:
 - Plugin loading for alias/rule packs (data-only).
@@ -147,11 +150,18 @@ Upcoming Backlog:
 
 ## Project Layout
 ```
-src/AppLocate.Core    # Domain models, abstractions, placeholder sources, ranking & rules stubs
-src/AppLocate.Cli     # CLI entry point (manual parsing placeholder)
-tests/*.Tests         # xUnit test projects
-rules/apps.default.yaml  # Sample rule file (placeholder)
-build/publish.ps1     # Single-file publish script (win-x64 / win-arm64)
+src/AppLocate.Core       # Domain models, abstractions, sources, ranking & rules engine
+  ├─ Abstractions/       # Interfaces (ISource, ISourceRegistry, IAmbientServices)
+  ├─ Models/             # AppHit, ScoreBreakdown, PathUtils
+  ├─ Sources/            # Registry, AppPaths, StartMenu, Process, PATH, MSIX, Services, HeuristicFS
+  ├─ Ranking/            # Scoring logic
+  └─ Rules/              # YAML rule engine for config/data expansion
+src/AppLocate.Cli        # CLI entry point with System.CommandLine + manual parsing
+tests/AppLocate.Core.Tests   # Unit tests for ranking, rules, sources
+tests/AppLocate.Cli.Tests    # CLI integration, acceptance, snapshot tests
+rules/apps.default.yaml  # Config/data rule pack (VSCode, Chrome, etc.)
+build/publish.ps1        # Single-file publish script (win-x64 / win-arm64)
+AppLocate.psm1           # PowerShell module wrapper
 ```
 
 ## Quick Start
@@ -165,7 +175,7 @@ Run (may produce limited or no hits depending on environment):
 ```pwsh
 dotnet run --project src/AppLocate.Cli -- vscode --json
 ```
-Exit codes: 0 (results found), 1 (no matches), 2 (bad arguments/validation error).
+Exit codes: 0 (results or help), 1 (no matches), 2 (argument error). See [Usage](#usage) for details.
 
 ## Publish Single-File
 ```pwsh
@@ -174,6 +184,22 @@ pwsh ./build/publish.ps1 -X64 -Arm64 -Configuration Release
 Artifacts land under `./artifacts/<rid>/`.
 
 Each published RID artifact now includes a CycloneDX SBOM file (`sbom-<rid>.json`) listing dependency components for supply-chain transparency.
+
+## Installation
+
+### WinGet (Windows Package Manager)
+```pwsh
+winget install AppLocate.AppLocate
+```
+
+Stable releases are automatically submitted to the [Windows Package Manager Community Repository](https://github.com/microsoft/winget-pkgs). Pre-release versions (alpha, beta, rc) are not published to WinGet.
+
+### Manual Download
+Download the latest release from [GitHub Releases](https://github.com/aalex954/applocate/releases):
+- `applocate-win-x64.zip` – Windows x64
+- `applocate-win-arm64.zip` – Windows ARM64
+
+Extract and add to your PATH, or run directly.
 
 ## Roadmap (abridged – current)
 Completed / Phase 1 Foundation:
@@ -201,10 +227,10 @@ Completed / Phase 1 Foundation:
 
 In Progress / Near Term:
 - [ ] Expanded config/data heuristics acceptance scenarios
-- [ ] Performance tuning (parallel scheduling, cold vs warm benchmarks)
+- [ ] Performance tuning (parallel scheduling, source timing benchmarks)
 - [ ] Plugin loading (data-only alias & rule packs)
 - [ ] JSON schema contract & versioning documentation
-- [ ] Benchmark harness (cold vs warm index, thread scaling, source timing)
+- [ ] Benchmark harness (startup latency, thread scaling, source timing)
 
 Backlog / Later:
 // Existence filtering now always live (cache layer removed)
