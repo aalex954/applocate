@@ -17,23 +17,22 @@ Windows 11 CLI to locate application install directories, executables, and confi
 | Area | Implemented | Notes |
 |------|-------------|-------|
 | Registry uninstall | Yes | HKLM/HKCU + WOW6432Node |
-| App Paths | Yes | HKLM/HKCU App Paths; exe + optional Path dir |
-| Start Menu shortcuts | Yes | .lnk resolution (COM) user + common |
-| Processes | Yes | Running processes; synergy evidence |
-| PATH search | Yes | where.exe + PATH scan |
-| MSIX / Store | Yes | PowerShell enumeration + env fake provider |
-| Services & Tasks | Yes | ImagePath + scheduled task parsing |
-| Heuristic FS scan | Yes | Bounded depth/time roots |
-| Scoop | Yes | User/global scoop apps with manifest parsing |
-| Chocolatey | Yes | Machine-scope choco lib packages |
-| WinGet | Yes | Package provenance via winget export |
-| Ranking | Phase 2 | Span compactness, noise penalties, refined diminishing returns |
-| Config/Data rules | Yes | 147-app YAML rule pack for dev/sysadmin tools |
-| Existence filtering | Yes | Drops non-existent paths (live + cache sanitize) |
-| Evidence emission | Yes | Optional via --evidence |
-| Snapshot tests | Yes | Verify deterministic outputs |
+| App Paths | Yes | HKLM/HKCU exe registration |
+| Start Menu shortcuts | Yes | User + common .lnk resolution |
+| Processes | Yes | Running process discovery |
+| PATH search | Yes | PATH directories + where.exe |
+| MSIX / Store | Yes | Appx package enumeration |
+| Services & Tasks | Yes | Service + scheduled task binaries |
+| Heuristic FS scan | Yes | Bounded depth/time scan |
+| Scoop | Yes | User/global apps + manifests |
+| Chocolatey | Yes | Machine-scope packages |
+| WinGet | Yes | Package provenance |
+| Ranking | Yes | Token matching, evidence synergy, penalties |
+| Config/Data rules | Yes | 147-app YAML rule pack |
+| Existence filtering | Yes | Filters non-existent paths |
+| Evidence emission | Yes | Via --evidence flag |
 | Single-file publish | Yes | Win x64/ARM64 + SBOM |
-| Plugin system | Pending | Data-only aliases/rules planned |
+| Plugin system | Pending | Data-only aliases/rules |
 
 ## Usage
 Basic:
@@ -153,15 +152,17 @@ Upcoming Backlog:
 ```
 src/AppLocate.Core       # Domain models, abstractions, sources, ranking & rules engine
   ├─ Abstractions/       # Interfaces (ISource, ISourceRegistry, IAmbientServices)
-  ├─ Models/             # AppHit, ScoreBreakdown, PathUtils
-  ├─ Sources/            # Registry, AppPaths, StartMenu, Process, PATH, MSIX, Services, HeuristicFS, Scoop, Chocolatey, Winget
-  ├─ Ranking/            # Scoring logic
-  └─ Rules/              # YAML rule engine for config/data expansion
+  ├─ Models/             # AppHit, ScoreBreakdown, PathUtils, EvidenceKeys
+  ├─ Sources/            # All discovery sources (Registry, AppPaths, StartMenu, Process, PATH, MSIX, Services, HeuristicFS, Scoop, Chocolatey, Winget)
+  ├─ Ranking/            # Scoring logic, alias canonicalization
+  ├─ Rules/              # YAML rule engine for config/data expansion
+  └─ Indexing/           # Optional on-disk cache (IndexStore, IndexModels)
 src/AppLocate.Cli        # CLI entry point with System.CommandLine + manual parsing
 tests/AppLocate.Core.Tests   # Unit tests for ranking, rules, sources
 tests/AppLocate.Cli.Tests    # CLI integration, acceptance, snapshot tests
-rules/apps.default.yaml  # Config/data rule pack (VSCode, Chrome, etc.)
+rules/apps.default.yaml  # Config/data rule pack (147 apps)
 build/publish.ps1        # Single-file publish script (win-x64 / win-arm64)
+assets/                  # Logo (SVG, ICO)
 AppLocate.psm1           # PowerShell module wrapper
 ```
 

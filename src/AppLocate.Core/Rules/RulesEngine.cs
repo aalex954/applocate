@@ -1,5 +1,4 @@
 namespace AppLocate.Core.Rules {
-    /// <summary>Placeholder rules engine. Will parse YAML and produce config/data paths.</summary>
     /// <summary>
     /// Lightweight YAML-like rules processor that loads app-specific config/data expansion rules.
     /// Format intentionally minimal to avoid external dependencies; upgrade path to full YAML parser preserved.
