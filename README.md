@@ -112,12 +112,6 @@ applocate sample --json
 ```
 Fields are append-only; enum values only extend at tail.
 
-## Versioning / Compatibility
-* Pre-1.0: additive only (no breaking schema changes)
-* 1.0+: semantic versioning
-* Deterministic JSON ordering (source generator)
-* Enum numeric values stable
-
 ## Security & Privacy
 * No network or telemetry
 * Does not execute discovered binaries
