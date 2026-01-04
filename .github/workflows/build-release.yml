@@ -176,6 +176,7 @@ jobs:
       - name: Generate SBOM (CycloneDX)
         run: >-
           dotnet dotnet-CycloneDX ${{ env.SOLUTION_FILE }} -j -o artifacts/${{ matrix.rid }} -f sbom-${{ matrix.rid }}.json
+          --github-bearer-token ${{ secrets.GITHUB_TOKEN }}
         env:
           DOTNET_CLI_TELEMETRY_OPTOUT: 1
 
