@@ -495,9 +495,8 @@ namespace AppLocate.Cli {
                 bool IsUninstallExe(AppHit h) {
                     if (h.Type != HitType.Exe) { return false; }
                     var fn = Path.GetFileName(h.Path)?.ToLowerInvariant() ?? string.Empty;
-                    return string.IsNullOrEmpty(fn) || normalized.Contains("uninstall")
-                        ? false
-                        : fn.StartsWith("unins", StringComparison.Ordinal)
+                    if (string.IsNullOrEmpty(fn) || normalized.Contains("uninstall")) { return false; }
+                    return fn.StartsWith("unins", StringComparison.Ordinal)
                            || fn.Contains("uninstall", StringComparison.Ordinal)
                            || fn.Contains("unins000", StringComparison.Ordinal)
                            || fn == "update.exe"
@@ -506,10 +505,9 @@ namespace AppLocate.Cli {
                 }
                 bool IsCacheOrTemp(AppHit h) {
                     var p = h.Path.ToLowerInvariant();
-                    if (p.Contains("code cache") || p.Contains("videodecodestats") || p.Contains("video\\decode") || p.Contains("video\\decodestats")) { return true; }
-                    return p.Contains("indexeddb") || p.Contains("module_data") || p.Contains("\\temp\\winget\\")
-                        ? true
-                        : p.Contains("update-cache") || (p.Contains("\\temp\\") && p.Contains("vscode"));
+                    return p.Contains("code cache") || p.Contains("videodecodestats") || p.Contains("video\\decode") || p.Contains("video\\decodestats")
+                        || p.Contains("indexeddb") || p.Contains("module_data") || p.Contains("\\temp\\winget\\")
+                        || p.Contains("update-cache") || (p.Contains("\\temp\\") && p.Contains("vscode"));
                 }
                 // Generic auxiliary service/host/server helper suppression: single-token queries only; allow high-confidence keepers
                 bool IsAuxService(AppHit h) {
@@ -1013,7 +1011,7 @@ namespace AppLocate.Cli {
                         var nameB = Path.GetFileName(b).ToLowerInvariant();
                         var tokensA = nameA.Split([' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                         var tokensB = nameB.Split([' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                        return tokensA.Length < 2 || tokensB.Length < 2 ? false : tokensA[0] == tokensB[0] && tokensA[1] == tokensB[1];
+                        return tokensA.Length >= 2 && tokensB.Length >= 2 && tokensA[0] == tokensB[0] && tokensA[1] == tokensB[1];
                     }
                     catch { return false; }
                 }
@@ -1342,7 +1340,13 @@ namespace AppLocate.Cli {
                             Console.Out.WriteLine($"[{h.Confidence:0.00}] {h.Type} {h.Path}");
                         }
                         if (scoreBreakdown && h.Breakdown != null) {
-                            Console.Out.WriteLine($"    breakdown: token={h.Breakdown.TokenCoverage:0.###} alias={h.Breakdown.AliasEquivalence:0.###} evidence={h.Breakdown.EvidenceBoosts:0.###} multiSrc={h.Breakdown.MultiSource:0.###} penalties={h.Breakdown.PathPenalties + h.Breakdown.NoisePenalties + h.Breakdown.EvidencePenalties:0.###} total={h.Breakdown.Total:0.###}");
+                            var b = h.Breakdown;
+                            var nameMatch = b.FilenameExactOrPartial + b.CollapsedSubstring + b.FuzzyLevenshtein + b.ExactMatchBonus;
+                            var tokenMatch = b.TokenCoverage + b.PartialTokenJaccard + b.ContiguousSpan;
+                            var aliasMatch = b.AliasEquivalence + b.DirAlias;
+                            var evidenceMatch = b.EvidenceBoosts + b.EvidenceSynergy + b.PairingBoost;
+                            var penalties = b.PathPenalties + b.NoisePenalties + b.EvidencePenalties + b.UninstallPenalty + b.SteamAuxPenalty + b.CacheArtifactPenalty + b.GenericDirPenalty + b.PluginSuppression;
+                            Console.Out.WriteLine($"    breakdown: base={b.TypeBaseline:0.##} name={nameMatch:0.##} token={tokenMatch:0.##} alias={aliasMatch:0.##} evidence={evidenceMatch:0.##} multi={b.MultiSource:0.##} penalties={penalties:0.##} total={b.Total:0.##}");
                         }
                         continue;
                     }
@@ -1355,7 +1359,13 @@ namespace AppLocate.Cli {
                         Console.Out.WriteLine($"{confColor}[{h.Confidence:0.00}]{Ansi.Reset} {Ansi.Cyan}{h.Type}{Ansi.Reset} {h.Path}");
                     }
                     if (scoreBreakdown && h.Breakdown != null) {
-                        Console.Out.WriteLine($"{Ansi.DarkGray}    breakdown: token={h.Breakdown.TokenCoverage:0.###} alias={h.Breakdown.AliasEquivalence:0.###} evidence={h.Breakdown.EvidenceBoosts:0.###} multiSrc={h.Breakdown.MultiSource:0.###} penalties={h.Breakdown.PathPenalties + h.Breakdown.NoisePenalties + h.Breakdown.EvidencePenalties:0.###} total={h.Breakdown.Total:0.###}{Ansi.Reset}");
+                        var b = h.Breakdown;
+                        var nameMatch = b.FilenameExactOrPartial + b.CollapsedSubstring + b.FuzzyLevenshtein + b.ExactMatchBonus;
+                        var tokenMatch = b.TokenCoverage + b.PartialTokenJaccard + b.ContiguousSpan;
+                        var aliasMatch = b.AliasEquivalence + b.DirAlias;
+                        var evidenceMatch = b.EvidenceBoosts + b.EvidenceSynergy + b.PairingBoost;
+                        var penalties = b.PathPenalties + b.NoisePenalties + b.EvidencePenalties + b.UninstallPenalty + b.SteamAuxPenalty + b.CacheArtifactPenalty + b.GenericDirPenalty + b.PluginSuppression;
+                        Console.Out.WriteLine($"{Ansi.DarkGray}    breakdown: base={b.TypeBaseline:0.##} name={nameMatch:0.##} token={tokenMatch:0.##} alias={aliasMatch:0.##} evidence={evidenceMatch:0.##} multi={b.MultiSource:0.##} penalties={penalties:0.##} total={b.Total:0.##}{Ansi.Reset}");
                     }
                 }
             }

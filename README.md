@@ -149,6 +149,23 @@ Fields are append-only; enum values only extend at tail.
 ```
 Confidence heuristic (phase 1): token & fuzzy coverage, exact exe/dir boosts, alias equivalence, evidence synergy (shortcut+process), multi-source diminishing returns, penalties (temp/broken). Scores ∈ [0,1].
 
+### Score Breakdown
+Use `--score-breakdown` to see how each result's confidence score was computed:
+```
+[0.86] Exe C:\Users\user\AppData\Local\Programs\Microsoft VS Code\Code.exe
+    breakdown: base=0.08 name=0.35 token=0.27 alias=0 evidence=0 multi=0.17 penalties=0 total=0.86
+```
+
+| Bucket | Description |
+|--------|-------------|
+| `base` | Type baseline (Exe starts higher than InstallDir) |
+| `name` | Filename match quality (exact, partial, fuzzy Levenshtein) |
+| `token` | Query token coverage + contiguous span bonus |
+| `alias` | Built-in alias match (e.g., "code" → "vscode") |
+| `evidence` | Registry/shortcut/process evidence boosts |
+| `multi` | Multi-source corroboration (diminishing returns) |
+| `penalties` | Path quality deductions (temp, cache, generic dirs) |
+
 ### Notes
 - No network I/O, no executing discovered binaries.
 - Keep JSON camelCase & deterministic ordering via source generator (`JsonContext`).
