@@ -20,16 +20,16 @@ namespace AppLocate.Core.Ranking {
             { "edge", new[]{"microsoft edge"} },
             { "notepad++", new[]{"notepadpp","npp"} },
             { "powershell", new[]{"pwsh"} },
-        { "pwsh", new[]{"powershell"} },
-        // oh-my-posh / winget id variants
-        { "ohmyposh", new[]{"oh my posh","jandedobbeleer.ohmyposh","oh-my-posh"} },
-        { "oh-my-posh", new[]{"oh my posh","ohmyposh","jandedobbeleer.ohmyposh"} },
-        { "oh my posh", new[]{"ohmyposh","oh-my-posh","jandedobbeleer.ohmyposh"} },
-    { "jandedobbeleer.ohmyposh", new[]{"oh my posh","ohmyposh","oh-my-posh"} },
-    // Windows Terminal (App Execution Alias: wt.exe)
-    { "windows terminal", new[]{"wt","wt.exe","microsoft windows terminal"} },
-    { "wt", new[]{"windows terminal","wt.exe","microsoft windows terminal"} },
-    { "wt.exe", new[]{"wt","windows terminal","microsoft windows terminal"} },
+            { "pwsh", new[]{"powershell"} },
+            // oh-my-posh / winget id variants
+            { "ohmyposh", new[]{"oh my posh","jandedobbeleer.ohmyposh","oh-my-posh"} },
+            { "oh-my-posh", new[]{"oh my posh","ohmyposh","jandedobbeleer.ohmyposh"} },
+            { "oh my posh", new[]{"ohmyposh","oh-my-posh","jandedobbeleer.ohmyposh"} },
+            { "jandedobbeleer.ohmyposh", new[]{"oh my posh","ohmyposh","oh-my-posh"} },
+            // Windows Terminal (App Execution Alias: wt.exe)
+            { "windows terminal", new[]{"wt","wt.exe","microsoft windows terminal"} },
+            { "wt", new[]{"windows terminal","wt.exe","microsoft windows terminal"} },
+            { "wt.exe", new[]{"wt","windows terminal","microsoft windows terminal"} },
         };
 
         private static bool AliasEquivalent(string query, string candidateFileName, out string? aliasMatched) {

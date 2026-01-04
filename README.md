@@ -133,20 +133,13 @@ Implemented:
 - Comprehensive automated test suite (see Tests section).
 
 In Progress / Next Focus:
-- Ranking refinement (alias weighting, fuzzy distance scoring, multi-source diminishing returns calibration).
-- Acceptance scenario fixtures (VSCode, Chrome, portable app, MSIX) with golden expectations.
-- Config/Data heuristics expansion via YAML rule pack (currently minimal seeds in `rules/apps.default.yaml`).
-- Performance tuning (parallel source fan-out, thread cap, profiling).
+- Config/Data rules expansion (currently 69 apps; adding more popular apps).
+- Package manager adapters (Chocolatey, Scoop) for apps not in registry/Start Menu.
 
 Upcoming Backlog:
-- Plugin loading for alias/rule packs (data-only).
-- DI/registration refactor for sources.
-- Expanded YAML rules (50+ popular apps) & tests.
-- CSV / evidence output tests and JSON contract schema doc.
-- Portable app fixture harness (synthetic directory & shortcut).
-- Packaging: single-file trimmed exe, optional PowerShell module export.
-- CI enhancements (matrix build win-x64/arm64, cache index test artifacts, code signing optional).
-- Performance benchmarks & regression guard.
+- PowerShell Gallery publishing.
+- JSON schema contract documentation.
+- Code signing (optional).
 
 ## Project Layout
 ```
@@ -226,22 +219,22 @@ Completed / Phase 1 Foundation:
 - [x] DI/registration refactor for sources (builder-based injection seams)
 
 In Progress / Near Term:
-- [ ] Expanded config/data heuristics acceptance scenarios
-- [ ] Performance tuning (parallel scheduling, source timing benchmarks)
-- [ ] Plugin loading (data-only alias & rule packs)
+- [ ] Config/Data rules expansion (69 apps → 100+)
+- [ ] Package manager adapters (Chocolatey, Scoop, Winget CLI integration)
+- [ ] PowerShell Gallery publishing
 - [ ] JSON schema contract & versioning documentation
-- [ ] Benchmark harness (startup latency, thread scaling, source timing)
 
 Backlog / Later:
-// Existence filtering now always live (cache layer removed)
-- [ ] Rule pack ≥50 apps finalized with tests
-- [ ] Advanced ranking ML/learned weights experiment (optional)
-- [ ] CI matrix (x64/ARM64), optional code signing & SBOM pipeline polish
-- [ ] PowerShell module publishing & gallery packaging
-- [ ] Trimming / single-file size optimization, ReadyToRun evaluation
-- [ ] Plugin pack distribution format (zip/yaml catalog)
+- [ ] Code signing for releases
 - [ ] Elevation strategy (`--elevate` / `--no-elevate`) & privileged source gating
-- [ ] Additional package manager adapters (Chocolatey, Scoop, Winget integration improvements)
+
+Completed (formerly backlog):
+- [x] Rule pack ≥50 apps (now at 69)
+- [x] CI matrix (x64/ARM64) with SBOM generation
+- [x] Benchmark harness (exists in `benchmarks/`)
+- [x] Parallel source execution with bounded concurrency
+- [x] DI/registration refactor for sources
+- [x] Single-file publish with ReadyToRun & compression
 
 ## Tests
 
