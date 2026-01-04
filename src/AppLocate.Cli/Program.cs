@@ -23,7 +23,11 @@ namespace AppLocate.Cli {
                 .Add(new PathSearchSource())
                 .Add(new ServicesTasksSource())
                 .Add(new MsixStoreSource())
-                .Add(new HeuristicFsSource());
+                .Add(new HeuristicFsSource())
+                // Package manager sources (graceful no-op if not installed)
+                .Add(new ScoopSource())
+                .Add(new ChocolateySource())
+                .Add(new WingetSource());
             return builder.Build();
         }
 

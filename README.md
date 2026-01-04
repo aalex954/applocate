@@ -16,7 +16,9 @@ Windows 11 CLI to locate application install directories, executables, and confi
 | MSIX / Store | Yes | PowerShell enumeration + env fake provider |
 | Services & Tasks | Yes | ImagePath + scheduled task parsing |
 | Heuristic FS scan | Yes | Bounded depth/time roots |
-| Index cache | Removed | Will return if cold latency >2s |
+| Scoop | Yes | User/global scoop apps with manifest parsing |
+| Chocolatey | Yes | Machine-scope choco lib packages |
+| WinGet | Yes | Package provenance via winget export |
 | Ranking | Phase 2 | Span compactness, noise penalties, refined diminishing returns |
 | Config/Data rules | Partial | Seeded YAML rule pack; expanding |
 | Existence filtering | Yes | Drops non-existent paths (live + cache sanitize) |
@@ -123,10 +125,10 @@ Foundation milestone reached – all primary discovery sources implemented with 
 
 Implemented:
 - Core contract: `AppHit` record & enums (stable, JSON source generator context in `JsonContext`).
-- Sources (real): Registry Uninstall (HKLM/HKCU, WOW6432Node), App Paths, Start Menu shortcuts (.lnk resolution), Running Processes, PATH search (`where` fallback), Services & Scheduled Tasks (image path extraction), MSIX/Store packages (Appx), Heuristic filesystem scan (bounded depth/timeout, curated token filters).
+- Sources (real): Registry Uninstall (HKLM/HKCU, WOW6432Node), App Paths, Start Menu shortcuts (.lnk resolution), Running Processes, PATH search (`where` fallback), Services & Scheduled Tasks (image path extraction), MSIX/Store packages (Appx), Heuristic filesystem scan (bounded depth/timeout, curated token filters), Scoop, Chocolatey, WinGet.
 - Evidence & Merge: Dedup + union of `Source` arrays and merged evidence key/value sets.
 - Ranking: token & fuzzy coverage (Jaccard + collapsed substring), exact exe/dir boosts, alias equivalence (embedded dictionary), evidence synergy (shortcut+process), diminishing returns on multi-source, path quality penalties; final score clamped [0,1].
-- (Former) indexing layer removed: on-disk cache provided minimal benefit (<500ms cold queries). Will reintroduce a snapshot/inverted index if added package manager sources push cold median >2s.
+- Package manager integration: Scoop (user/global), Chocolatey (machine-scope), WinGet (provenance via export). Sources gracefully no-op if the package manager is not installed.
 - Argument parsing: Manual robust multi-word parsing + `--` sentinel, validation for numeric options, custom help text (uses `System.CommandLine` only for usage surface).
 - Output formats: text (color-aware), JSON, CSV.
 - Rules engine: lightweight YAML (subset) parser expands config/data hits (VSCode, Chrome examples) before ranking.
@@ -134,7 +136,6 @@ Implemented:
 
 In Progress / Next Focus:
 - Config/Data rules expansion (currently 69 apps; adding more popular apps).
-- Package manager adapters (Chocolatey, Scoop) for apps not in registry/Start Menu.
 
 Upcoming Backlog:
 - PowerShell Gallery publishing.
@@ -146,7 +147,7 @@ Upcoming Backlog:
 src/AppLocate.Core       # Domain models, abstractions, sources, ranking & rules engine
   ├─ Abstractions/       # Interfaces (ISource, ISourceRegistry, IAmbientServices)
   ├─ Models/             # AppHit, ScoreBreakdown, PathUtils
-  ├─ Sources/            # Registry, AppPaths, StartMenu, Process, PATH, MSIX, Services, HeuristicFS
+  ├─ Sources/            # Registry, AppPaths, StartMenu, Process, PATH, MSIX, Services, HeuristicFS, Scoop, Chocolatey, Winget
   ├─ Ranking/            # Scoring logic
   └─ Rules/              # YAML rule engine for config/data expansion
 src/AppLocate.Cli        # CLI entry point with System.CommandLine + manual parsing
@@ -220,7 +221,6 @@ Completed / Phase 1 Foundation:
 
 In Progress / Near Term:
 - [ ] Config/Data rules expansion (69 apps → 100+)
-- [ ] Package manager adapters (Chocolatey, Scoop, Winget CLI integration)
 - [ ] PowerShell Gallery publishing
 - [ ] JSON schema contract & versioning documentation
 
@@ -229,6 +229,7 @@ Backlog / Later:
 - [ ] Elevation strategy (`--elevate` / `--no-elevate`) & privileged source gating
 
 Completed (formerly backlog):
+- [x] Package manager adapters (Scoop, Chocolatey, WinGet)
 - [x] Rule pack ≥50 apps (now at 69)
 - [x] CI matrix (x64/ARM64) with SBOM generation
 - [x] Benchmark harness (exists in `benchmarks/`)
