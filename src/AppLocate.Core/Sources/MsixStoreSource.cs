@@ -210,13 +210,9 @@ namespace AppLocate.Core.Sources {
                         }
 
                         var exeNameLower = Path.GetFileNameWithoutExtension(exe).ToLowerInvariant();
-                        bool exeMatch;
-                        if (options.Strict) {
-                            exeMatch = tokens.All(exeNameLower.Contains);
-                        }
-                        else {
-                            exeMatch = exeNameLower.Contains(norm) || match || (tokens.Length > 1 && tokens.All(exeNameLower.Contains));
-                        }
+                        var exeMatch = options.Strict
+                            ? tokens.All(exeNameLower.Contains)
+                            : exeNameLower.Contains(norm) || match || (tokens.Length > 1 && tokens.All(exeNameLower.Contains));
                         if (!exeMatch) {
                             continue;
                         }

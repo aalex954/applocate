@@ -495,19 +495,21 @@ namespace AppLocate.Cli {
                 bool IsUninstallExe(AppHit h) {
                     if (h.Type != HitType.Exe) { return false; }
                     var fn = Path.GetFileName(h.Path)?.ToLowerInvariant() ?? string.Empty;
-                    if (string.IsNullOrEmpty(fn) || normalized.Contains("uninstall")) { return false; } // user intent explicit
-                    return fn.StartsWith("unins", StringComparison.Ordinal)
+                    return string.IsNullOrEmpty(fn) || normalized.Contains("uninstall")
+                        ? false
+                        : fn.StartsWith("unins", StringComparison.Ordinal)
                            || fn.Contains("uninstall", StringComparison.Ordinal)
                            || fn.Contains("unins000", StringComparison.Ordinal)
                            || fn == "update.exe"
                            || fn.Contains("updater", StringComparison.Ordinal)
-                           || (fn.Contains("setup", StringComparison.Ordinal) && fn.EndsWith(".exe", StringComparison.Ordinal));
+                           || (fn.Contains("setup", StringComparison.Ordinal) && fn.EndsWith(".exe", StringComparison.Ordinal)); // user intent explicit
                 }
                 bool IsCacheOrTemp(AppHit h) {
                     var p = h.Path.ToLowerInvariant();
                     if (p.Contains("code cache") || p.Contains("videodecodestats") || p.Contains("video\\decode") || p.Contains("video\\decodestats")) { return true; }
-                    if (p.Contains("indexeddb") || p.Contains("module_data") || p.Contains("\\temp\\winget\\")) { return true; }
-                    return p.Contains("update-cache") || (p.Contains("\\temp\\") && p.Contains("vscode"));
+                    return p.Contains("indexeddb") || p.Contains("module_data") || p.Contains("\\temp\\winget\\")
+                        ? true
+                        : p.Contains("update-cache") || (p.Contains("\\temp\\") && p.Contains("vscode"));
                 }
                 // Generic auxiliary service/host/server helper suppression: single-token queries only; allow high-confidence keepers
                 bool IsAuxService(AppHit h) {
@@ -522,19 +524,14 @@ namespace AppLocate.Cli {
                     var hasMarker = false; foreach (var m in markers) { if (fn.Contains(m)) { hasMarker = true; break; } }
                     if (!hasMarker) { return false; }
                     // Do not remove strong matches
-                    if (h.Confidence >= 0.75) {
-                        return false;
-                    }
-                    return true;
+                    return h.Confidence < 0.75;
                 }
                 bool IsDocHelp(AppHit h) {
                     if (h.Type is not (HitType.InstallDir or HitType.Data or HitType.Config)) { return false; }
                     var leaf = Path.GetFileName(h.Path)?.ToLowerInvariant() ?? string.Empty;
                     return leaf.Contains("user's guide") || leaf == "docs" || leaf == "help" || leaf.EndsWith(".chm", StringComparison.Ordinal);
                 }
-                scored = scored
-                    .Where(h => !IsUninstallExe(h) && !IsCacheOrTemp(h) && !IsAuxService(h) && (!IsDocHelp(h) || h.Confidence >= 0.65))
-                    .ToList();
+                scored = [.. scored.Where(h => !IsUninstallExe(h) && !IsCacheOrTemp(h) && !IsAuxService(h) && (!IsDocHelp(h) || h.Confidence >= 0.65))];
                 if (verbose) {
                     try { Console.Error.WriteLine($"[verbose] noise filter removed {beforeNoise - scored.Count} hits"); } catch { }
                 }
@@ -1016,10 +1013,7 @@ namespace AppLocate.Cli {
                         var nameB = Path.GetFileName(b).ToLowerInvariant();
                         var tokensA = nameA.Split([' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                         var tokensB = nameB.Split([' ', '-', '_'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                        if (tokensA.Length < 2 || tokensB.Length < 2) {
-                            return false;
-                        }
-                        return tokensA[0] == tokensB[0] && tokensA[1] == tokensB[1];
+                        return tokensA.Length < 2 || tokensB.Length < 2 ? false : tokensA[0] == tokensB[0] && tokensA[1] == tokensB[1];
                     }
                     catch { return false; }
                 }
@@ -1239,7 +1233,7 @@ namespace AppLocate.Cli {
         }
         // BuildCompositeKey removed with cache layer.
 
-    // (Removed) Legacy Normalize method no longer needed.
+        // (Removed) Legacy Normalize method no longer needed.
 
         // Centralized scope inference so all sources converge on consistent user/machine classification.
         // This reduces leakage where a machine path appears when --user is specified (and vice-versa) due to
@@ -1278,7 +1272,7 @@ namespace AppLocate.Cli {
         }
 
         // Applies unified scope inference and early pruning for --user / --machine options.
-    private static List<AppHit> NormalizeAndFilterScopes(List<AppHit> hits, bool userOnly, bool machineOnly) {
+        private static List<AppHit> NormalizeAndFilterScopes(List<AppHit> hits, bool userOnly, bool machineOnly) {
             if (hits.Count == 0) { return hits; }
             var normalized = new List<AppHit>(hits.Count);
             foreach (var h in hits) {

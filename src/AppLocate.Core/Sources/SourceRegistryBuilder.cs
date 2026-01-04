@@ -103,7 +103,7 @@ namespace AppLocate.Core.Sources {
             EnsureNotBuilt();
             _built = true;
             // materialize defensive copy
-            return new SourceRegistry(_sources.ToArray());
+            return new SourceRegistry([.. _sources]);
         }
 
         private void EnsureNotBuilt() {
