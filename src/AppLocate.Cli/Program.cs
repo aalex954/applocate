@@ -1301,7 +1301,16 @@ namespace AppLocate.Cli {
 
         // Manual PrintHelp removed: System.CommandLine generates help.
 
-    private static ConsoleColor ConfidenceColor(double c) => c >= 0.80 ? ConsoleColor.Green : c >= 0.50 ? ConsoleColor.Yellow : ConsoleColor.DarkGray;
+        // ANSI escape sequences for colors (works with oh-my-posh, starship, Windows Terminal, etc.)
+        private static class Ansi {
+            public const string Reset = "\x1b[0m";
+            public const string Green = "\x1b[32m";
+            public const string Yellow = "\x1b[33m";
+            public const string Cyan = "\x1b[36m";
+            public const string DarkGray = "\x1b[90m";
+        }
+
+        private static string ConfidenceAnsi(double c) => c >= 0.80 ? Ansi.Green : c >= 0.50 ? Ansi.Yellow : Ansi.DarkGray;
 
         private static void EmitResults(List<AppHit> filtered, bool json, bool csv, bool text, bool noColor, bool showPackageSources = false, bool scoreBreakdown = false) {
             if (filtered.Count == 0) {
@@ -1343,22 +1352,16 @@ namespace AppLocate.Cli {
                         }
                         continue;
                     }
-                    var prevColor = Console.ForegroundColor;
-                    Console.ForegroundColor = ConfidenceColor(h.Confidence);
-                    Console.Out.Write($"[{h.Confidence:0.00}]");
-                    Console.ForegroundColor = ConsoleColor.Cyan;
-                    Console.Out.Write($" {h.Type}");
-                    Console.ForegroundColor = prevColor;
+                    // Use ANSI escapes for robust color output (works with oh-my-posh, starship, etc.)
+                    var confColor = ConfidenceAnsi(h.Confidence);
                     if (showPackageSources) {
-                        Console.Out.WriteLine($" {h.Path} (pkg={h.PackageType}; src={string.Join('+', h.Source)})");
+                        Console.Out.WriteLine($"{confColor}[{h.Confidence:0.00}]{Ansi.Reset} {Ansi.Cyan}{h.Type}{Ansi.Reset} {h.Path} (pkg={h.PackageType}; src={string.Join('+', h.Source)})");
                     }
                     else {
-                        Console.Out.WriteLine($" {h.Path}");
+                        Console.Out.WriteLine($"{confColor}[{h.Confidence:0.00}]{Ansi.Reset} {Ansi.Cyan}{h.Type}{Ansi.Reset} {h.Path}");
                     }
                     if (scoreBreakdown && h.Breakdown != null) {
-                        Console.ForegroundColor = ConsoleColor.DarkGray;
-                        Console.Out.WriteLine($"    breakdown: token={h.Breakdown.TokenCoverage:0.###} alias={h.Breakdown.AliasEquivalence:0.###} evidence={h.Breakdown.EvidenceBoosts:0.###} multiSrc={h.Breakdown.MultiSource:0.###} penalties={h.Breakdown.PathPenalties + h.Breakdown.NoisePenalties + h.Breakdown.EvidencePenalties:0.###} total={h.Breakdown.Total:0.###}");
-                        Console.ForegroundColor = prevColor;
+                        Console.Out.WriteLine($"{Ansi.DarkGray}    breakdown: token={h.Breakdown.TokenCoverage:0.###} alias={h.Breakdown.AliasEquivalence:0.###} evidence={h.Breakdown.EvidenceBoosts:0.###} multiSrc={h.Breakdown.MultiSource:0.###} penalties={h.Breakdown.PathPenalties + h.Breakdown.NoisePenalties + h.Breakdown.EvidencePenalties:0.###} total={h.Breakdown.Total:0.###}{Ansi.Reset}");
                     }
                 }
             }
