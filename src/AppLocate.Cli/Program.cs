@@ -7,6 +7,23 @@ using AppLocate.Core.Rules;
 // (Indexing removed)
 
 namespace AppLocate.Cli {
+    /// <summary>
+    /// Simple search indicator that shows a message before searching.
+    /// Writes to stderr so it doesn't interfere with stdout results.
+    /// </summary>
+    internal sealed class Spinner : IDisposable {
+        private readonly bool _enabled;
+
+        public Spinner(bool enabled, string query) {
+            _enabled = enabled && !Console.IsErrorRedirected;
+            if (_enabled) {
+                Console.Error.WriteLine($"\u001b[36m⠿\u001b[0m Searching for \u001b[33m{query}\u001b[0m...");
+            }
+        }
+
+        public void Dispose() { }
+    }
+
     public static class Program {
         // Static reusable source arrays (CA1861 mitigation) centralized at class scope
         private static class SourceArrays {
@@ -277,6 +294,10 @@ namespace AppLocate.Cli {
             if (maxDegree < 1) {
                 maxDegree = 1;
             }
+
+            // Show spinner for interactive text output (not JSON/CSV, not verbose/trace, not redirected)
+            var showSpinner = text && !json && !csv && !verbose && !trace && !noColor;
+            using var spinner = new Spinner(showSpinner, query);
 
             var sem = new SemaphoreSlim(maxDegree, maxDegree);
             var tasks = new List<Task>();
