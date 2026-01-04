@@ -138,10 +138,13 @@ Exit codes:
 	"evidence": {"Shortcut":"...Code.lnk","DisplayName":"Visual Studio Code"}
 }
 ```
+
 Fields are append-only; enum values only extend at tail.
 
-### Evidence & Confidence
+### Confidence
+
 `--evidence` adds key/value provenance. Examples:
+
 ```jsonc
 {"Shortcut":"C:/Users/u/.../Code.lnk"}
 {"ProcessId":"1234","ExeName":"Code.exe"}
@@ -166,18 +169,14 @@ Use `--score-breakdown` to see how each result's confidence score was computed:
 | `multi` | Multi-source corroboration (diminishing returns) |
 | `penalties` | Path quality deductions (temp, cache, generic dirs) |
 
-### Notes
-- No network I/O, no executing discovered binaries.
-- Keep JSON camelCase & deterministic ordering via source generator (`JsonContext`).
-- Ranking: token coverage (+ up to 0.25), partial token Jaccard (+ up to 0.08 noise‑scaled), span compactness (+0.14) with noise penalties for excessive non‑query tokens (up to -0.12), exact filename (+0.30), alias equivalence (+0.22) vs evidence alias (+0.14), fuzzy filename similarity (Levenshtein scaled + up to 0.06), evidence boosts (shortcut/process + synergy, where, dir/exe matches), harmonic multi-source diminishing returns (cap +0.18), type baselines, and penalties (broken shortcut, temp/installer/cache paths). Scores clamped to [0,1].
-
 ## Security & Privacy
+
 * No network or telemetry
 * Does not execute discovered binaries
 * Least privilege by default
 
-
 ## Project Layout
+
 ```
 src/AppLocate.Core       # Domain models, abstractions, sources, ranking & rules engine
   ├─ Abstractions/       # Interfaces (ISource, ISourceRegistry, IAmbientServices)
@@ -198,6 +197,7 @@ AppLocate.psm1           # PowerShell module wrapper
 ## Build
 
 ### Quick Start
+
 ```pwsh
 dotnet restore
 dotnet build
@@ -211,6 +211,7 @@ dotnet run --project src/AppLocate.Cli -- vscode --json
 Exit codes: 0 (results or help), 1 (no matches), 2 (argument error). See [Usage](#usage) for details.
 
 ### Publish Single-File
+
 ```pwsh
 pwsh ./build/publish.ps1 -X64 -Arm64 -Configuration Release
 ```
