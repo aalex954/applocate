@@ -437,3 +437,570 @@
     anyOf: ["MiKTeX", "miktex", "miktex-console.exe"]
   data:
     - "%APPDATA%/MiKTeX/*"
+
+# ============================================================
+# Developer & SysAdmin Tools (Expanded)
+# ============================================================
+
+# Windows Terminal
+- match:
+    anyOf: ["Windows Terminal", "wt.exe", "windowsterminal", "terminal"]
+  config:
+    - "%LOCALAPPDATA%/Packages/Microsoft.WindowsTerminal_*/LocalState/settings.json"
+  data:
+    - "%LOCALAPPDATA%/Packages/Microsoft.WindowsTerminal_*/LocalState"
+
+# Oh-My-Posh
+- match:
+    anyOf: ["oh-my-posh", "oh-my-posh.exe", "omp"]
+  config:
+    - "%USERPROFILE%/.config/omp/config.yaml"
+    - "%USERPROFILE%/.config/omp/config.json"
+    - "%USERPROFILE%/.config/omp/config.toml"
+  data:
+    - "%LOCALAPPDATA%/Programs/oh-my-posh"
+
+# Starship prompt
+- match:
+    anyOf: ["Starship", "starship.exe", "starship"]
+  config:
+    - "%USERPROFILE%/.config/starship.toml"
+
+# Neovim
+- match:
+    anyOf: ["Neovim", "nvim.exe", "nvim", "neovim"]
+  config:
+    - "%LOCALAPPDATA%/nvim/init.lua"
+    - "%LOCALAPPDATA%/nvim/init.vim"
+  data:
+    - "%LOCALAPPDATA%/nvim"
+    - "%LOCALAPPDATA%/nvim-data"
+
+# Vim
+- match:
+    anyOf: ["Vim", "vim.exe", "gvim.exe"]
+  config:
+    - "%USERPROFILE%/_vimrc"
+    - "%USERPROFILE%/.vimrc"
+  data:
+    - "%USERPROFILE%/.vim"
+
+# Sublime Text
+- match:
+    anyOf: ["Sublime Text", "sublime_text.exe", "subl"]
+  config:
+    - "%APPDATA%/Sublime Text/Packages/User/Preferences.sublime-settings"
+  data:
+    - "%APPDATA%/Sublime Text/Packages/User"
+    - "%APPDATA%/Sublime Text/Installed Packages"
+
+# JetBrains PyCharm
+- match:
+    anyOf: ["PyCharm", "pycharm64.exe", "pycharm.exe"]
+  config:
+    - "%APPDATA%/JetBrains/PyCharm*/options"
+  data:
+    - "%APPDATA%/JetBrains/PyCharm*"
+
+# JetBrains WebStorm
+- match:
+    anyOf: ["WebStorm", "webstorm64.exe", "webstorm.exe"]
+  config:
+    - "%APPDATA%/JetBrains/WebStorm*/options"
+  data:
+    - "%APPDATA%/JetBrains/WebStorm*"
+
+# JetBrains GoLand
+- match:
+    anyOf: ["GoLand", "goland64.exe", "goland.exe"]
+  config:
+    - "%APPDATA%/JetBrains/GoLand*/options"
+  data:
+    - "%APPDATA%/JetBrains/GoLand*"
+
+# JetBrains DataGrip
+- match:
+    anyOf: ["DataGrip", "datagrip64.exe", "datagrip.exe"]
+  config:
+    - "%APPDATA%/JetBrains/DataGrip*/options"
+  data:
+    - "%APPDATA%/JetBrains/DataGrip*"
+
+# JetBrains CLion
+- match:
+    anyOf: ["CLion", "clion64.exe", "clion.exe"]
+  config:
+    - "%APPDATA%/JetBrains/CLion*/options"
+  data:
+    - "%APPDATA%/JetBrains/CLion*"
+
+# JetBrains Fleet
+- match:
+    anyOf: ["Fleet", "fleet.exe", "jetbrains fleet"]
+  data:
+    - "%APPDATA%/JetBrains/Fleet*"
+
+# Cursor (AI code editor)
+- match:
+    anyOf: ["Cursor", "cursor.exe"]
+  config:
+    - "%APPDATA%/Cursor/User/settings.json"
+  data:
+    - "%APPDATA%/Cursor/User"
+    - "%USERPROFILE%/.cursor/extensions"
+
+# Zed Editor
+- match:
+    anyOf: ["Zed", "zed.exe"]
+  config:
+    - "%APPDATA%/Zed/settings.json"
+  data:
+    - "%APPDATA%/Zed"
+
+# Git GUI clients
+# SourceTree
+- match:
+    anyOf: ["SourceTree", "sourcetree.exe", "sourcetree"]
+  data:
+    - "%LOCALAPPDATA%/Atlassian/SourceTree*"
+
+# GitKraken
+- match:
+    anyOf: ["GitKraken", "gitkraken.exe"]
+  data:
+    - "%APPDATA%/GitKraken/*"
+
+# Fork
+- match:
+    anyOf: ["Fork", "fork.exe"]
+  data:
+    - "%LOCALAPPDATA%/Fork/*"
+
+# Git Extensions
+- match:
+    anyOf: ["Git Extensions", "gitextensions.exe", "gitex"]
+  data:
+    - "%APPDATA%/GitExtensions/*"
+
+# Terminals & Shells
+# ConEmu
+- match:
+    anyOf: ["ConEmu", "conemu64.exe", "conemu.exe"]
+  config:
+    - "%APPDATA%/ConEmu.xml"
+  data:
+    - "%APPDATA%/ConEmu/*"
+
+# Cmder
+- match:
+    anyOf: ["Cmder", "cmder.exe"]
+  config:
+    - "%CMDER_ROOT%/config/user_profile.cmd"
+  data:
+    - "%CMDER_ROOT%/config"
+
+# Hyper terminal
+- match:
+    anyOf: ["Hyper", "hyper.exe"]
+  config:
+    - "%APPDATA%/Hyper/.hyper.js"
+  data:
+    - "%APPDATA%/Hyper"
+
+# Tabby terminal
+- match:
+    anyOf: ["Tabby", "tabby.exe"]
+  config:
+    - "%APPDATA%/tabby/config.yaml"
+  data:
+    - "%APPDATA%/tabby"
+
+# API & Network Tools
+# Bruno (API client)
+- match:
+    anyOf: ["Bruno", "bruno.exe"]
+  data:
+    - "%APPDATA%/bruno/*"
+
+# Hoppscotch
+- match:
+    anyOf: ["Hoppscotch", "hoppscotch.exe"]
+  data:
+    - "%APPDATA%/Hoppscotch/*"
+
+# Charles Proxy
+- match:
+    anyOf: ["Charles", "charles.exe", "charles proxy"]
+  config:
+    - "%APPDATA%/Charles/charles.config"
+  data:
+    - "%APPDATA%/Charles/*"
+
+# Proxifier
+- match:
+    anyOf: ["Proxifier", "proxifier.exe"]
+  config:
+    - "%APPDATA%/Proxifier/Profiles/*"
+  data:
+    - "%APPDATA%/Proxifier"
+
+# ngrok
+- match:
+    anyOf: ["ngrok", "ngrok.exe"]
+  config:
+    - "%USERPROFILE%/.ngrok2/ngrok.yml"
+  data:
+    - "%USERPROFILE%/.ngrok2"
+
+# VPN & Remote Access
+# OpenVPN
+- match:
+    anyOf: ["OpenVPN", "openvpn.exe", "openvpn-gui.exe"]
+  config:
+    - "%USERPROFILE%/OpenVPN/config"
+  data:
+    - "%PROGRAMFILES%/OpenVPN/config"
+
+# WireGuard
+- match:
+    anyOf: ["WireGuard", "wireguard.exe"]
+  config:
+    - "%PROGRAMFILES%/WireGuard/Data/Configurations"
+  data:
+    - "%PROGRAMDATA%/WireGuard"
+
+# Tailscale
+- match:
+    anyOf: ["Tailscale", "tailscale.exe", "tailscaled.exe"]
+  data:
+    - "%LOCALAPPDATA%/Tailscale"
+
+# Remote Desktop Manager
+- match:
+    anyOf: ["Remote Desktop Manager", "remotedesktopmanager.exe", "rdm"]
+  data:
+    - "%LOCALAPPDATA%/Devolutions/RemoteDesktopManager/*"
+
+# mRemoteNG
+- match:
+    anyOf: ["mRemoteNG", "mremoteng.exe"]
+  config:
+    - "%APPDATA%/mRemoteNG/confCons.xml"
+  data:
+    - "%APPDATA%/mRemoteNG"
+
+# Container & Orchestration
+# Rancher Desktop
+- match:
+    anyOf: ["Rancher Desktop", "rancher desktop", "rancher-desktop.exe"]
+  data:
+    - "%APPDATA%/rancher-desktop/*"
+
+# Podman Desktop
+- match:
+    anyOf: ["Podman Desktop", "podman desktop", "podman-desktop.exe"]
+  data:
+    - "%APPDATA%/containers/*"
+
+# Lens (Kubernetes IDE)
+- match:
+    anyOf: ["Lens", "lens.exe", "openlens"]
+  data:
+    - "%APPDATA%/Lens/*"
+
+# minikube
+- match:
+    anyOf: ["minikube", "minikube.exe"]
+  data:
+    - "%USERPROFILE%/.minikube"
+
+# kind (Kubernetes in Docker)
+- match:
+    anyOf: ["kind", "kind.exe"]
+  data:
+    - "%USERPROFILE%/.kube"
+
+# Skaffold
+- match:
+    anyOf: ["Skaffold", "skaffold.exe", "skaffold"]
+  config:
+    - "%USERPROFILE%/.skaffold/config"
+
+# Password Managers
+# KeePass
+- match:
+    anyOf: ["KeePass", "keepass.exe", "keepass2"]
+  config:
+    - "%APPDATA%/KeePass/KeePass.config.xml"
+  data:
+    - "%APPDATA%/KeePass"
+
+# Bitwarden
+- match:
+    anyOf: ["Bitwarden", "bitwarden.exe"]
+  data:
+    - "%APPDATA%/Bitwarden/*"
+
+# 1Password
+- match:
+    anyOf: ["1Password", "1password.exe"]
+  data:
+    - "%LOCALAPPDATA%/1Password/*"
+
+# File Transfer & Comparison
+# FileZilla
+- match:
+    anyOf: ["FileZilla", "filezilla.exe"]
+  config:
+    - "%APPDATA%/FileZilla/sitemanager.xml"
+  data:
+    - "%APPDATA%/FileZilla"
+
+# WinMerge
+- match:
+    anyOf: ["WinMerge", "winmerge.exe", "winmergeu.exe"]
+  config:
+    - "%APPDATA%/WinMerge/WinMerge.ini"
+
+# Beyond Compare
+- match:
+    anyOf: ["Beyond Compare", "bcomp.exe", "bcompare.exe"]
+  config:
+    - "%APPDATA%/Scooter Software/Beyond Compare 4/BCPreferences.xml"
+  data:
+    - "%APPDATA%/Scooter Software/Beyond Compare 4"
+
+# .NET Development Tools
+# LINQPad
+- match:
+    anyOf: ["LINQPad", "linqpad.exe", "linqpad8.exe", "linqpad7.exe"]
+  data:
+    - "%APPDATA%/LINQPad/*"
+    - "%USERPROFILE%/Documents/LINQPad Queries"
+
+# dnSpy / dnSpyEx
+- match:
+    anyOf: ["dnSpy", "dnspy.exe"]
+  data:
+    - "%APPDATA%/dnSpy/*"
+
+# ILSpy
+- match:
+    anyOf: ["ILSpy", "ilspy.exe"]
+  data:
+    - "%APPDATA%/ICSharpCode/ILSpy.xml"
+
+# dotPeek
+- match:
+    anyOf: ["dotPeek", "dotpeek64.exe", "dotpeek.exe"]
+  data:
+    - "%APPDATA%/JetBrains/dotPeek*"
+
+# NuGet CLI
+- match:
+    anyOf: ["NuGet", "nuget.exe"]
+  config:
+    - "%APPDATA%/NuGet/NuGet.Config"
+
+# Note-taking & Documentation
+# Obsidian
+- match:
+    anyOf: ["Obsidian", "obsidian.exe"]
+  config:
+    - "%APPDATA%/obsidian/obsidian.json"
+  data:
+    - "%APPDATA%/obsidian"
+
+# Notion
+- match:
+    anyOf: ["Notion", "notion.exe"]
+  data:
+    - "%APPDATA%/Notion/*"
+
+# Typora
+- match:
+    anyOf: ["Typora", "typora.exe"]
+  config:
+    - "%APPDATA%/Typora/conf/conf.user.json"
+  data:
+    - "%APPDATA%/Typora"
+
+# Communication & Collaboration
+# Zoom
+- match:
+    anyOf: ["Zoom", "zoom.exe"]
+  data:
+    - "%APPDATA%/Zoom/*"
+
+# Microsoft Outlook (new)
+- match:
+    anyOf: ["Outlook", "olk.exe", "outlook.exe"]
+  data:
+    - "%LOCALAPPDATA%/Microsoft/Outlook"
+
+# Virtualization
+# VirtualBox
+- match:
+    anyOf: ["VirtualBox", "virtualbox.exe", "vboxmanage.exe"]
+  config:
+    - "%USERPROFILE%/.VirtualBox/VirtualBox.xml"
+  data:
+    - "%USERPROFILE%/VirtualBox VMs"
+
+# VMware Workstation
+- match:
+    anyOf: ["VMware Workstation", "vmware.exe", "vmplayer.exe"]
+  config:
+    - "%APPDATA%/VMware/preferences.ini"
+  data:
+    - "%USERPROFILE%/Virtual Machines"
+
+# Vagrant
+- match:
+    anyOf: ["Vagrant", "vagrant.exe"]
+  data:
+    - "%USERPROFILE%/.vagrant.d"
+
+# HashiCorp Tools
+# Packer
+- match:
+    anyOf: ["Packer", "packer.exe"]
+  data:
+    - "%APPDATA%/packer.d"
+
+# Vault
+- match:
+    anyOf: ["Vault", "vault.exe", "hashicorp vault"]
+  config:
+    - "%USERPROFILE%/.vault-token"
+
+# Consul
+- match:
+    anyOf: ["Consul", "consul.exe"]
+  data:
+    - "%APPDATA%/consul"
+
+# Infrastructure as Code
+# Pulumi
+- match:
+    anyOf: ["Pulumi", "pulumi.exe"]
+  data:
+    - "%USERPROFILE%/.pulumi"
+
+# Bicep
+- match:
+    anyOf: ["Bicep", "bicep.exe"]
+  data:
+    - "%USERPROFILE%/.bicep"
+
+# Cloud Development Kit
+- match:
+    anyOf: ["CDK", "cdk.cmd", "aws-cdk"]
+  data:
+    - "%USERPROFILE%/.cdk"
+
+# Search & Productivity
+# Everything (Voidtools)
+- match:
+    anyOf: ["Everything", "everything.exe", "everything64.exe"]
+  config:
+    - "%APPDATA%/Everything/Everything.ini"
+  data:
+    - "%APPDATA%/Everything"
+    - "%LOCALAPPDATA%/Everything"
+
+# Keypirinha
+- match:
+    anyOf: ["Keypirinha", "keypirinha.exe", "keypirinha-x64.exe"]
+  config:
+    - "%APPDATA%/Keypirinha/User/Keypirinha.ini"
+  data:
+    - "%APPDATA%/Keypirinha"
+
+# AutoHotkey
+- match:
+    anyOf: ["AutoHotkey", "autohotkey.exe", "autohotkey64.exe", "ahk"]
+  data:
+    - "%USERPROFILE%/Documents/AutoHotkey"
+
+# Package Manager Configs
+# Scoop
+- match:
+    anyOf: ["Scoop", "scoop", "scoop.ps1"]
+  config:
+    - "%USERPROFILE%/.config/scoop/config.json"
+  data:
+    - "%USERPROFILE%/scoop"
+
+# Chocolatey
+- match:
+    anyOf: ["Chocolatey", "choco.exe", "choco"]
+  config:
+    - "%PROGRAMDATA%/chocolatey/config/chocolatey.config"
+  data:
+    - "%PROGRAMDATA%/chocolatey/lib"
+
+# WinGet
+- match:
+    anyOf: ["WinGet", "winget.exe"]
+  config:
+    - "%LOCALAPPDATA%/Packages/Microsoft.DesktopAppInstaller_*/LocalState/settings.json"
+
+# Media & Recording
+# OBS Studio
+- match:
+    anyOf: ["OBS Studio", "obs64.exe", "obs", "obs-studio"]
+  config:
+    - "%APPDATA%/obs-studio/global.ini"
+  data:
+    - "%APPDATA%/obs-studio"
+
+# ShareX
+- match:
+    anyOf: ["ShareX", "sharex.exe"]
+  config:
+    - "%USERPROFILE%/Documents/ShareX/ApplicationConfig.json"
+  data:
+    - "%USERPROFILE%/Documents/ShareX"
+
+# Windows Admin Tools
+# Sysinternals Suite
+- match:
+    anyOf: ["Process Monitor", "procmon.exe", "procmon64.exe"]
+  config:
+    - "%USERPROFILE%/Documents/ProcMon Filters"
+
+- match:
+    anyOf: ["Process Explorer", "procexp.exe", "procexp64.exe"]
+  data:
+    - "%APPDATA%/Sysinternals"
+
+- match:
+    anyOf: ["Autoruns", "autoruns.exe", "autoruns64.exe"]
+  data:
+    - "%APPDATA%/Sysinternals"
+
+# WinDbg
+- match:
+    anyOf: ["WinDbg", "windbg.exe", "windbgx.exe"]
+  data:
+    - "%LOCALAPPDATA%/DBG"
+    - "%USERPROFILE%/Documents/Debugging Tools"
+
+# Event Log Explorer
+- match:
+    anyOf: ["Event Viewer", "eventvwr.exe", "eventvwr.msc"]
+  data:
+    - "%SYSTEMROOT%/System32/winevt/Logs"
+
+# SQL Server (local development)
+- match:
+    anyOf: ["SQL Server", "sqlservr.exe", "mssql"]
+  data:
+    - "%PROGRAMFILES%/Microsoft SQL Server/MSSQL*/MSSQL/DATA"
+
+# LocalDB
+- match:
+    anyOf: ["LocalDB", "sqllocaldb.exe"]
+  data:
+    - "%USERPROFILE%/AppData/Local/Microsoft/Microsoft SQL Server Local DB/Instances"

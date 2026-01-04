@@ -3,7 +3,7 @@
 [![build-test-release](https://github.com/aalex954/applocate/actions/workflows/build-release.yml/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/build-release.yml)
 [![CodeQL](https://github.com/aalex954/applocate/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/github-code-scanning/codeql)
 
-Windows 11 CLI to locate application install directories, executables, and config/data paths. Emits deterministic JSON (plus CSV/text). All primary discovery sources are implemented with ranking and a YAML rule pack (69 apps) for config/data expansion.
+Windows 11 CLI to locate application install directories, executables, and config/data paths. Emits deterministic JSON (plus CSV/text). All primary discovery sources are implemented with ranking and a YAML rule pack (147 apps) for config/data expansion.
 
 ## Features (Snapshot)
 | Area | Implemented | Notes |
@@ -20,7 +20,7 @@ Windows 11 CLI to locate application install directories, executables, and confi
 | Chocolatey | Yes | Machine-scope choco lib packages |
 | WinGet | Yes | Package provenance via winget export |
 | Ranking | Phase 2 | Span compactness, noise penalties, refined diminishing returns |
-| Config/Data rules | Partial | Seeded YAML rule pack; expanding |
+| Config/Data rules | Yes | 147-app YAML rule pack for dev/sysadmin tools |
 | Existence filtering | Yes | Drops non-existent paths (live + cache sanitize) |
 | Evidence emission | Yes | Optional via --evidence |
 | Snapshot tests | Yes | Verify deterministic outputs |
@@ -135,7 +135,7 @@ Implemented:
 - Comprehensive automated test suite (see Tests section).
 
 In Progress / Next Focus:
-- Config/Data rules expansion (currently 69 apps; adding more popular apps).
+- PowerShell Gallery publishing.
 
 Upcoming Backlog:
 - PowerShell Gallery publishing.
@@ -220,7 +220,6 @@ Completed / Phase 1 Foundation:
 - [x] DI/registration refactor for sources (builder-based injection seams)
 
 In Progress / Near Term:
-- [ ] Config/Data rules expansion (69 apps → 100+)
 - [ ] PowerShell Gallery publishing
 - [ ] JSON schema contract & versioning documentation
 
@@ -230,7 +229,7 @@ Backlog / Later:
 
 Completed (formerly backlog):
 - [x] Package manager adapters (Scoop, Chocolatey, WinGet)
-- [x] Rule pack ≥50 apps (now at 69)
+- [x] Rule pack ≥50 apps (now at 147)
 - [x] CI matrix (x64/ARM64) with SBOM generation
 - [x] Benchmark harness (exists in `benchmarks/`)
 - [x] Parallel source execution with bounded concurrency
