@@ -269,13 +269,23 @@ jobs:
       - name: Submit Manifest
         env:
           GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
           $x64Url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/applocate-win-x64.zip"
           $arm64Url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/applocate-win-arm64.zip"
           
+          # Generate manifest locally first (without --submit)
           ./wingetcreate.exe update AppLocate.AppLocate `
             --version $version `
             --urls $x64Url $arm64Url `
-            --submit `
-            --token $env:GITHUB_TOKEN
+            --out manifests
+          
+          # Fix ShortDescription typo in locale file
+          $localeFile = Get-ChildItem -Path manifests -Recurse -Filter "*.locale.en-US.yaml" | Select-Object -First 1
+          if ($localeFile) {
+            (Get-Content $localeFile.FullName) -replace 'Find an apps insatll directory', "Find an app's install directory" | Set-Content $localeFile.FullName
+          }
+          
+          # Submit the corrected manifest
+          ./wingetcreate.exe submit manifests --token $env:GITHUB_TOKEN
