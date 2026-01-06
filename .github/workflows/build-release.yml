@@ -301,12 +301,13 @@ jobs:
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
           $x64Url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/applocate-win-x64.zip"
-          $arm64Url = "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/applocate-win-arm64.zip"
           
-          # Generate manifest locally first (without --submit)
+          # Note: v0.1.3 manifest has only one installer URL (x64).
+          # wingetcreate update requires matching installer count.
+          # ARM64 can be added via manual PR to winget-pkgs.
           ./wingetcreate.exe update AppLocate.AppLocate `
             --version $version `
-            --urls $x64Url $arm64Url `
+            --urls $x64Url `
             --out manifests
           
           # Fix ShortDescription typo in locale file
