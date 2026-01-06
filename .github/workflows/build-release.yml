@@ -318,11 +318,20 @@ jobs:
           }
           Write-Host "Manifest path: $($manifestPath.FullName)"
           
-          # Fix ShortDescription typo in locale file
+          # Fix ShortDescription typo in locale file and ensure ReleaseNotesUrl is present
           $localeFile = Get-ChildItem -Path $manifestPath.FullName -Filter "*.locale.en-US.yaml" | Select-Object -First 1
           if ($localeFile) {
-            (Get-Content $localeFile.FullName) -replace 'Find an apps insatll directory', "Find an app's install directory" | Set-Content $localeFile.FullName
-            Write-Host "Fixed ShortDescription in $($localeFile.Name)"
+            $content = Get-Content $localeFile.FullName -Raw
+            $content = $content -replace 'Find an apps insatll directory', "Find an app's install directory"
+            
+            # Add ReleaseNotesUrl if missing
+            if ($content -notmatch 'ReleaseNotesUrl:') {
+              $releaseNotesUrl = "ReleaseNotesUrl: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+              $content = $content -replace '(ManifestType: defaultLocale)', "$releaseNotesUrl`n`$1"
+            }
+            
+            Set-Content $localeFile.FullName -Value $content -NoNewline
+            Write-Host "Fixed ShortDescription and ensured ReleaseNotesUrl in $($localeFile.Name)"
           }
           
           # Submit the corrected manifest
