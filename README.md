@@ -1,7 +1,9 @@
 <h1>applocate</h1>
 
-[![build-test-release](https://github.com/aalex954/applocate/actions/workflows/build-release.yml/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/build-release.yml)
 [![CodeQL](https://github.com/aalex954/applocate/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/github-code-scanning/codeql)
+[![build-test-release](https://github.com/aalex954/applocate/actions/workflows/build-release.yml/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/build-release.yml)
+[![WinGet Package Version](https://img.shields.io/winget/v/AppLocate.AppLocate?label=winget%20-%20applocate)](https://github.com/aalex954/applocate/releases/tag/v0.1.4)
+
 <table>
 <tr>
 <td width="96" valign="top"><img src="assets/logo.svg" width="96" alt="applocate logo"/></td>
@@ -18,6 +20,9 @@ _Inspired by Linux's locate—but purpose-built for Windows application discover
 </table>
 
 **No admin** required. **No network** calls. **No executing** discovered binaries. Just fast, local discovery with deterministic JSON/CSV/text output.
+
+![applocate](https://github.com/user-attachments/assets/ac2d08f3-df46-42b1-a4f2-b77a359a0250)
+
 
 ## Features
 
