@@ -199,6 +199,18 @@ namespace AppLocate.Cli {
                 return args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
             }
 
+            // Handle --version before other processing
+            if (HasRaw("--version") || HasRaw("-V")) {
+                var asm = typeof(Program).Assembly;
+                var infoVersion = System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(asm)?.InformationalVersion
+                    ?? asm.GetName().Version?.ToString() ?? "unknown";
+                // Strip source link commit hash suffix if present (e.g., "1.0.0+abc123" -> "1.0.0")
+                var plusIdx = infoVersion.IndexOf('+');
+                if (plusIdx > 0) infoVersion = infoVersion[..plusIdx];
+                Console.WriteLine($"applocate {infoVersion}");
+                return 0;
+            }
+
             // Show help and exit 0 when no arguments provided or explicit help flag (before parsing)
             if (args.Length == 0 || HasRaw("-h") || HasRaw("--help")) {
                 Console.WriteLine("applocate <query> [options]\n" +

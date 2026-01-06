@@ -36,10 +36,24 @@ jobs:
     - name: Restore
       run: dotnet restore ${{ env.SOLUTION_FILE }}
 
+    - name: Compute Version
+      id: version
+      shell: pwsh
+      run: |
+        if ($env:GITHUB_REF -match '^refs/tags/v(.+)$') {
+          $ver = $Matches[1]
+        } else {
+          # Non-tag builds use version from csproj (no override)
+          $ver = ''
+        }
+        echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+        Write-Host "Version: $ver"
+
     - name: Build (deterministic)
       run: >-
         dotnet build ${{ env.SOLUTION_FILE }} -c ${{ env.CONFIGURATION }} --no-restore /nowarn:1591
         -p:ContinuousIntegrationBuild=true -p:Deterministic=true
+        ${{ steps.version.outputs.VERSION && format('-p:Version={0}', steps.version.outputs.VERSION) || '' }}
         -p:PathMap="C:\\Users\\runneradmin=/_src_" -p:UseSourceLink=true
 
     - name: Cleanup obsolete snapshots
@@ -162,11 +176,25 @@ jobs:
       - name: Restore
         run: dotnet restore ${{ env.SOLUTION_FILE }} --runtime ${{ matrix.rid }}
 
+      - name: Compute Version
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -match '^refs/tags/v(.+)$') {
+            $ver = $Matches[1]
+          } else {
+            # Non-tag builds use version from csproj (no override)
+            $ver = ''
+          }
+          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+          Write-Host "Version: $ver"
+
       - name: Publish Single File (hardened)
         run: >-
           dotnet publish ${{ env.PROJECT_PATH }} -c ${{ env.CONFIGURATION }} -r ${{ matrix.rid }}
           -p:PublishSingleFile=true -p:SelfContained=true -p:EnableCompressionInSingleFile=true
           -p:PublishReadyToRun=true -p:Deterministic=true -p:ContinuousIntegrationBuild=true
+          ${{ steps.version.outputs.VERSION && format('-p:Version={0}', steps.version.outputs.VERSION) || '' }}
           -p:PathMap="C:\\Users\\runneradmin=/_src_" -p:UseSourceLink=true
           -o artifacts/${{ matrix.rid }}
 

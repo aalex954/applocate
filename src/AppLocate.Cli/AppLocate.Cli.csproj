@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-  <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- Version: set via CI with -p:Version=x.y.z; update here for each release -->
+    <Version>0.1.4</Version>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
