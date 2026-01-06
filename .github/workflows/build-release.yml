@@ -310,11 +310,20 @@ jobs:
             --urls $x64Url `
             --out manifests
           
+          # Find the actual manifest folder (wingetcreate creates nested structure)
+          $manifestPath = Get-ChildItem -Path manifests -Recurse -Directory | Where-Object { $_.Name -eq $version } | Select-Object -First 1
+          if (-not $manifestPath) {
+            Write-Error "Could not find manifest folder for version $version"
+            exit 1
+          }
+          Write-Host "Manifest path: $($manifestPath.FullName)"
+          
           # Fix ShortDescription typo in locale file
-          $localeFile = Get-ChildItem -Path manifests -Recurse -Filter "*.locale.en-US.yaml" | Select-Object -First 1
+          $localeFile = Get-ChildItem -Path $manifestPath.FullName -Filter "*.locale.en-US.yaml" | Select-Object -First 1
           if ($localeFile) {
             (Get-Content $localeFile.FullName) -replace 'Find an apps insatll directory', "Find an app's install directory" | Set-Content $localeFile.FullName
+            Write-Host "Fixed ShortDescription in $($localeFile.Name)"
           }
           
           # Submit the corrected manifest
-          ./wingetcreate.exe submit manifests --token $env:GITHUB_TOKEN
+          ./wingetcreate.exe submit $manifestPath.FullName --token $env:GITHUB_TOKEN
