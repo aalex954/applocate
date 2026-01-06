@@ -34,7 +34,11 @@ function Invoke-AppLocate {
     if($Json){ $cliArgs += '--json' }
     elseif($Csv){ $cliArgs += '--csv' }
     $cliArgs += $QueryAndOptions
-    $psi = New-Object System.Diagnostics.ProcessStartInfo -Property @{ FileName = $exe; RedirectStandardOutput = $true; RedirectStandardError = $true; UseShellExecute = $false; ArgumentList = $cliArgs }
+    # Build a properly escaped argument string for ProcessStartInfo
+    $argString = ($cliArgs | ForEach-Object {
+        if ($_ -match '\s') { "`"$_`"" } else { $_ }
+    }) -join ' '
+    $psi = New-Object System.Diagnostics.ProcessStartInfo -Property @{ FileName = $exe; Arguments = $argString; RedirectStandardOutput = $true; RedirectStandardError = $true; UseShellExecute = $false }
     $p = [System.Diagnostics.Process]::Start($psi)
     $out = $p.StandardOutput.ReadToEnd()
     $p.WaitForExit()
