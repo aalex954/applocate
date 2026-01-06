@@ -27,16 +27,18 @@ namespace AppLocate.Cli {
 
         public Spinner(bool enabled, string query) {
             _enabled = enabled && !Console.IsErrorRedirected;
-            if (!_enabled) return;
+            if (!_enabled) {
+                return;
+            }
 
             _useUnicode = DetectUnicodeSupport();
-            
+
             // Ensure UTF-8 output for Unicode spinners - modern terminals support it
             // but may default to legacy code pages
             if (_useUnicode) {
                 try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { }
             }
-            
+
             _frames = _useUnicode ? UnicodeFrames : AsciiFrames;
             _message = _useUnicode
                 ? $" Searching for \u001b[33m{query}\u001b[0m..."
@@ -49,26 +51,31 @@ namespace AppLocate.Cli {
 
         private static bool DetectUnicodeSupport() {
             // Windows Terminal sets WT_SESSION
-            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WT_SESSION")))
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WT_SESSION"))) {
                 return true;
+            }
 
             // ConEmu/Cmder set ConEmuANSI
-            if (Environment.GetEnvironmentVariable("ConEmuANSI") == "ON")
+            if (Environment.GetEnvironmentVariable("ConEmuANSI") == "ON") {
                 return true;
+            }
 
             // VS Code integrated terminal
-            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VSCODE_INJECTION")))
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VSCODE_INJECTION"))) {
                 return true;
+            }
 
             // TERM variable indicates Unix-like terminal or mintty
             var term = Environment.GetEnvironmentVariable("TERM");
-            if (!string.IsNullOrEmpty(term) && term != "dumb")
+            if (!string.IsNullOrEmpty(term) && term != "dumb") {
                 return true;
+            }
 
             // Check if console output encoding is UTF-8
             try {
-                if (Console.OutputEncoding.CodePage == 65001)
+                if (Console.OutputEncoding.CodePage == 65001) {
                     return true;
+                }
             }
             catch { /* Ignore - may throw if no console */ }
 
@@ -89,10 +96,10 @@ namespace AppLocate.Cli {
                 try {
                     var frame = _frames[frameIndex];
                     var coloredFrame = _useUnicode ? $"\u001b[36m{frame}\u001b[0m" : frame;
-                    
+
                     // Write frame + message, then return cursor to start of line
                     Console.Error.Write($"\r{coloredFrame}{_message}");
-                    
+
                     frameIndex = (frameIndex + 1) % _frames.Length;
                     Thread.Sleep(interval);
                 }
@@ -103,10 +110,12 @@ namespace AppLocate.Cli {
         }
 
         public void Dispose() {
-            if (!_enabled) return;
+            if (!_enabled) {
+                return;
+            }
 
             _running = false;
-            _thread?.Join(200); // Wait briefly for clean exit
+            _ = _thread?.Join(200); // Wait briefly for clean exit
 
             try {
                 // Use ANSI escape to clear line if Unicode supported, otherwise overwrite with spaces
