@@ -8,20 +8,119 @@ using AppLocate.Core.Rules;
 
 namespace AppLocate.Cli {
     /// <summary>
-    /// Simple search indicator that shows a message before searching.
+    /// Animated search spinner that adapts to terminal capabilities.
+    /// Uses Unicode Braille animation in modern terminals, ASCII fallback otherwise.
     /// Writes to stderr so it doesn't interfere with stdout results.
     /// </summary>
     internal sealed class Spinner : IDisposable {
+        // Unicode Braille spinner frames (requires UTF-8 + VT support)
+        private static readonly string[] UnicodeFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        // ASCII fallback for legacy terminals
+        private static readonly string[] AsciiFrames = ["-", "\\", "|", "/"];
+
         private readonly bool _enabled;
+        private readonly bool _useUnicode;
+        private readonly string[] _frames = AsciiFrames;
+        private readonly string _message = string.Empty;
+        private readonly Thread? _thread;
+        private volatile bool _running;
 
         public Spinner(bool enabled, string query) {
             _enabled = enabled && !Console.IsErrorRedirected;
-            if (_enabled) {
-                Console.Error.WriteLine($"\u001b[36m⠿\u001b[0m Searching for \u001b[33m{query}\u001b[0m...");
+            if (!_enabled) return;
+
+            _useUnicode = DetectUnicodeSupport();
+            
+            // Ensure UTF-8 output for Unicode spinners - modern terminals support it
+            // but may default to legacy code pages
+            if (_useUnicode) {
+                try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { }
+            }
+            
+            _frames = _useUnicode ? UnicodeFrames : AsciiFrames;
+            _message = _useUnicode
+                ? $" Searching for \u001b[33m{query}\u001b[0m..."
+                : $" Searching for {query}...";
+
+            _running = true;
+            _thread = new Thread(Animate) { IsBackground = true };
+            _thread.Start();
+        }
+
+        private static bool DetectUnicodeSupport() {
+            // Windows Terminal sets WT_SESSION
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WT_SESSION")))
+                return true;
+
+            // ConEmu/Cmder set ConEmuANSI
+            if (Environment.GetEnvironmentVariable("ConEmuANSI") == "ON")
+                return true;
+
+            // VS Code integrated terminal
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("VSCODE_INJECTION")))
+                return true;
+
+            // TERM variable indicates Unix-like terminal or mintty
+            var term = Environment.GetEnvironmentVariable("TERM");
+            if (!string.IsNullOrEmpty(term) && term != "dumb")
+                return true;
+
+            // Check if console output encoding is UTF-8
+            try {
+                if (Console.OutputEncoding.CodePage == 65001)
+                    return true;
+            }
+            catch { /* Ignore - may throw if no console */ }
+
+            // Default to ASCII for maximum compatibility (cmd.exe, legacy PowerShell host)
+            return false;
+        }
+
+        private void Animate() {
+            var frameIndex = 0;
+            var interval = _useUnicode ? 80 : 120; // Unicode spins faster
+
+            // Hide cursor during animation
+            if (_useUnicode) {
+                try { Console.Error.Write("\u001b[?25l"); } catch { }
+            }
+
+            while (_running) {
+                try {
+                    var frame = _frames[frameIndex];
+                    var coloredFrame = _useUnicode ? $"\u001b[36m{frame}\u001b[0m" : frame;
+                    
+                    // Write frame + message, then return cursor to start of line
+                    Console.Error.Write($"\r{coloredFrame}{_message}");
+                    
+                    frameIndex = (frameIndex + 1) % _frames.Length;
+                    Thread.Sleep(interval);
+                }
+                catch {
+                    break; // Console disposed or redirected
+                }
             }
         }
 
-        public void Dispose() { }
+        public void Dispose() {
+            if (!_enabled) return;
+
+            _running = false;
+            _thread?.Join(200); // Wait briefly for clean exit
+
+            try {
+                // Use ANSI escape to clear line if Unicode supported, otherwise overwrite with spaces
+                if (_useUnicode) {
+                    // \r = start of line, \u001b[2K = clear entire line, \u001b[?25h = show cursor
+                    Console.Error.Write("\r\u001b[2K\u001b[?25h");
+                }
+                else {
+                    var clearLength = _message.Length + 2;
+                    Console.Error.Write($"\r{new string(' ', clearLength)}\r");
+                }
+            }
+            catch { /* Ignore cleanup errors */ }
+        }
     }
 
     public static class Program {
@@ -297,7 +396,7 @@ namespace AppLocate.Cli {
 
             // Show spinner for interactive text output (not JSON/CSV, not verbose/trace, not redirected)
             var showSpinner = text && !json && !csv && !verbose && !trace && !noColor;
-            using var spinner = new Spinner(showSpinner, query);
+            var spinner = new Spinner(showSpinner, query);
 
             var sem = new SemaphoreSlim(maxDegree, maxDegree);
             var tasks = new List<Task>();
@@ -1246,6 +1345,9 @@ namespace AppLocate.Cli {
             }
 
             // (index persistence removed)
+
+            // Stop spinner before emitting results to avoid interleaved output
+            spinner.Dispose();
 
             EmitResults(filtered, json, csv, text, noColor, showPackageSources, scoreBreakdown);
             return 0;
