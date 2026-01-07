@@ -1399,6 +1399,16 @@ namespace AppLocate.Cli {
                 if (!string.IsNullOrEmpty(programData) && lower.StartsWith(programData, StringComparison.OrdinalIgnoreCase)) {
                     return Scope.Machine;
                 }
+                // User-specific paths: LOCALAPPDATA, APPDATA - check these BEFORE the \users\ heuristic
+                // since LOCALAPPDATA/APPDATA may be overridden (e.g., in tests) to paths not under \users\
+                var localAppData = Environment.GetEnvironmentVariable("LOCALAPPDATA");
+                var appData = Environment.GetEnvironmentVariable("APPDATA");
+                if (!string.IsNullOrEmpty(localAppData) && lower.StartsWith(localAppData, StringComparison.OrdinalIgnoreCase)) {
+                    return Scope.User;
+                }
+                if (!string.IsNullOrEmpty(appData) && lower.StartsWith(appData, StringComparison.OrdinalIgnoreCase)) {
+                    return Scope.User;
+                }
                 // WindowsApps (MSIX) generally machine-visible but per-user installed; treat as User if under user profile Packages
                 // User profile: detect \users\<name>\
                 if (lower.Contains("\\users\\", StringComparison.OrdinalIgnoreCase)) {
