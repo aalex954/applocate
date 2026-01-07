@@ -1,200 +1,132 @@
-# Requirements: Windows 11 CLI “App Locator”
+# Copilot Instructions — AppLocate
 
-## Purpose
+## Project Overview
 
-Given a search string, locate an application’s installation directory, primary executable(s), and configuration/data locations. Return paths with evidence and confidence.
+**AppLocate** is a Windows CLI tool that finds application installations, executables, config files, and data directories. It queries multiple sources in parallel, ranks results by confidence, and outputs structured JSON/CSV/text.
 
-## Scope
+**See [README.md](../README.md) for full capabilities, CLI flags, and usage examples.**
 
-* User- and machine-scope apps.
-* MSI, MSIX/Store, EXE installers, ClickOnce/Squirrel/Electron, portable apps.
-* Output in human-readable or structured formats.
+---
 
-## Platforms
-
-* Windows 11, x64/ARM64.
-* Works without admin by default. Supports optional elevation.
-
-## CLI
+## Architecture
 
 ```
-applocate <query>
-  [--exe] [--install-dir] [--config] [--data]
-  [--all] [--user] [--machine]
-  [--json | --csv | --text]
-  [--limit N] [--confidence-min 0.6]
-  [--fuzzy | --strict]
-  [--running | --pid <n>]
-  [--package-source]           # show MSI/MSIX/Store/EXE/Scoop/Choco/Winget
-  [--refresh-index] [--index-path <dir>]
-  [--threads N] [--timeout <sec>]
-  [--verbose] [--trace] [--evidence]
-  [--no-elevate | --elevate]
+src/
+├── AppLocate.Core/           # Library: sources, ranking, models, rules
+│   ├── Abstractions/         # ISource, ISourceRegistry, IAmbientServices
+│   ├── Sources/              # One file per data source
+│   ├── Ranking/              # Ranker, AliasCanonicalizer
+│   ├── Rules/                # YAML rule pack loader
+│   ├── Models/               # AppHit, enums, ScoreBreakdown
+│   └── Indexing/             # Optional on-disk cache (IndexStore)
+└── AppLocate.Cli/            # Console entry point, output formatting
 ```
 
-## Inputs
+### Key Patterns
 
-* `<query>`: app name, alias, or partial (e.g., `visual studio code`, `vscode`, `code`).
+| Concept | Location | Notes |
+|---------|----------|-------|
+| Data sources | `Sources/*.cs` | Each implements `ISource`; registered via `SourceRegistryBuilder` |
+| Ranking | `Ranking/Ranker.cs` | Token matching, evidence synergy, penalties |
+| App rules | `rules/apps.default.yaml` | 147-app rule pack for config/data paths |
+| JSON output | `JsonContext.cs` | Source-generated for AOT compatibility |
+| Snapshots | `tests/.../Snapshots/` | Verify CLI output stability |
 
-## Outputs
+---
 
-* Records with fields:
+## Adding a New Source
 
-  * `type` ∈ {`install_dir`,`exe`,`config`,`data`}
-  * `scope` ∈ {`user`,`machine`}
-  * `path`
-  * `version` (if available)
-  * `package_type` ∈ {`MSI`,`MSIX`,`Store`,`EXE`,`Portable`,`ClickOnce`,`Squirrel`,`Scoop`,`Chocolatey`,`Winget`}
-  * `source` (which data source produced it)
-  * `confidence` (0–1)
-  * `evidence` (keys/file hits used for scoring; on `--evidence`)
-* Formats: `--text` (default), `--json`, `--csv`.
+1. Create `Sources/FooSource.cs` implementing `ISource`:
+   ```csharp
+   public sealed class FooSource : ISource {
+       public string Name => nameof(FooSource);
+       public async IAsyncEnumerable<AppHit> QueryAsync(
+           string query, SourceOptions options, [EnumeratorCancellation] CancellationToken ct) {
+           // Yield AppHit values; swallow per-item errors; respect ct
+       }
+   }
+   ```
+2. Register it in `SourceRegistryBuilder.CreateDefault()`.
+3. Add tests in `tests/AppLocate.Core.Tests/`.
 
-### Example (`--json`)
+---
 
-```json
-[
-  {
-    "type":"exe",
-    "scope":"user",
-    "path":"C:\\Users\\u\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
-    "version":"1.93.1",
-    "package_type":"Squirrel",
-    "source":["StartMenu","UninstallHKCU","FileSystem"],
-    "confidence":0.94
-  },
-  {
-    "type":"config",
-    "scope":"user",
-    "path":"C:\\Users\\u\\AppData\\Roaming\\Code\\User\\settings.json",
-    "package_type":"Squirrel",
-    "source":["KnownFolders","Heuristic"],
-    "confidence":0.88
-  }
-]
+## Code Guidelines
+
+### DO
+
+| Guideline | Why |
+|-----------|-----|
+| Write incremental PRs — one source or feature per PR | reviewability |
+| Add/update snapshot tests when CLI output format changes | regression |
+| Run `dotnet test` before suggesting changes | CI |
+| Use `async IAsyncEnumerable` for sources; yield as discovered | perf |
+| Keep `AppHit` stable — additive changes only | compat |
+| Include evidence conditionally (respect `options.IncludeEvidence`) | perf |
+| Expand environment variables and resolve `.lnk` targets | correctness |
+| Prefer 64-bit paths when both architectures are present | consistency |
+
+### AVOID
+
+| Guideline | Why |
+|-----------|-----|
+| New P/Invoke signatures if an existing NuGet package solves it | portability |
+| Global static state (sources receive dependencies via constructor) | testability |
+| Altering JSON property ordering (breaks downstream consumers) | compat |
+| Throwing from `QueryAsync` — swallow and log per-item errors | resilience |
+| Direct file traversal in `WindowsApps` (requires elevation) | least-privilege |
+| Network calls — all discovery is local-only | security |
+| Executing discovered binaries | security |
+
+---
+
+## Testing
+
+```pwsh
+# Run all tests
+dotnet test
+
+# Run specific test class
+dotnet test --filter "FullyQualifiedName~RankingTests"
+
+# Update snapshots (when intentional output changes occur)
+# Set SNAPSHOTTER_UPDATE=1 or delete .snap file and re-run
 ```
 
-## Data Sources (queried in parallel)
+Snapshot tests live in `tests/AppLocate.Cli.Tests/Snapshots/` — review diffs carefully.
 
-1. **Running processes**: `Get-Process` paths; `--running` or `--pid`.
-2. **App Paths**: `HKLM/HKCU\Software\Microsoft\Windows\CurrentVersion\App Paths\*.exe`.
-3. **Uninstall keys**:
+---
 
-   * `HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\*`
-   * `HKLM\Software\WOW6432Node\...\Uninstall\*`
-   * `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\*`
-     Fields: `DisplayName`, `InstallLocation`, `DisplayIcon`, `Publisher`, `Version`.
-4. **Start Menu shortcuts**:
-   `%ProgramData%\Microsoft\Windows\Start Menu\Programs\**\*.lnk`
-   `%AppData%\Microsoft\Windows\Start Menu\Programs\**\*.lnk`.
-5. **PATH resolution**: `where.exe`, PATH dirs, file existence.
-6. **MSIX/Store**: `Get-AppxPackage` for current user; `InstallLocation`, `PackageFamilyName`.
-7. **WindowsApps**: enumerate via package metadata; avoid direct file traversal unless elevated.
-8. **Services & Scheduled Tasks**: image paths referencing app dirs.
-9. **Package managers**: optional adapters that query installed lists and manifests:
+## Building & Publishing
 
-   * Winget, Chocolatey, Scoop, npm/pnpm/yarn global, pipx.
-10. **File system heuristics**:
+```pwsh
+# Debug build
+dotnet build
 
-    * `%LOCALAPPDATA%\Programs\**\*.exe`
-    * `%LOCALAPPDATA%\*` and `%APPDATA%\*` known vendor trees
-    * `C:\Program Files*\<Vendor>\<App>\*.exe`
-    * `%PROGRAMDATA%\*` for machine-wide configs.
+# Release single-file publish (x64)
+dotnet publish src/AppLocate.Cli -c Release -r win-x64 --self-contained
 
-## Config/Data Heuristics
+# Full release script (x64 + ARM64 + PowerShell module)
+./build/publish.ps1
+```
 
-* Common per-app config roots:
+Artifacts go to `artifacts/`.
 
-  * `%APPDATA%\<App|Vendor>`
-  * `%LOCALAPPDATA%\<App|Vendor>`
-  * `%PROGRAMDATA%\<Vendor>\<App>`
-  * For MSIX: `%LOCALAPPDATA%\Packages\<PFN>\LocalState|RoamingState`
-* App-specific rules shipped as patterns:
-
-  * e.g., VS Code `Roaming\Code\User\settings.json`
-  * Chrome `Local\Google\Chrome\User Data`
-* Rule pack is extensible via YAML.
-
-## Matching & Ranking
-
-* Normalize query: lowercase, strip punctuation, collapse spaces.
-* Alias dictionary (e.g., `vscode→code`, `office→winword/excel`).
-* Fuzzy match (token set ratio) across `DisplayName`, `Shortcut name`, `Exe name`, `InstallLocation`.
-* Score components:
-
-  * Exact exe name match +0.5
-  * Alias match +0.2
-  * Shortcut target exists +0.2
-  * Uninstall `InstallLocation` exists +0.2
-  * Recent process path +0.1
-  * Penalties: broken link, missing path, multiple vendors.
-* Final `confidence` ∈ \[0,1]; filter via `--confidence-min`.
-
-## Behavior
-
-* Default returns best per `type`. `--all` returns every hit.
-* De-duplicate identical paths across sources.
-* Expand environment variables and resolve `.lnk` targets.
-* 32/64-bit awareness; prefer 64-bit when both present.
-* No network access. Purely local.
-
-## Indexing
-
-* Optional on-disk index to speed repeated searches:
-
-  * Stored at `%LOCALAPPDATA%\AppLocator\index.db` by default.
-  * Built via `--refresh-index`. Includes hashes of LNK targets, registry snapshots, package lists.
-  * Auto-invalidates on registry/package change timestamps.
-
-## Security
-
-* Least privilege by default. `--elevate` only when needed to read protected locations.
-* Never executes target binaries.
-* Sanitizes output to avoid control chars.
-* No telemetry. Opt-in debug dumps only.
-
-## Performance
-
-* Parallel source queries; bounded by `--threads`.
-* Timeouts per source; fail soft with partial results and per-source errors in `--verbose`.
-
-## Logging
-
-* Quiet by default. `--verbose` shows sources queried and counts.
-* `--trace` shows query timings and failed sources.
+---
 
 ## Exit Codes
 
-* `0`: results found.
-* `1`: no matches.
-* `2`: bad arguments.
+| Code | Meaning |
+|------|---------|
+| 0 | Results found (or `--help` shown) |
+| 1 | No matches |
+| 2 | Argument/validation error |
 
+---
 
-## Testing: Acceptance Criteria
+## Security Principles
 
-* Query “vscode” returns an `exe` and `config` for a standard per-user install with `confidence ≥ 0.8`.
-* Query “Google Chrome” returns machine-scope `exe` in `Program Files` when present.
-* Portable app in `D:\Tools\Foo\Foo.exe` with Start Menu shortcut is found and returns `install_dir` and `exe`.
-* MSIX app returns `InstallLocation` and `Packages\<PFN>` data root.
-* `--running` while Notepad running returns that process path.
-* `--json` is stable and schema-valid.
-* `--strict` excludes fuzzy alias matches.
-* `--user` vs `--machine` filters results correctly.
-
-## Non-Functional
-
-* Cold search median < 1.0s on typical systems. Warm (indexed) < 200ms.
-* Memory footprint idle < 100 MB.
-* Works offline. No admin required for core features.
-
-## Deliverables
-
-* Single static EXE (`applocate.exe`) and optional PowerShell module (`AppLocate.psm1`) exposing the same functions.
-* Man page/`--help`.
-* YAML rule pack with 50+ popular apps.
-
-### DO / AVOID
-DO: incremental PRs per source / feature; keep `AppHit` stable; include evidence conditionally.
-AVOID: new P/Invoke signatures if an existing package solves it; global static state; altering JSON ordering.
-
-Provide feedback if any area needs deeper guidance (e.g., ranking algorithm detail, registry abstraction design).
+- Least privilege by default — no admin required for core features
+- Never execute target binaries
+- Sanitize output to avoid control characters
+- No telemetry; no network access
