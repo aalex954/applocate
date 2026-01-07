@@ -318,7 +318,7 @@ jobs:
           }
           Write-Host "Manifest path: $($manifestPath.FullName)"
           
-          # Fix ShortDescription typo in locale file and ensure ReleaseNotesUrl + Icons are present
+          # Fix ShortDescription typo in locale file and ensure ReleaseNotesUrl is present
           $localeFile = Get-ChildItem -Path $manifestPath.FullName -Filter "*.locale.en-US.yaml" | Select-Object -First 1
           if ($localeFile) {
             $content = Get-Content $localeFile.FullName -Raw
@@ -334,15 +334,16 @@ jobs:
               $content = $content -replace '(ManifestType: defaultLocale)', "ReleaseNotesUrl: $releaseNotesUrl`n`$1"
             }
             
-            # Add Icons section if missing (using ICO from GitHub raw URL)
-            if ($content -notmatch 'Icons:') {
-              $iconUrl = "https://raw.githubusercontent.com/${{ github.repository }}/main/assets/logo.ico"
-              $iconsSection = "Icons:`n  - IconUrl: $iconUrl`n    IconFileType: ico`n"
-              $content = $content -replace '(ReleaseNotesUrl:[^\n]*\n)', "`$1$iconsSection"
-            }
+            # Note: Icons field requires verified publisher status in WinGet.
+            # Once AppLocate becomes a verified publisher, uncomment the following:
+            # if ($content -notmatch 'Icons:') {
+            #   $iconUrl = "https://raw.githubusercontent.com/${{ github.repository }}/main/assets/logo.ico"
+            #   $iconsSection = "Icons:`n  - IconUrl: $iconUrl`n    IconFileType: ico`n"
+            #   $content = $content -replace '(ReleaseNotesUrl:[^\n]*\n)', "`$1$iconsSection"
+            # }
             
             Set-Content $localeFile.FullName -Value $content -NoNewline
-            Write-Host "Updated locale manifest: ShortDescription, ReleaseNotesUrl, Icons in $($localeFile.Name)"
+            Write-Host "Updated locale manifest: ShortDescription, ReleaseNotesUrl in $($localeFile.Name)"
             Write-Host "--- Locale manifest content ---"
             Get-Content $localeFile.FullName
             Write-Host "--- End manifest content ---"
