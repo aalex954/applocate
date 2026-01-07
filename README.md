@@ -96,27 +96,27 @@ applocate chrome --data --all --evidence
 
 Options (implemented CLI surface):
 ```
-	<query>                    App name / alias / partial tokens
-	--json | --csv | --text    Output (default text)
-	--limit <N>                Max hits after filtering (applied after optional collapse)
-	--confidence-min <f>       Filter threshold (0-1)
-	--strict                   Deprecated/no-op (behavior integrated into default heuristics)
-	--user | --machine         Scope filters
-	--all                      Return ALL hits (no per-type collapsing)
-	--exe | --install-dir | --config | --data  Type filters (any combination)
-	--running                  Include running process enumeration
-	--pid <n>                  Target specific process id (implies --running)
-	--package-source           Show package type & source list in text/CSV output
-	--threads <n>              Max parallel source queries (default=min(logical CPU,16))
-	--trace                    Per-source timing diagnostics (stderr; prefix [trace])
-	--evidence                 Include evidence dictionary (if available)
-	--evidence-keys <k1,k2>    Only include specified evidence keys (implies --evidence)
-	--score-breakdown          Show internal scoring component contributions per result
-	--timeout <sec>            Per-source soft timeout (default 5)
-	--no-color                 Disable ANSI color in text output
-	--verbose                  Verbose diagnostics (warnings)
-	--help                     Show help
-	--                         Treat following tokens as literal query
+	<query>                    					App name / alias / partial tokens
+	--json | --csv | --text    					Output (default text)
+	--limit <N>                					Max hits after filtering (applied after optional collapse)
+	--confidence-min <f>       					Filter threshold (0-1)
+	--strict                   					Deprecated/no-op (behavior integrated into default heuristics)
+	--user | --machine         					Scope filters
+	--all                      					Return ALL hits (no per-type collapsing)
+	--exe | --install-dir | --config | --data  	Type filters (any combination)
+	--running                  					Include running process enumeration
+	--pid <n>                  					Target specific process id (implies --running)
+	--package-source           					Show package type & source list in text/CSV output
+	--threads <n>              					Max parallel source queries (default=min(logical CPU,16))
+	--trace                    					Per-source timing diagnostics (stderr; prefix [trace])
+	--evidence                 					Include evidence dictionary (if available)
+	--evidence-keys <k1,k2>    					Only include specified evidence keys (implies --evidence)
+	--score-breakdown          					Show internal scoring component contributions per result
+	--timeout <sec>            					Per-source soft timeout (default 5)
+	--no-color                 					Disable ANSI color in text output
+	--verbose                  					Verbose diagnostics (warnings)
+	--help                     					Show help
+	--                         					Treat following tokens as literal query
 ```
 
 Default behavior (without `--all`): results are collapsed to the single best hit per type (`exe`, `install_dir`, `config`, `data`) using confidence, then tie‑broken by scope (machine over user) and evidence richness. Use `--all` to inspect every distinct hit (useful for debugging ranking or seeing alternate install roots).
