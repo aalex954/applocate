@@ -112,8 +112,9 @@ namespace AppLocate.Core.Sources {
                         Evidence: evidence
                     );
 
-                    // Look for exe in install path
-                    var exes = SafeGetFiles(installPath, "*.exe");
+                    // Look for exe in install path - search recursively for portable packages
+                    // that have executables in subdirectories (e.g., release\x64\x64dbg.exe)
+                    var exes = SafeGetFiles(installPath, "*.exe", recursive: true);
                     var mainExe = FindMainExecutable(exes, pkg.Id);
                     if (mainExe != null) {
                         var exeEvidence = options.IncludeEvidence
@@ -306,6 +307,28 @@ namespace AppLocate.Core.Sources {
             var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
             var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
+            // First check WinGet's portable packages folder - these use the full package ID
+            var wingetPackagesPath = Path.Combine(localAppData, "Microsoft", "WinGet", "Packages");
+            if (Directory.Exists(wingetPackagesPath)) {
+                try {
+                    // WinGet package folders follow pattern: PackageId_Source_hash
+                    // e.g., "x64dbg.x64dbg_Microsoft.Winget.Source_8wekyb3d8bbwe"
+                    var packageIdPrefix = packageId.Replace(".", @"\.") + @"[_\.]";
+                    var folders = Directory.GetDirectories(wingetPackagesPath);
+                    var match = folders.FirstOrDefault(f => {
+                        var folderName = Path.GetFileName(f);
+                        return folderName.StartsWith(packageId, StringComparison.OrdinalIgnoreCase) ||
+                               folderName.StartsWith(packageId.Replace(".", ""), StringComparison.OrdinalIgnoreCase);
+                    });
+                    if (match != null) {
+                        return match;
+                    }
+                }
+                catch {
+                    // Ignore enumeration failures
+                }
+            }
+
             var candidates = new[] {
                 Path.Combine(programFiles, publisher, appName),
                 Path.Combine(programFiles, appName),
@@ -336,7 +359,7 @@ namespace AppLocate.Core.Sources {
             var idParts = packageId.ToLowerInvariant().Split('.');
             var appName = idParts.LastOrDefault() ?? "";
 
-            // Prefer exe that matches app name
+            // Prefer exe that matches app name exactly
             var match = exes.FirstOrDefault(e =>
                 Path.GetFileNameWithoutExtension(e).Equals(appName, StringComparison.OrdinalIgnoreCase));
 
@@ -344,13 +367,32 @@ namespace AppLocate.Core.Sources {
                 return match;
             }
 
+            // Prefer exe that contains the app name (e.g., "x64dbg.exe" for "x64dbg" package)
+            match = exes.FirstOrDefault(e =>
+                Path.GetFileNameWithoutExtension(e).Contains(appName, StringComparison.OrdinalIgnoreCase));
+
+            if (match != null) {
+                return match;
+            }
+
+            // Prefer 64-bit path over 32-bit when both exist
+            var x64Match = exes.FirstOrDefault(e =>
+                e.Contains(@"\x64\", StringComparison.OrdinalIgnoreCase) ||
+                e.Contains(@"\x64dbg\", StringComparison.OrdinalIgnoreCase) ||
+                e.Contains(@"\amd64\", StringComparison.OrdinalIgnoreCase));
+
+            if (x64Match != null) {
+                return x64Match;
+            }
+
             // Prefer shortest name (often the main exe)
             return exes.OrderBy(e => Path.GetFileName(e).Length).First();
         }
 
-        private static string[] SafeGetFiles(string path, string pattern) {
+        private static string[] SafeGetFiles(string path, string pattern, bool recursive = false) {
             try {
-                return Directory.GetFiles(path, pattern, SearchOption.TopDirectoryOnly);
+                var option = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+                return Directory.GetFiles(path, pattern, option);
             }
             catch {
                 return [];
