@@ -114,6 +114,21 @@ Artifacts go to `artifacts/`.
 
 ---
 
+## Releasing a New Version
+
+When preparing a release, update the version in these files:
+
+| File | Field |
+|------|-------|
+| `src/AppLocate.Cli/AppLocate.Cli.csproj` | `<Version>` |
+| `AppLocate.psd1` | `ModuleVersion` |
+
+**Note:** The CI workflow automatically sets the version from the git tag (e.g., `v0.1.5` → `0.1.5`) during tagged builds, but keeping the csproj/psd1 in sync ensures local builds reflect the correct version.
+
+The WinGet manifest (`ReleaseNotesUrl`, `Icons`) is automatically populated by CI during the release workflow.
+
+---
+
 ## Exit Codes
 
 | Code | Meaning |
