@@ -12,38 +12,188 @@ namespace AppLocate.Core.Sources {
         /// <inheritdoc />
         public string Name => nameof(ScoopSource);
 
-        private static readonly string[] ScoopRoots = GetScoopRoots();
-
-        private static string[] GetScoopRoots() {
-            var roots = new List<string>();
-
-            // User scoop: prefer SCOOP env var, fallback to ~/scoop
-            var scoopEnv = Environment.GetEnvironmentVariable("SCOOP");
-            if (!string.IsNullOrEmpty(scoopEnv) && Directory.Exists(scoopEnv)) {
-                roots.Add(scoopEnv);
-            }
-            else {
-                var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                var userScoop = Path.Combine(userProfile, "scoop");
-                if (Directory.Exists(userScoop)) {
-                    roots.Add(userScoop);
-                }
-            }
-
-            // Global scoop: prefer SCOOP_GLOBAL env var, fallback to C:\ProgramData\scoop
-            var globalEnv = Environment.GetEnvironmentVariable("SCOOP_GLOBAL");
-            if (!string.IsNullOrEmpty(globalEnv) && Directory.Exists(globalEnv)) {
-                roots.Add(globalEnv);
-            }
-            else {
-                const string globalScoop = @"C:\ProgramData\scoop";
-                if (Directory.Exists(globalScoop)) {
-                    roots.Add(globalScoop);
-                }
-            }
-
-            return [.. roots];
+        /// <summary>Provider abstraction for testability.</summary>
+        internal interface IScoopProvider {
+            IEnumerable<string> GetRoots();
+            bool DirectoryExists(string path);
+            string[] GetDirectories(string path);
+            string[] GetFiles(string path, string pattern);
+            string? ReadFileText(string path);
+            bool FileExists(string path);
         }
+
+        /// <summary>Default provider that uses real filesystem.</summary>
+        private sealed class FileSystemScoopProvider : IScoopProvider {
+            public IEnumerable<string> GetRoots() {
+                var roots = new List<string>();
+
+                // User scoop: prefer SCOOP env var, fallback to ~/scoop
+                var scoopEnv = Environment.GetEnvironmentVariable("SCOOP");
+                if (!string.IsNullOrEmpty(scoopEnv) && Directory.Exists(scoopEnv)) {
+                    roots.Add(scoopEnv);
+                }
+                else {
+                    var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    var userScoop = Path.Combine(userProfile, "scoop");
+                    if (Directory.Exists(userScoop)) {
+                        roots.Add(userScoop);
+                    }
+                }
+
+                // Global scoop: prefer SCOOP_GLOBAL env var, fallback to C:\ProgramData\scoop
+                var globalEnv = Environment.GetEnvironmentVariable("SCOOP_GLOBAL");
+                if (!string.IsNullOrEmpty(globalEnv) && Directory.Exists(globalEnv)) {
+                    roots.Add(globalEnv);
+                }
+                else {
+                    const string globalScoop = @"C:\ProgramData\scoop";
+                    if (Directory.Exists(globalScoop)) {
+                        roots.Add(globalScoop);
+                    }
+                }
+
+                return roots;
+            }
+
+            public bool DirectoryExists(string path) => Directory.Exists(path);
+            public string[] GetDirectories(string path) {
+                try { return Directory.GetDirectories(path); }
+                catch { return []; }
+            }
+            public string[] GetFiles(string path, string pattern) {
+                try { return Directory.GetFiles(path, pattern, SearchOption.TopDirectoryOnly); }
+                catch { return []; }
+            }
+            public string? ReadFileText(string path) {
+                try { return File.Exists(path) ? File.ReadAllText(path) : null; }
+                catch { return null; }
+            }
+            public bool FileExists(string path) => File.Exists(path);
+        }
+
+        /// <summary>Fake provider for deterministic testing via APPLOCATE_SCOOP_FAKE env var.</summary>
+        private sealed class FakeScoopProvider : IScoopProvider {
+            private readonly Dictionary<string, FakeApp> _apps = new(StringComparer.OrdinalIgnoreCase);
+            private readonly List<string> _roots = [];
+
+            public FakeScoopProvider(string json) {
+                try {
+                    using var doc = JsonDocument.Parse(json);
+                    var root = doc.RootElement;
+
+                    if (root.TryGetProperty("roots", out var rootsArr)) {
+                        foreach (var r in rootsArr.EnumerateArray()) {
+                            var rPath = r.GetString();
+                            if (!string.IsNullOrEmpty(rPath)) _roots.Add(rPath);
+                        }
+                    }
+
+                    if (root.TryGetProperty("apps", out var appsArr)) {
+                        foreach (var app in appsArr.EnumerateArray()) {
+                            var name = app.GetProperty("name").GetString() ?? "";
+                            var rootPath = app.TryGetProperty("root", out var rp) ? rp.GetString() ?? _roots.FirstOrDefault() ?? "" : _roots.FirstOrDefault() ?? "";
+                            var version = app.TryGetProperty("version", out var v) ? v.GetString() : null;
+                            var exes = new List<string>();
+                            if (app.TryGetProperty("exes", out var exArr)) {
+                                foreach (var e in exArr.EnumerateArray()) {
+                                    var ePath = e.GetString();
+                                    if (!string.IsNullOrEmpty(ePath)) exes.Add(ePath);
+                                }
+                            }
+                            var hasPersist = app.TryGetProperty("persist", out var p) && p.GetBoolean();
+                            var manifestBin = new List<string>();
+                            if (app.TryGetProperty("bin", out var binArr)) {
+                                foreach (var b in binArr.EnumerateArray()) {
+                                    var bPath = b.GetString();
+                                    if (!string.IsNullOrEmpty(bPath)) manifestBin.Add(bPath);
+                                }
+                            }
+
+                            _apps[Path.Combine(rootPath, "apps", name)] = new FakeApp(name, rootPath, version, exes, hasPersist, manifestBin);
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            public IEnumerable<string> GetRoots() => _roots;
+            public bool DirectoryExists(string path) {
+                // Check if it's a root, apps dir, app dir, current dir, or persist dir
+                if (_roots.Contains(path, StringComparer.OrdinalIgnoreCase)) return true;
+                if (_roots.Any(r => path.Equals(Path.Combine(r, "apps"), StringComparison.OrdinalIgnoreCase))) return true;
+                if (_apps.ContainsKey(path)) return true;
+                if (_apps.Keys.Any(k => path.Equals(Path.Combine(k, "current"), StringComparison.OrdinalIgnoreCase))) return true;
+                // Persist directories
+                foreach (var app in _apps.Values) {
+                    if (app.HasPersist && path.Equals(Path.Combine(app.RootPath, "persist", app.Name), StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+                return false;
+            }
+            public string[] GetDirectories(string path) {
+                // Return app directories under apps/
+                var matching = _apps.Keys.Where(k => Path.GetDirectoryName(k)?.Equals(path, StringComparison.OrdinalIgnoreCase) == true).ToArray();
+                if (matching.Length > 0) return matching;
+                // Return version dirs under app (just "current")
+                if (_apps.ContainsKey(path)) return [Path.Combine(path, "current")];
+                return [];
+            }
+            public string[] GetFiles(string path, string pattern) {
+                // Return exe files in current directory
+                var appDir = _apps.Keys.FirstOrDefault(k => path.Equals(Path.Combine(k, "current"), StringComparison.OrdinalIgnoreCase));
+                if (appDir != null && pattern == "*.exe") {
+                    return _apps[appDir].Exes.Select(e => Path.Combine(path, e)).ToArray();
+                }
+                return [];
+            }
+            public string? ReadFileText(string path) {
+                // Return manifest.json content
+                if (path.EndsWith("manifest.json", StringComparison.OrdinalIgnoreCase)) {
+                    var currentDir = Path.GetDirectoryName(path);
+                    var appDir = _apps.Keys.FirstOrDefault(k => currentDir?.Equals(Path.Combine(k, "current"), StringComparison.OrdinalIgnoreCase) == true);
+                    if (appDir != null) {
+                        var app = _apps[appDir];
+                        var binJson = app.ManifestBin.Count > 0
+                            ? $",\"bin\":[{string.Join(",", app.ManifestBin.Select(b => $"\"{b}\""))}]"
+                            : "";
+                        return $"{{\"version\":\"{app.Version ?? "1.0.0"}\"{binJson}}}";
+                    }
+                }
+                return null;
+            }
+            public bool FileExists(string path) {
+                if (path.EndsWith("manifest.json", StringComparison.OrdinalIgnoreCase)) {
+                    var currentDir = Path.GetDirectoryName(path);
+                    return _apps.Keys.Any(k => currentDir?.Equals(Path.Combine(k, "current"), StringComparison.OrdinalIgnoreCase) == true);
+                }
+                // Check exe files
+                foreach (var app in _apps.Values) {
+                    var currentPath = Path.Combine(app.RootPath, "apps", app.Name, "current");
+                    foreach (var exe in app.Exes) {
+                        if (path.Equals(Path.Combine(currentPath, exe), StringComparison.OrdinalIgnoreCase)) return true;
+                    }
+                    foreach (var bin in app.ManifestBin) {
+                        if (path.Equals(Path.Combine(currentPath, bin.Replace('/', '\\')), StringComparison.OrdinalIgnoreCase)) return true;
+                    }
+                }
+                return false;
+            }
+
+            private sealed record FakeApp(string Name, string RootPath, string? Version, List<string> Exes, bool HasPersist, List<string> ManifestBin);
+        }
+
+        private static IScoopProvider CreateProvider() {
+            var fakeJson = Environment.GetEnvironmentVariable("APPLOCATE_SCOOP_FAKE");
+            return !string.IsNullOrEmpty(fakeJson) ? new FakeScoopProvider(fakeJson) : new FileSystemScoopProvider();
+        }
+
+        private readonly IScoopProvider _provider;
+
+        /// <summary>Creates a new ScoopSource with the default or fake provider.</summary>
+        public ScoopSource() : this(CreateProvider()) { }
+
+        /// <summary>Creates a new ScoopSource with the specified provider (for testing).</summary>
+        internal ScoopSource(IScoopProvider provider) => _provider = provider;
 
         /// <inheritdoc />
         public async IAsyncEnumerable<AppHit> QueryAsync(
@@ -52,14 +202,15 @@ namespace AppLocate.Core.Sources {
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct) {
             await Task.Yield();
 
-            if (string.IsNullOrWhiteSpace(query) || ScoopRoots.Length == 0) {
+            var roots = _provider.GetRoots().ToList();
+            if (string.IsNullOrWhiteSpace(query) || roots.Count == 0) {
                 yield break;
             }
 
             var normalizedQuery = query.ToLowerInvariant();
             var queryTokens = normalizedQuery.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-            foreach (var root in ScoopRoots) {
+            foreach (var root in roots) {
                 if (ct.IsCancellationRequested) {
                     yield break;
                 }
@@ -77,15 +228,12 @@ namespace AppLocate.Core.Sources {
                 }
 
                 var appsDir = Path.Combine(root, "apps");
-                if (!Directory.Exists(appsDir)) {
+                if (!_provider.DirectoryExists(appsDir)) {
                     continue;
                 }
 
-                string[] appDirs;
-                try {
-                    appDirs = Directory.GetDirectories(appsDir);
-                }
-                catch {
+                var appDirs = _provider.GetDirectories(appsDir);
+                if (appDirs.Length == 0) {
                     continue;
                 }
 
@@ -104,9 +252,9 @@ namespace AppLocate.Core.Sources {
 
                     // Look for current version (symlink or directory)
                     var currentDir = Path.Combine(appDir, "current");
-                    if (!Directory.Exists(currentDir)) {
+                    if (!_provider.DirectoryExists(currentDir)) {
                         // Try to find latest version directory
-                        var versionDirs = SafeGetDirectories(appDir)
+                        var versionDirs = _provider.GetDirectories(appDir)
                             .Where(d => !Path.GetFileName(d).Equals("current", StringComparison.OrdinalIgnoreCase))
                             .OrderByDescending(Path.GetFileName)
                             .FirstOrDefault();
@@ -164,7 +312,7 @@ namespace AppLocate.Core.Sources {
 
                     // Check for persist directory (config/data)
                     var persistDir = Path.Combine(root, "persist", appName);
-                    if (Directory.Exists(persistDir)) {
+                    if (_provider.DirectoryExists(persistDir)) {
                         var persistEvidence = options.IncludeEvidence
                             ? new Dictionary<string, string>(evidence!) { ["PersistDir"] = "true" }
                             : null;
@@ -199,13 +347,13 @@ namespace AppLocate.Core.Sources {
             return normalizedQuery.Contains(appNameLower);
         }
 
-        private static (string? Version, List<string> ExeHints) ReadManifest(string manifestPath) {
-            if (!File.Exists(manifestPath)) {
+        private (string? Version, List<string> ExeHints) ReadManifest(string manifestPath) {
+            var json = _provider.ReadFileText(manifestPath);
+            if (string.IsNullOrEmpty(json)) {
                 return (null, []);
             }
 
             try {
-                var json = File.ReadAllText(manifestPath);
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
 
@@ -253,55 +401,25 @@ namespace AppLocate.Core.Sources {
                         }
                     }
                     break;
-                case JsonValueKind.Undefined:
-                    break;
-                case JsonValueKind.Object:
-                    break;
-                case JsonValueKind.Number:
-                    break;
-                case JsonValueKind.True:
-                    break;
-                case JsonValueKind.False:
-                    break;
-                case JsonValueKind.Null:
-                    break;
                 default:
                     break;
             }
         }
 
-        private static IEnumerable<string> FindExecutables(string dir, List<string> exeHints) {
+        private IEnumerable<string> FindExecutables(string dir, List<string> exeHints) {
             // First try manifest hints
             foreach (var hint in exeHints) {
                 var fullPath = Path.Combine(dir, hint.Replace('/', '\\'));
-                if (File.Exists(fullPath)) {
+                if (_provider.FileExists(fullPath)) {
                     yield return fullPath;
                 }
             }
 
             // If no hints or none found, scan top-level for .exe files
             if (exeHints.Count == 0) {
-                foreach (var exe in SafeGetFiles(dir, "*.exe")) {
+                foreach (var exe in _provider.GetFiles(dir, "*.exe")) {
                     yield return exe;
                 }
-            }
-        }
-
-        private static string[] SafeGetDirectories(string path) {
-            try {
-                return Directory.GetDirectories(path);
-            }
-            catch {
-                return [];
-            }
-        }
-
-        private static string[] SafeGetFiles(string path, string pattern) {
-            try {
-                return Directory.GetFiles(path, pattern, SearchOption.TopDirectoryOnly);
-            }
-            catch {
-                return [];
             }
         }
     }

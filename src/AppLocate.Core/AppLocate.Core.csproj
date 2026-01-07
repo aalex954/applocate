@@ -12,5 +12,6 @@
     <!-- No external packages currently required. -->
   <!-- Indexing removed -->
     <InternalsVisibleTo Include="applocate" />
+    <InternalsVisibleTo Include="AppLocate.Core.Tests" />
   </ItemGroup>
 </Project>
