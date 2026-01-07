@@ -6,7 +6,7 @@
 
 <table>
 <tr>
-<td width="96" valign="top"><img src="assets/logo.svg" width="96" alt="applocate logo"/></td>
+<td width="96" valign="middle"><img src="assets/logo.svg" width="96" alt="applocate logo"/></td>
 <td>
 
 **Find any app on Windows — instantly.**
