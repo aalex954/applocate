@@ -33,6 +33,9 @@ However, several areas warrant attention to further harden the application.
 6. [Informational Findings](#6-informational-findings)
 7. [Security Recommendations](#7-security-recommendations)
 8. [Compliance Considerations](#8-compliance-considerations)
+9. [Appendix A: Files Reviewed](#appendix-a-files-reviewed)
+10. [Appendix B: Attack Scenarios](#appendix-b-attack-scenarios)
+11. [Appendix C: Remediation Compatibility Analysis](#appendix-c-remediation-compatibility-analysis)
 
 ---
 
@@ -516,11 +519,113 @@ An attacker registers a malicious COM server for `WScript.Shell` ProgID. When Ap
 
 ---
 
+## Appendix C: Remediation Compatibility Analysis
+
+This section analyzes potential compatibility concerns with the high-priority security recommendations, based on project architecture, documented guidelines, and implementation constraints.
+
+### C.1 WScript.Shell COM → P/Invoke IShellLink
+
+**COMPATIBILITY CONCERN - Documented Project Guidance Conflict**
+
+The project's [copilot-instructions.md](.github/copilot-instructions.md#L198) explicitly states:
+
+> **AVOID: new P/Invoke signatures if an existing package solves it**
+
+This guidance explains why WScript.Shell COM was chosen over P/Invoke originally. The current COM approach:
+- Works without additional P/Invoke signature maintenance burden
+- Is already used consistently in both production code and test code
+- Handles RCW cleanup properly with `Marshal.FinalReleaseComObject`
+
+**Alternative approaches to consider:**
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| NuGet package (e.g., `WindowsShortcutFactory`, `ShellLink`) | Aligns with project guidance; maintained externally | Adds dependency |
+| Windows Runtime API | Modern, no COM | Requires TFM changes; async-only |
+| CLSID validation before COM instantiation | Minimal code change | Doesn't eliminate COM usage |
+| Keep current + document risk | No code change | Accepts residual risk |
+
+**Recommendation:** Investigate if a maintained NuGet package can replace the COM interop. This aligns with project guidance while still addressing the security concern. If no suitable package exists, add CLSID validation before instantiation.
+
+---
+
+### C.2 Fully Qualified Paths for winget
+
+**COMPATIBILITY CONCERN - Winget Installation Path Variability**
+
+Winget's installation location is **not fixed** across systems:
+
+| Installation Type | Typical Path |
+|------------------|--------------|
+| MSIX (App Installer) | `C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*\winget.exe` |
+| Developer/preview builds | Variable paths |
+| App Execution Alias | `%LocalAppData%\Microsoft\WindowsApps\winget.exe` |
+
+The version-specific folder name (e.g., `Microsoft.DesktopAppInstaller_1.22.11261.0_x64__8wekyb3d8bbwe`) changes with every winget update, making hardcoded paths fragile.
+
+**Current behavior** uses PATH resolution which:
+- Works across all winget installation types
+- Gracefully fails if winget isn't installed (`WingetAvailable.Value` check)
+- Follows user/admin PATH configuration
+
+**Alternative mitigation approaches:**
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| Post-resolution path validation | Works with dynamic paths; validates trust | Still uses PATH initially |
+| Windows Package Manager COM API | No CLI dependency; official API | Major refactor; COM complexity |
+| Resolve via `where.exe` then validate | Explicit resolution | Additional process spawn |
+| Environment variable for override | Enterprise-configurable | Configuration burden |
+
+**Recommendation:** Keep PATH resolution but add post-resolution validation that the discovered winget path is within expected trusted directories (`%ProgramFiles%\WindowsApps\` or `%LocalAppData%\Microsoft\WindowsApps\`).
+
+---
+
+### C.3 Remove CWD Fallback for Rule Loading
+
+**LOW RISK - Safe to Implement**
+
+The CWD fallback in [Program.cs](src/AppLocate.Cli/Program.cs#L488-L489):
+
+```csharp
+var alt = Path.Combine(Directory.GetCurrentDirectory(), "rules", "apps.default.yaml");
+rulesPath = File.Exists(alt) ? alt : string.Empty;
+```
+
+**Compatibility assessment:**
+- The primary path `AppContext.BaseDirectory\..\..\..\..\..\rules\` is designed for development scenarios only
+- Published/installed builds bundle rules alongside the executable
+- CWD fallback is an undocumented **development convenience**, not a user-facing feature
+- Removing it will not affect production deployments or documented behavior
+
+**Additional considerations:**
+- The primary path with `..\..\..\..\` traversal is also development-oriented
+- Release builds should look in `AppContext.BaseDirectory\rules\` directly
+- Consider wrapping dev-only paths in `#if DEBUG` preprocessor directives
+
+**Recommendation:** 
+1. Remove CWD fallback immediately
+2. Fix primary path to use `AppContext.BaseDirectory\rules\` for release builds
+3. Optionally wrap dev traversal paths in `#if DEBUG`
+
+---
+
+### C.4 Summary of Compatibility Impact
+
+| Recommendation | Compatibility Risk | Suggested Action |
+|---------------|-------------------|------------------|
+| WScript.Shell → IShellLink P/Invoke | **HIGH** | Find NuGet package or add CLSID validation |
+| Fully qualified winget path | **MEDIUM** | Add post-resolution path validation |
+| Remove CWD rule fallback | **LOW** | Safe to implement immediately |
+
+---
+
 ## Document History
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | 2026-01-06 | Security Analysis | Initial review |
+| 1.1 | 2026-01-06 | Security Analysis | Added Appendix C: Remediation Compatibility Analysis |
 
 ---
 
