@@ -283,6 +283,8 @@ Snapshots:
 Synthetic acceptance tips:
 - Override `LOCALAPPDATA`, `APPDATA`, `PATH` to point to temp fixtures.
 - Inject MSIX packages via `APPLOCATE_MSIX_FAKE` (JSON array) for deterministic enumeration.
+- Inject Scoop apps via `APPLOCATE_SCOOP_FAKE` (JSON object with roots/apps) for deterministic enumeration.
+- Inject Chocolatey packages via `APPLOCATE_CHOCO_FAKE` (JSON object with directories/metadata) for deterministic enumeration.
 - Use .lnk shortcuts to exercise Start Menu + evidence synergy.
 
 Adding acceptance scenarios:
@@ -310,6 +312,8 @@ For deterministic tests:
 * `APPDATA`, `LOCALAPPDATA`, `PROGRAMDATA`
 * `PATH`
 * `APPLOCATE_MSIX_FAKE` (JSON array of fake MSIX packages)
+* `APPLOCATE_SCOOP_FAKE` (JSON object with roots and apps)
+* `APPLOCATE_CHOCO_FAKE` (JSON object with directories and package metadata)
 
 Example:
 ```pwsh
