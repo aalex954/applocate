@@ -390,11 +390,12 @@ namespace AppLocate.Cli {
                 }
                 catch { }
             }
-            var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), false, evidence);
             // Alias canonicalization (variant -> canonical) before source queries so token presence filters align.
             var originalQueryLower = string.Join(' ', query.Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
             var normalized = AliasCanonicalizer.Canonicalize(query, out var aliasChanged);
             var normTokens = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            // Pass original query to sources when alias canonicalization changed it, so sources can match against original too
+            var options = new SourceOptions(user, machine, TimeSpan.FromSeconds(timeoutSeconds), false, evidence, aliasChanged ? originalQueryLower : null);
             // (index/cache removed)
 
             var hits = new List<AppHit>();

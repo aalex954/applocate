@@ -16,7 +16,10 @@ namespace AppLocate.Core.Sources {
                 try {
                     using var p = new System.Diagnostics.Process();
                     p.StartInfo.FileName = Environment.ExpandEnvironmentVariables("%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe");
-                    p.StartInfo.Arguments = "-NoProfile -ExecutionPolicy Bypass -Command \"$ErrorActionPreference='SilentlyContinue'; Get-AppxPackage | ForEach-Object { \"$($_.Name)|$($_.PackageFamilyName)|$($_.InstallLocation)|$($_.Version)\" }\"";
+                    // Use EncodedCommand to avoid quote escaping issues when passing through Process.Start()
+                    var script = "$ErrorActionPreference='SilentlyContinue'; Get-AppxPackage | ForEach-Object { \"$($_.Name)|$($_.PackageFamilyName)|$($_.InstallLocation)|$($_.Version)\" }";
+                    var encodedCommand = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(script));
+                    p.StartInfo.Arguments = $"-NoProfile -ExecutionPolicy Bypass -EncodedCommand {encodedCommand}";
                     p.StartInfo.UseShellExecute = false;
                     p.StartInfo.RedirectStandardOutput = true;
                     p.StartInfo.RedirectStandardError = true;
@@ -94,6 +97,10 @@ namespace AppLocate.Core.Sources {
 
             var norm = query.ToLowerInvariant();
             var tokens = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            
+            // Also match against original query if alias canonicalization changed it (e.g., "windows terminal" -> "wt")
+            var origNorm = options.OriginalQuery?.ToLowerInvariant();
+            var origTokens = origNorm?.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             var provider = CreateProvider();
             var packages = provider.Enumerate().ToList();
@@ -120,6 +127,13 @@ namespace AppLocate.Core.Sources {
                     if (!match && tokens.Length > 1) {
                         // Multi-token fuzzy: require all tokens to be present across name or family
                         match = tokens.All(t => nameLower.Contains(t) || famLower.Contains(t));
+                    }
+                    // Also try original query tokens if alias canonicalization occurred
+                    if (!match && origTokens != null) {
+                        match = nameLower.Contains(origNorm!) || famLower.Contains(origNorm!);
+                        if (!match && origTokens.Length > 1) {
+                            match = origTokens.All(t => nameLower.Contains(t) || famLower.Contains(t));
+                        }
                     }
                 }
                 if (!match) {

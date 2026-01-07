@@ -2,7 +2,7 @@ using AppLocate.Core.Models;
 
 namespace AppLocate.Core.Abstractions {
     /// <summary>Options controlling source execution.</summary>
-    public sealed record SourceOptions(bool UserOnly, bool MachineOnly, TimeSpan Timeout, bool Strict, bool IncludeEvidence);
+    public sealed record SourceOptions(bool UserOnly, bool MachineOnly, TimeSpan Timeout, bool Strict, bool IncludeEvidence, string? OriginalQuery = null);
 
     /// <summary>Contract for all data sources that can produce <see cref="AppHit"/> values.</summary>
     public interface ISource {
