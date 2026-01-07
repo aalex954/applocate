@@ -64,8 +64,9 @@ namespace AppLocate.Cli.Tests {
             var progDir = fixture.programDir;
             var pathEnv = progDir;
 
-            // Act
-            var (code, stdout, stderr) = RunWithEnv(["code", "--json", "--limit", "10"],
+            // Act - use --user to limit scope to user paths only, avoiding interference from
+            // machine-scope Program Files which can't be overridden via environment variables
+            var (code, stdout, stderr) = RunWithEnv(["code", "--json", "--limit", "10", "--user"],
                     ("LOCALAPPDATA", localAppData),
                     ("APPDATA", roaming),
                     ("PATH", pathEnv));
