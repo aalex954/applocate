@@ -3,15 +3,14 @@ using AppLocate.Core.Models;
 using AppLocate.Core.Sources;
 using Xunit;
 
-namespace AppLocate.Core.Tests;
-
-/// <summary>
-/// Deterministic tests for ChocolateySource using fake provider via APPLOCATE_CHOCO_FAKE env var.
-/// Tests in this collection run serially to avoid environment variable race conditions.
-/// </summary>
-[Collection("EnvironmentVariableTests")]
-public sealed class ChocolateySourceTests {
-    private static readonly string FakeFixture = """
+namespace AppLocate.Core.Tests {
+    /// <summary>
+    /// Deterministic tests for ChocolateySource using fake provider via APPLOCATE_CHOCO_FAKE env var.
+    /// Tests in this collection run serially to avoid environment variable race conditions.
+    /// </summary>
+    [Collection("EnvironmentVariableTests")]
+    public sealed class ChocolateySourceTests {
+        private static readonly string FakeFixture = /*lang=json,strict*/ """
     {
         "root": "C:\\ProgramData\\chocolatey",
         "directories": [
@@ -50,203 +49,204 @@ public sealed class ChocolateySourceTests {
     }
     """;
 
-    private static SourceOptions DefaultOptions => new(false, false, TimeSpan.FromSeconds(5), false, false);
-    private static SourceOptions OptionsWithEvidence => new(false, false, TimeSpan.FromSeconds(5), false, true);
-    private static SourceOptions UserOnlyOptions => new(true, false, TimeSpan.FromSeconds(5), false, false);
-    private static SourceOptions MachineOnlyOptions => new(false, true, TimeSpan.FromSeconds(5), false, false);
+        private static SourceOptions DefaultOptions => new(false, false, TimeSpan.FromSeconds(5), false, false);
+        private static SourceOptions OptionsWithEvidence => new(false, false, TimeSpan.FromSeconds(5), false, true);
+        private static SourceOptions UserOnlyOptions => new(true, false, TimeSpan.FromSeconds(5), false, false);
+        private static SourceOptions MachineOnlyOptions => new(false, true, TimeSpan.FromSeconds(5), false, false);
 
-    private static async Task<List<AppHit>> CollectHitsAsync(ChocolateySource source, string query, SourceOptions options) {
-        var hits = new List<AppHit>();
-        await foreach (var hit in source.QueryAsync(query, options, CancellationToken.None)) {
-            hits.Add(hit);
+        private static async Task<List<AppHit>> CollectHitsAsync(ChocolateySource source, string query, SourceOptions options) {
+            var hits = new List<AppHit>();
+            await foreach (var hit in source.QueryAsync(query, options, CancellationToken.None)) {
+                hits.Add(hit);
+            }
+            return hits;
         }
-        return hits;
-    }
 
-    [Fact]
-    public async Task Query_7zip_Returns_InstallDir_And_Exes() {
-        // Arrange
-        Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
-        try {
-            var source = new ChocolateySource();
+        [Fact]
+        public async Task Query_7zip_Returns_InstallDir_And_Exes() {
+            // Arrange
+            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
+            try {
+                var source = new ChocolateySource();
 
-            // Act
-            var hits = await CollectHitsAsync(source, "7zip", DefaultOptions);
+                // Act
+                var hits = await CollectHitsAsync(source, "7zip", DefaultOptions);
 
-            // Assert
-            Assert.NotEmpty(hits);
+                // Assert
+                Assert.NotEmpty(hits);
 
-            var installDir = hits.FirstOrDefault(h => h.Type == HitType.InstallDir);
-            Assert.NotNull(installDir);
-            Assert.Equal(Scope.Machine, installDir.Scope); // Chocolatey is always machine scope
-            Assert.Contains("7zip", installDir.Path, StringComparison.OrdinalIgnoreCase);
-            Assert.Equal("24.08", installDir.Version);
-            Assert.Equal(PackageType.Chocolatey, installDir.PackageType);
+                var installDir = hits.FirstOrDefault(h => h.Type == HitType.InstallDir);
+                Assert.NotNull(installDir);
+                Assert.Equal(Scope.Machine, installDir.Scope); // Chocolatey is always machine scope
+                Assert.Contains("7zip", installDir.Path, StringComparison.OrdinalIgnoreCase);
+                Assert.Equal("24.08", installDir.Version);
+                Assert.Equal(PackageType.Chocolatey, installDir.PackageType);
 
-            var exes = hits.Where(h => h.Type == HitType.Exe).ToList();
-            Assert.NotEmpty(exes);
+                var exes = hits.Where(h => h.Type == HitType.Exe).ToList();
+                Assert.NotEmpty(exes);
+            }
+            finally {
+                Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+            }
         }
-        finally {
-            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+
+        [Fact]
+        public async Task Query_Git_Returns_InstallDir_And_Exe() {
+            // Arrange
+            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
+            try {
+                var source = new ChocolateySource();
+
+                // Act
+                var hits = await CollectHitsAsync(source, "git", DefaultOptions);
+
+                // Assert
+                Assert.NotEmpty(hits);
+
+                var installDir = hits.FirstOrDefault(h => h.Type == HitType.InstallDir);
+                Assert.NotNull(installDir);
+                Assert.Equal("2.45.2", installDir.Version);
+
+                var exe = hits.FirstOrDefault(h => h.Type == HitType.Exe);
+                Assert.NotNull(exe);
+            }
+            finally {
+                Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+            }
         }
-    }
 
-    [Fact]
-    public async Task Query_Git_Returns_InstallDir_And_Exe() {
-        // Arrange
-        Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
-        try {
-            var source = new ChocolateySource();
+        [Fact]
+        public async Task Query_NoMatch_Returns_Empty() {
+            // Arrange
+            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
+            try {
+                var source = new ChocolateySource();
 
-            // Act
-            var hits = await CollectHitsAsync(source, "git", DefaultOptions);
+                // Act
+                var hits = await CollectHitsAsync(source, "nonexistent", DefaultOptions);
 
-            // Assert
-            Assert.NotEmpty(hits);
-
-            var installDir = hits.FirstOrDefault(h => h.Type == HitType.InstallDir);
-            Assert.NotNull(installDir);
-            Assert.Equal("2.45.2", installDir.Version);
-
-            var exe = hits.FirstOrDefault(h => h.Type == HitType.Exe);
-            Assert.NotNull(exe);
+                // Assert
+                Assert.Empty(hits);
+            }
+            finally {
+                Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+            }
         }
-        finally {
-            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+
+        [Fact]
+        public async Task Query_UserOnly_Returns_Empty_BecauseChocoIsMachineScope() {
+            // Arrange
+            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
+            try {
+                var source = new ChocolateySource();
+
+                // Act
+                var hits = await CollectHitsAsync(source, "7zip", UserOnlyOptions);
+
+                // Assert - should be empty since Chocolatey is always machine-scope
+                Assert.Empty(hits);
+            }
+            finally {
+                Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+            }
         }
-    }
 
-    [Fact]
-    public async Task Query_NoMatch_Returns_Empty() {
-        // Arrange
-        Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
-        try {
-            var source = new ChocolateySource();
+        [Fact]
+        public async Task Query_MachineOnly_ReturnsResults() {
+            // Arrange
+            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
+            try {
+                var source = new ChocolateySource();
 
-            // Act
-            var hits = await CollectHitsAsync(source, "nonexistent", DefaultOptions);
+                // Act
+                var hits = await CollectHitsAsync(source, "7zip", MachineOnlyOptions);
 
-            // Assert
-            Assert.Empty(hits);
+                // Assert - should have results since Chocolatey is machine-scope
+                Assert.NotEmpty(hits);
+            }
+            finally {
+                Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+            }
         }
-        finally {
-            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+
+        [Fact]
+        public async Task Query_WithEvidence_IncludesEvidenceData() {
+            // Arrange
+            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
+            try {
+                var source = new ChocolateySource();
+
+                // Act
+                var hits = await CollectHitsAsync(source, "7zip", OptionsWithEvidence);
+
+                // Assert
+                var installDir = hits.First(h => h.Type == HitType.InstallDir);
+                Assert.NotNull(installDir.Evidence);
+                Assert.Equal("7zip", installDir.Evidence["ChocoPackage"]);
+                Assert.Contains("chocolatey", installDir.Evidence["ChocoRoot"], StringComparison.OrdinalIgnoreCase);
+                Assert.Equal("7-Zip", installDir.Evidence["Title"]);
+            }
+            finally {
+                Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+            }
         }
-    }
 
-    [Fact]
-    public async Task Query_UserOnly_Returns_Empty_BecauseChocoIsMachineScope() {
-        // Arrange
-        Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
-        try {
-            var source = new ChocolateySource();
+        [Fact]
+        public async Task Query_PartialPackageName_FindsApp() {
+            // Arrange
+            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
+            try {
+                var source = new ChocolateySource();
 
-            // Act
-            var hits = await CollectHitsAsync(source, "7zip", UserOnlyOptions);
+                // Act - "7z" should match package name "7zip"
+                var hits = await CollectHitsAsync(source, "7z", DefaultOptions);
 
-            // Assert - should be empty since Chocolatey is always machine-scope
-            Assert.Empty(hits);
+                // Assert
+                Assert.NotEmpty(hits);
+                Assert.Contains(hits, h => h.Path.Contains("7zip", StringComparison.OrdinalIgnoreCase));
+            }
+            finally {
+                Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+            }
         }
-        finally {
-            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+
+        [Fact]
+        public async Task Query_AllHitsAreMachineScope() {
+            // Arrange
+            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
+            try {
+                var source = new ChocolateySource();
+
+                // Act
+                var hits = await CollectHitsAsync(source, "git", DefaultOptions);
+
+                // Assert - Chocolatey is always machine-scope
+                Assert.NotEmpty(hits);
+                Assert.All(hits, h => Assert.Equal(Scope.Machine, h.Scope));
+            }
+            finally {
+                Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+            }
         }
-    }
 
-    [Fact]
-    public async Task Query_MachineOnly_ReturnsResults() {
-        // Arrange
-        Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
-        try {
-            var source = new ChocolateySource();
+        [Fact]
+        public async Task Query_ConfigHit_WhenChocolateyMetaDirExists() {
+            // Arrange - fixture has .chocolatey dir for 7zip
+            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
+            try {
+                var source = new ChocolateySource();
 
-            // Act
-            var hits = await CollectHitsAsync(source, "7zip", MachineOnlyOptions);
+                // Act
+                var hits = await CollectHitsAsync(source, "7zip", DefaultOptions);
 
-            // Assert - should have results since Chocolatey is machine-scope
-            Assert.NotEmpty(hits);
-        }
-        finally {
-            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
-        }
-    }
-
-    [Fact]
-    public async Task Query_WithEvidence_IncludesEvidenceData() {
-        // Arrange
-        Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
-        try {
-            var source = new ChocolateySource();
-
-            // Act
-            var hits = await CollectHitsAsync(source, "7zip", OptionsWithEvidence);
-
-            // Assert
-            var installDir = hits.First(h => h.Type == HitType.InstallDir);
-            Assert.NotNull(installDir.Evidence);
-            Assert.Equal("7zip", installDir.Evidence["ChocoPackage"]);
-            Assert.Contains("chocolatey", installDir.Evidence["ChocoRoot"], StringComparison.OrdinalIgnoreCase);
-            Assert.Equal("7-Zip", installDir.Evidence["Title"]);
-        }
-        finally {
-            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
-        }
-    }
-
-    [Fact]
-    public async Task Query_PartialPackageName_FindsApp() {
-        // Arrange
-        Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
-        try {
-            var source = new ChocolateySource();
-
-            // Act - "7z" should match package name "7zip"
-            var hits = await CollectHitsAsync(source, "7z", DefaultOptions);
-
-            // Assert
-            Assert.NotEmpty(hits);
-            Assert.Contains(hits, h => h.Path.Contains("7zip", StringComparison.OrdinalIgnoreCase));
-        }
-        finally {
-            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
-        }
-    }
-
-    [Fact]
-    public async Task Query_AllHitsAreMachineScope() {
-        // Arrange
-        Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
-        try {
-            var source = new ChocolateySource();
-
-            // Act
-            var hits = await CollectHitsAsync(source, "git", DefaultOptions);
-
-            // Assert - Chocolatey is always machine-scope
-            Assert.NotEmpty(hits);
-            Assert.All(hits, h => Assert.Equal(Scope.Machine, h.Scope));
-        }
-        finally {
-            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
-        }
-    }
-
-    [Fact]
-    public async Task Query_ConfigHit_WhenChocolateyMetaDirExists() {
-        // Arrange - fixture has .chocolatey dir for 7zip
-        Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", FakeFixture);
-        try {
-            var source = new ChocolateySource();
-
-            // Act
-            var hits = await CollectHitsAsync(source, "7zip", DefaultOptions);
-
-            // Assert
-            var configHit = hits.FirstOrDefault(h => h.Type == HitType.Config);
-            Assert.NotNull(configHit);
-            Assert.Contains(".chocolatey", configHit.Path, StringComparison.OrdinalIgnoreCase);
-        }
-        finally {
-            Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+                // Assert
+                var configHit = hits.FirstOrDefault(h => h.Type == HitType.Config);
+                Assert.NotNull(configHit);
+                Assert.Contains(".chocolatey", configHit.Path, StringComparison.OrdinalIgnoreCase);
+            }
+            finally {
+                Environment.SetEnvironmentVariable("APPLOCATE_CHOCO_FAKE", null);
+            }
         }
     }
 }
