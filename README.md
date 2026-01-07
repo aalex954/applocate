@@ -99,32 +99,52 @@ applocate chrome --data --all --evidence
 
 Options (implemented CLI surface):
 ```
-	<query>                    					App name / alias / partial tokens
-	--json | --csv | --text    					Output (default text)
-	--limit <N>                					Max hits after filtering (applied after optional collapse)
-	--confidence-min <f>       					Filter threshold (0-1)
-	--strict                   					Deprecated/no-op (behavior integrated into default heuristics)
-	--user | --machine         					Scope filters
-	--all                      					Return ALL hits (no per-type collapsing)
-	--exe | --install-dir | --config | --data  	Type filters (any combination)
-	--running                  					Include running process enumeration
-	--pid <n>                  					Target specific process id (implies --running)
-	--package-source           					Show package type & source list in text/CSV output
-	--threads <n>              					Max parallel source queries (default=min(logical CPU,16))
-	--trace                    					Per-source timing diagnostics (stderr; prefix [trace])
-	--evidence                 					Include evidence dictionary (if available)
-	--evidence-keys <k1,k2>    					Only include specified evidence keys (implies --evidence)
-	--score-breakdown          					Show internal scoring component contributions per result
-	--timeout <sec>            					Per-source soft timeout (default 5)
-	--no-color                 					Disable ANSI color in text output
-	--verbose                  					Verbose diagnostics (warnings)
-	--help                     					Show help
-	--                         					Treat following tokens as literal query
+Input:
+  <query>                                       App name / alias / partial tokens
+  --                                            Treat following tokens as literal query
+
+Output Format:
+  --json | --csv | --text                       Output format (default: text)
+  --no-color                                    Disable ANSI color in text output
+
+Filtering:
+  --user | --machine                            Scope filters
+  --exe | --install-dir | --config | --data     Type filters (combinable)
+  --all                                         Return ALL hits (no per-type collapsing)
+  --confidence-min <f>                          Minimum confidence threshold (0-1)
+  --limit <N>                                   Max results after filtering
+
+Sources:
+  --running                                     Include running process enumeration
+  --pid <n>                                     Target specific process id (implies --running)
+
+Output Enrichment:
+  --evidence                                    Include evidence dictionary
+  --evidence-keys <k1,k2>                       Only specified evidence keys (implies --evidence)
+  --score-breakdown                             Show scoring component contributions per result
+  --package-source                              Show package type & source list in text/CSV
+
+Performance:
+  --threads <n>                                 Max parallel source queries (default: min(CPU,16))
+  --timeout <sec>                               Per-source soft timeout (default: 5)
+
+Diagnostics:
+  --verbose                                     Verbose diagnostics (warnings)
+  --trace                                       Per-source timing diagnostics (stderr)
+  --help                                        Show help
 ```
 
-Default behavior (without `--all`): results are collapsed per type. For `exe`, up to 3 high-confidence executables from distinct directories are kept, each paired with its install directory. Variant siblings (e.g., multiple installed versions) may also surface. For `config` and `data`, a single best hit per type is returned, tie-broken by scope (machine over user) and evidence richness. Use `--all` to inspect every distinct hit (useful for debugging ranking or seeing alternate install roots).
+### Default Behavior
 
-Exit codes:
+Without `--all`, results are intelligently collapsed:
+
+- **`exe`**: Up to 3 high-confidence executables from distinct directories, each paired with its install directory. Variant siblings (e.g., multiple installed versions) may also surface.
+- **`config` / `data`**: Single best hit per type, tie-broken by scope (machine > user) then evidence richness.
+
+Use `--all` to see every distinct hit (useful for debugging ranking or alternate install roots).
+
+### Exit Codes
+
 - **0**: Results found, or help displayed (when run without arguments or with `--help`)
 - **1**: No matches found
 - **2**: Argument/validation error

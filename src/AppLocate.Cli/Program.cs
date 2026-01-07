@@ -166,8 +166,6 @@ namespace AppLocate.Cli {
             var textOpt = new Option<bool>("--text") { Description = "Force text output (default if neither --json nor --csv)" };
             var userOpt = new Option<bool>("--user") { Description = "Limit to user-scope results" };
             var machineOpt = new Option<bool>("--machine") { Description = "Limit to machine-scope results" };
-            // Removed: strict mode (was --strict). Behavior folded into improved generic noise suppression; option retained as hidden noop for backward compatibility.
-            var strictOpt = new Option<bool>("--strict") { Description = "(Deprecated) Previously enforced exact token filtering; now ignored." };
             var allOpt = new Option<bool>("--all") { Description = "Return all hits (default returns best per type)" };
             var exeOpt = new Option<bool>("--exe") { Description = "Include only executable hits (can combine with others)" };
             var installDirOpt = new Option<bool>("--install-dir") { Description = "Include only install directory hits" };
@@ -190,7 +188,7 @@ namespace AppLocate.Cli {
             var root = new RootCommand("Locate application installation directories, executables, and config/data paths")
             {
                 queryArg,
-                jsonOpt, csvOpt, textOpt, userOpt, machineOpt, strictOpt, allOpt,
+                jsonOpt, csvOpt, textOpt, userOpt, machineOpt, allOpt,
                 exeOpt, installDirOpt, configOpt, dataOpt, runningOpt, pidOpt, packageSourceOpt, threadsOpt, traceOpt,
                 limitOpt, confMinOpt, timeoutOpt, evidenceOpt, evidenceKeysOpt, scoreBreakdownOpt, verboseOpt, noColorOpt
             };
@@ -219,7 +217,6 @@ namespace AppLocate.Cli {
                                   "  --text                Force text (default)\n" +
                                   "  --user                User-scope only\n" +
                                   "  --machine             Machine-scope only\n" +
-                                  "  --strict              Exact token match (no fuzzy)\n" +
                                   "  --all                 Do not collapse to best per type; return all hits\n" +
                                   "  --exe                 Filter to exe hits (can combine)\n" +
                                   "  --install-dir         Filter to install_dir hits (can combine)\n" +
@@ -294,7 +291,6 @@ namespace AppLocate.Cli {
             var text = !json && !csv; // default text
             var user = Has("--user");
             var machine = Has("--machine");
-            var strict = false; // deprecated flag ignored
             var all = Has("--all");
             var onlyExe = Has("--exe");
             var onlyInstall = Has("--install-dir");
@@ -380,17 +376,17 @@ namespace AppLocate.Cli {
             }
 
             var scoreBreakdown = Has("--score-breakdown");
-            return await ExecuteAsync(query, json, csv, text, user, machine, strict, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, evidenceKeyFilter, scoreBreakdown, verbose, trace, noColor);
+            return await ExecuteAsync(query, json, csv, text, user, machine, all, onlyExe, onlyInstall, onlyConfig, onlyData, running, pid, showPackageSources, threads, limit, confidenceMin, timeout, evidence, evidenceKeyFilter, scoreBreakdown, verbose, trace, noColor);
         }
 
-        private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool strict, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, HashSet<string>? evidenceKeyFilter, bool scoreBreakdown, bool verbose, bool trace, bool noColor) {
+        private static async Task<int> ExecuteAsync(string query, bool json, bool csv, bool text, bool user, bool machine, bool all, bool onlyExe, bool onlyInstall, bool onlyConfig, bool onlyData, bool running, int? pid, bool showPackageSources, int? threads, int? limit, double confidenceMin, int timeoutSeconds, bool evidence, HashSet<string>? evidenceKeyFilter, bool scoreBreakdown, bool verbose, bool trace, bool noColor) {
             if (string.IsNullOrWhiteSpace(query)) {
                 return 2;
             }
 
             if (verbose) {
                 try {
-                    Console.Error.WriteLine($"[verbose] query='{query}' strict={strict} all={all} onlyExe={onlyExe} onlyInstall={onlyInstall} onlyConfig={onlyConfig} onlyData={onlyData} running={running} pid={pid?.ToString() ?? "-"} pkgSrc={showPackageSources} evidence={evidence} scoreBreakdown={scoreBreakdown} evidenceKeys={(evidenceKeyFilter == null ? "(all|none)" : string.Join(',', evidenceKeyFilter))} json={json} csv={csv} text={text} confMin={confidenceMin} limit={limit?.ToString() ?? "-"} threads={threads?.ToString() ?? "-"}");
+                    Console.Error.WriteLine($"[verbose] query='{query}' all={all} onlyExe={onlyExe} onlyInstall={onlyInstall} onlyConfig={onlyConfig} onlyData={onlyData} running={running} pid={pid?.ToString() ?? "-"} pkgSrc={showPackageSources} evidence={evidence} scoreBreakdown={scoreBreakdown} evidenceKeys={(evidenceKeyFilter == null ? "(all|none)" : string.Join(',', evidenceKeyFilter))} json={json} csv={csv} text={text} confMin={confidenceMin} limit={limit?.ToString() ?? "-"} threads={threads?.ToString() ?? "-"}");
                 }
                 catch { }
             }
