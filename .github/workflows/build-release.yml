@@ -318,20 +318,34 @@ jobs:
           }
           Write-Host "Manifest path: $($manifestPath.FullName)"
           
-          # Fix ShortDescription typo in locale file and ensure ReleaseNotesUrl is present
+          # Fix ShortDescription typo in locale file and ensure ReleaseNotesUrl + Icons are present
           $localeFile = Get-ChildItem -Path $manifestPath.FullName -Filter "*.locale.en-US.yaml" | Select-Object -First 1
           if ($localeFile) {
             $content = Get-Content $localeFile.FullName -Raw
             $content = $content -replace 'Find an apps insatll directory', "Find an app's install directory"
             
-            # Add ReleaseNotesUrl if missing
-            if ($content -notmatch 'ReleaseNotesUrl:') {
-              $releaseNotesUrl = "ReleaseNotesUrl: https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
-              $content = $content -replace '(ManifestType: defaultLocale)', "$releaseNotesUrl`n`$1"
+            # Ensure ReleaseNotesUrl points to the correct release tag
+            $releaseNotesUrl = "https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
+            if ($content -match 'ReleaseNotesUrl:\s*\S+') {
+              # Update existing ReleaseNotesUrl to ensure it's correct
+              $content = $content -replace 'ReleaseNotesUrl:\s*\S+', "ReleaseNotesUrl: $releaseNotesUrl"
+            } else {
+              # Add ReleaseNotesUrl if missing
+              $content = $content -replace '(ManifestType: defaultLocale)', "ReleaseNotesUrl: $releaseNotesUrl`n`$1"
+            }
+            
+            # Add Icons section if missing (using ICO from GitHub raw URL)
+            if ($content -notmatch 'Icons:') {
+              $iconUrl = "https://raw.githubusercontent.com/${{ github.repository }}/main/assets/logo.ico"
+              $iconsSection = "Icons:`n  - IconUrl: $iconUrl`n    IconFileType: ico`n"
+              $content = $content -replace '(ReleaseNotesUrl:[^\n]*\n)', "`$1$iconsSection"
             }
             
             Set-Content $localeFile.FullName -Value $content -NoNewline
-            Write-Host "Fixed ShortDescription and ensured ReleaseNotesUrl in $($localeFile.Name)"
+            Write-Host "Updated locale manifest: ShortDescription, ReleaseNotesUrl, Icons in $($localeFile.Name)"
+            Write-Host "--- Locale manifest content ---"
+            Get-Content $localeFile.FullName
+            Write-Host "--- End manifest content ---"
           }
           
           # Submit the corrected manifest
