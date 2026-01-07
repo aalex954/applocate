@@ -213,8 +213,7 @@ src/AppLocate.Core       # Domain models, abstractions, sources, ranking & rules
   ├─ Models/             # AppHit, ScoreBreakdown, PathUtils, EvidenceKeys
   ├─ Sources/            # All discovery sources (Registry, AppPaths, StartMenu, Process, PATH, MSIX, Services, HeuristicFS, Scoop, Chocolatey, Winget)
   ├─ Ranking/            # Scoring logic, alias canonicalization
-  ├─ Rules/              # YAML rule engine for config/data expansion
-  └─ Indexing/           # Optional on-disk cache (IndexStore, IndexModels)
+  └─ Rules/              # YAML rule engine for config/data expansion
 src/AppLocate.Cli        # CLI entry point with System.CommandLine + manual parsing
 tests/AppLocate.Core.Tests   # Unit tests for ranking, rules, sources
 tests/AppLocate.Cli.Tests    # CLI integration, acceptance, snapshot tests

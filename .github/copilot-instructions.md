@@ -17,8 +17,7 @@ src/
 │   ├── Sources/              # One file per data source
 │   ├── Ranking/              # Ranker, AliasCanonicalizer
 │   ├── Rules/                # YAML rule pack loader
-│   ├── Models/               # AppHit, enums, ScoreBreakdown
-│   └── Indexing/             # Optional on-disk cache (IndexStore)
+│   └── Models/               # AppHit, enums, ScoreBreakdown
 └── AppLocate.Cli/            # Console entry point, output formatting
 ```
 
