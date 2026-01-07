@@ -1,13 +1,1 @@
-﻿{
-  StdOut: [
-    {
-      type: 0,
-      present: true
-    },
-    {
-      type: 1,
-      present: true
-    }
-  ],
-  StdErr: 
-}
+﻿

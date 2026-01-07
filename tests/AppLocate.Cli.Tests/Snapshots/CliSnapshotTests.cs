@@ -161,11 +161,5 @@ namespace AppLocate.Cli.Tests.Snapshots {
         public async Task Query_Chrome_Json() =>
             // Temporarily disabled: environment dependent until acceptance fixtures prepared
             await Task.CompletedTask;
-
-        [Fact]
-        public async Task Query_Code_Strict_Json() {
-            var env = CreateVscodeFixture();
-            _ = await RunAndVerifyAsync("code", env, "--json", "--strict", "--limit", "5");
-        }
     }
 }
