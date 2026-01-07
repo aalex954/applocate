@@ -213,11 +213,6 @@ namespace AppLocate.Cli.Tests {
             }
         }
 
-        [Fact(Skip = "MSIX deterministic fixture pending – requires abstraction seam for MsixStoreSource to inject fake packages without PowerShell.")]
-        public void MsixScenario_Placeholder() {
-            // Will simulate a package with InstallLocation and exe once injection seam exists.
-        }
-
         [Fact]
         public void MsixScenario_FakeProvider() {
             // Create synthetic install directory with dummy exe; inject via APPLOCATE_MSIX_FAKE JSON array.
