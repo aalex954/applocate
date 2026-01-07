@@ -230,6 +230,7 @@ AppLocate.psm1           # PowerShell module wrapper
 ```pwsh
 dotnet restore
 dotnet build
+dotnet format --verify-no-changes   # CI enforces formatting
 dotnet test
 ```
 

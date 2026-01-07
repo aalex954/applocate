@@ -64,6 +64,7 @@ src/
 | Include evidence conditionally (respect `options.IncludeEvidence`) | perf |
 | Expand environment variables and resolve `.lnk` targets | correctness |
 | Prefer 64-bit paths when both architectures are present | consistency |
+| Run `dotnet format` before committing | CI enforces formatting |
 
 ### AVOID
 
