@@ -62,7 +62,9 @@ namespace AppLocate.Cli.Tests {
             var localAppData = fixture.local;
             var roaming = fixture.roaming;
             var progDir = fixture.programDir;
-            var pathEnv = progDir;
+            // Include system PATH so where.exe and other tools still work
+            var systemPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+            var pathEnv = $"{progDir};{systemPath}";
 
             // Act - use --user to limit scope to user paths only, avoiding interference from
             // machine-scope Program Files which can't be overridden via environment variables.
@@ -73,7 +75,7 @@ namespace AppLocate.Cli.Tests {
 
             // Assert basic success
             // Exit code 1 means no matches - provide debug info
-            Assert.True(code == 0, $"Expected exit code 0 (matches found), got {code}. LOCALAPPDATA={localAppData}, progDir={progDir}, stderr={stderr}, stdout={stdout}");
+            Assert.True(code == 0, $"Expected exit code 0 (matches found), got {code}. LOCALAPPDATA={localAppData}, progDir={progDir}, pathEnv_prefix={progDir}, stderr={stderr}, stdout={stdout}");
             Assert.True(string.IsNullOrWhiteSpace(stderr), $"Unexpected stderr: {stderr}");
             var doc = JsonDocument.Parse(stdout);
             var hits = doc.RootElement.EnumerateArray().ToList();
