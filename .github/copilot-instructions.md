@@ -168,17 +168,7 @@ applocate <query>
 * `0`: results found.
 * `1`: no matches.
 * `2`: bad arguments.
-* `3`: permission denied for required source.
-* `4`: internal error.
 
-## Extensibility
-
-* Plugin model for:
-
-  * New package managers.
-  * App-specific config rules.
-  * Org alias packs.
-* Plugins are data-only (YAML/JSON). No executable plugins.
 
 ## Testing: Acceptance Criteria
 
@@ -205,22 +195,6 @@ applocate <query>
 
 ### DO / AVOID
 DO: incremental PRs per source / feature; keep `AppHit` stable; include evidence conditionally.
-DO: add XML docs for public contract types.
 AVOID: new P/Invoke signatures if an existing package solves it; global static state; altering JSON ordering.
-
-### Open TODOs
-- Decide on final `System.CommandLine` version & refactor CLI.
-- Implement DI/aggregation layer (consider simple registrar for sources).
-- Flesh out ranking with pooling and span-based tokenization.
-- Add YAML rules + tests.
-
-### Additional implicit follow-ups:
-
-- Replace placeholder sources with real implementations (registry, Start Menu, processes, etc. already partly done—others pending).
-- Expand XML docs for all public APIs (if treating CS1591 strictly).
-- Implement indexing layer (on-disk cache) and invalidation logic.
-- Add acceptance tests for each listed scenario (vscode, Chrome, portable app, MSIX, --running, --strict).
-- Add plugin loading for alias/rule packs.
-- CI enhancements: NuGet cache, SBOM/signing (if desired).
 
 Provide feedback if any area needs deeper guidance (e.g., ranking algorithm detail, registry abstraction design).
