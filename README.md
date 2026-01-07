@@ -19,10 +19,13 @@ _Inspired by Linux's locate—but purpose-built for Windows application discover
 </tr>
 </table>
 
-**No admin** required. **No network** calls. **No executing** discovered binaries. Just fast, local discovery with deterministic JSON/CSV/text output.
+<p align="center">
+<strong>No admin</strong> required. <strong>No network</strong> calls. <strong>No executing</strong> discovered binaries. Just fast, local discovery with deterministic JSON/CSV/text output.
+</p>
 
-![applocate](https://github.com/user-attachments/assets/ac2d08f3-df46-42b1-a4f2-b77a359a0250)
-
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/ac2d08f3-df46-42b1-a4f2-b77a359a0250" alt="applocate"/>
+</p>
 
 ## Features
 
@@ -119,9 +122,7 @@ Options (implemented CLI surface):
 	--                         					Treat following tokens as literal query
 ```
 
-Default behavior (without `--all`): results are collapsed to the single best hit per type (`exe`, `install_dir`, `config`, `data`) using confidence, then tie‑broken by scope (machine over user) and evidence richness. Use `--all` to inspect every distinct hit (useful for debugging ranking or seeing alternate install roots).
-
-Planned / not yet implemented flags from original design (roadmap): `--fuzzy` (explicit enable), `--elevate` / `--no-elevate`. These remain on the backlog and are intentionally absent from current binary.
+Default behavior (without `--all`): results are collapsed per type. For `exe`, up to 3 high-confidence executables from distinct directories are kept, each paired with its install directory. Variant siblings (e.g., multiple installed versions) may also surface. For `config` and `data`, a single best hit per type is returned, tie-broken by scope (machine over user) and evidence richness. Use `--all` to inspect every distinct hit (useful for debugging ranking or seeing alternate install roots).
 
 Exit codes:
 - **0**: Results found, or help displayed (when run without arguments or with `--help`)
@@ -178,7 +179,11 @@ Use `--score-breakdown` to see how each result's confidence score was computed:
 
 * No network or telemetry
 * Does not execute discovered binaries
-* Least privilege by default
+* Least privilege by default (no admin required for core features)
+* Read-only posture – only queries registry, file system, and package managers
+* Output sanitization to prevent terminal injection
+
+For enterprise deployments or security-conscious environments, see [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for a detailed threat model, attack surface analysis, and hardening recommendations.
 
 ## Project Layout
 
