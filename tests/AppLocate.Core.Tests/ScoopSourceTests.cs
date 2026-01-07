@@ -7,7 +7,9 @@ namespace AppLocate.Core.Tests;
 
 /// <summary>
 /// Deterministic tests for ScoopSource using fake provider via APPLOCATE_SCOOP_FAKE env var.
+/// Tests in this collection run serially to avoid environment variable race conditions.
 /// </summary>
+[Collection("EnvironmentVariableTests")]
 public sealed class ScoopSourceTests {
     // Simpler fixture format matching what FakeScoopProvider expects
     private static readonly string FakeFixture = """

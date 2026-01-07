@@ -7,7 +7,9 @@ namespace AppLocate.Core.Tests;
 
 /// <summary>
 /// Deterministic tests for ChocolateySource using fake provider via APPLOCATE_CHOCO_FAKE env var.
+/// Tests in this collection run serially to avoid environment variable race conditions.
 /// </summary>
+[Collection("EnvironmentVariableTests")]
 public sealed class ChocolateySourceTests {
     private static readonly string FakeFixture = """
     {
