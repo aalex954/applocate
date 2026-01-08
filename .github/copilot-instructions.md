@@ -145,3 +145,14 @@ The WinGet manifest (`ReleaseNotesUrl`, `Icons`) is automatically populated by C
 - Never execute target binaries
 - Sanitize output to avoid control characters
 - No telemetry; no network access
+
+## Commit message prefixes
+
+- debug: for debugging code changes
+- feat: for new features
+- fix: for bug fixes
+- docs: for documentation changes
+- style: for code style changes (formatting, missing semi colons, etc)
+- refactor: for code refactoring changes
+- test: for adding missing tests or correcting existing tests
+- chore: for changes to the build process or auxiliary tools and libraries such as documentation generation
