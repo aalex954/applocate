@@ -29,7 +29,9 @@ _Inspired by Linux's locate—but purpose-built for Windows application discover
 
 ## Features
 
-`AppLocate` queries multiple discovery sources in parallel, merges and deduplicates results, then ranks them by confidence. Here's what's currently implemented:
+Unlike single-purpose tools that check one location, AppLocate casts a wide net—querying the registry, Start Menu shortcuts, running processes, PATH directories, Windows services, MSIX packages, and popular package managers like Scoop, Chocolatey, and WinGet—all in parallel. Results from every source are merged, deduplicated, and ranked by confidence so you get a single authoritative answer instead of hunting through scattered system locations. Need to find where that mystery `node.exe` is actually running from? AppLocate sees it live and traces it back to its install root.
+
+Here's what's currently implemented:
 
 | Area | Status | Notes |
 |------|-------------|-------|
@@ -50,6 +52,10 @@ _Inspired by Linux's locate—but purpose-built for Windows application discover
 | Evidence emission | Yes | Via --evidence flag |
 | Single-file publish | Yes | Win x64/ARM64 + SBOM |
 | Plugin system | Pending | Data-only aliases/rules |
+
+## How It Works
+
+AppLocate runs all discovery sources in parallel, streams results through a ranking pipeline, and collapses to the best hits per type. For a detailed architecture walkthrough—including source APIs, scoring components, and output flow—see the [Dataflow Diagram](docs/dataflow-diagram.md).
 
 ## Installation
 

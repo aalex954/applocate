@@ -1,7 +1,7 @@
 # AppLocate Security Review Report
 
 **Date:** January 6, 2026  
-**Version Reviewed:** Current (main branch)  
+**Version Reviewed:** v0.1.5  
 **Reviewer:** Security Analysis  
 **Classification:** Internal Use Only
 
