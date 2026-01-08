@@ -66,15 +66,14 @@ namespace AppLocate.Cli.Tests {
             var systemPath = Environment.GetEnvironmentVariable("PATH") ?? "";
             var pathEnv = $"{progDir};{systemPath}";
 
-            // Act - first try without --user to see if anything is found at all
-            var (code, stdout, stderr) = RunWithEnv(["code", "--json", "--limit", "10", "--trace"],
+            // Act
+            var (code, stdout, stderr) = RunWithEnv(["code", "--json", "--limit", "10"],
                     ("LOCALAPPDATA", localAppData),
                     ("APPDATA", roaming),
                     ("PATH", pathEnv));
 
             // Assert basic success
-            // Exit code 1 means no matches - provide debug info including trace output
-            Assert.True(code == 0, $"Expected exit code 0 (matches found), got {code}. LOCALAPPDATA={localAppData}, progDir={progDir}, pathEnv_prefix={progDir}, stderr={stderr}, stdout={stdout}");
+            Assert.True(code == 0, $"Expected exit code 0, got {code}. stderr={stderr}, stdout={stdout}");
             Assert.True(string.IsNullOrWhiteSpace(stderr), $"Unexpected stderr: {stderr}");
             var doc = JsonDocument.Parse(stdout);
             var hits = doc.RootElement.EnumerateArray().ToList();
