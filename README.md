@@ -2,7 +2,7 @@
 
 [![CodeQL](https://github.com/aalex954/applocate/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/github-code-scanning/codeql)
 [![build-test-release](https://github.com/aalex954/applocate/actions/workflows/build-release.yml/badge.svg)](https://github.com/aalex954/applocate/actions/workflows/build-release.yml)
-[![WinGet Package Version](https://img.shields.io/winget/v/AppLocate.AppLocate?label=Winget%20AppLocate%20Latest&color=123456)](https://github.com/aalex954/applocate/releases/latest)
+[![WinGet Package Version](https://img.shields.io/winget/v/AppLocate.AppLocate?label=Winget%20AppLocate&color=123456)](https://github.com/aalex954/applocate/releases/latest)
 
 <table>
 <tr>
