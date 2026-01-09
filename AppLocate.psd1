@@ -16,7 +16,7 @@
             Tags = @('Windows', 'Application', 'Discovery', 'Registry', 'Scoop', 'Chocolatey', 'WinGet', 'CLI', 'Search', 'Locate')
             LicenseUri = 'https://github.com/aalex954/applocate/blob/main/LICENSE'
             ProjectUri = 'https://github.com/aalex954/applocate'
-            IconUri = 'https://raw.githubusercontent.com/aalex954/applocate/main/assets/logo.svg'
+            IconUri = 'https://raw.githubusercontent.com/aalex954/applocate/main/assets/applocate.png'
             ReleaseNotes = 'https://github.com/aalex954/applocate/releases'
             Prerelease = ''
         }
