@@ -289,6 +289,9 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
     needs: release
     runs-on: windows-latest
+    environment:
+      name: winget-publish
+      url: https://github.com/microsoft/winget-pkgs/pulls?q=is%3Apr+AppLocate
     steps:
       - name: Install WingetCreate
         run: |
