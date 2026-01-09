@@ -354,3 +354,35 @@ jobs:
           
           # Submit the corrected manifest
           ./wingetcreate.exe submit $manifestPath.FullName --token $env:GITHUB_TOKEN
+
+  psgallery:
+    name: Publish to PowerShell Gallery
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+    needs: release
+    runs-on: windows-latest
+    environment:
+      name: psgallery-publish
+      url: https://www.powershellgallery.com/packages/AppLocate
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Compute Version
+        id: version
+        shell: pwsh
+        run: |
+          $ver = "${{ github.ref_name }}".TrimStart('v')
+          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+          Write-Host "Publishing version: $ver"
+
+      - name: Publish to PowerShell Gallery
+        shell: pwsh
+        env:
+          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        run: |
+          ./build/publish-psgallery.ps1 -ApiKey $env:PSGALLERY_API_KEY -Version ${{ steps.version.outputs.VERSION }}

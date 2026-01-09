@@ -68,6 +68,23 @@ winget install AppLocate.AppLocate
 
 Stable releases are automatically submitted to the [Windows Package Manager Community Repository](https://github.com/microsoft/winget-pkgs). Pre-release versions (alpha, beta, rc) are not published to WinGet.
 
+### PowerShell Gallery
+```pwsh
+Install-Module -Name AppLocate -Scope CurrentUser
+```
+
+The module bundles `applocate.exe` and exposes PowerShell-friendly functions:
+```pwsh
+# Search and get parsed objects
+Find-App "chrome" | Select-Object path, confidence
+
+# Get JSON output with filtering
+Get-AppLocateJson -Query "vscode" -ConfidenceMin 0.7 -Limit 3
+
+# Raw CLI invocation with any flags
+Invoke-AppLocate "git" "--all" "--evidence" -Json
+```
+
 ### Manual Download
 Download the latest release from [GitHub Releases](https://github.com/aalex954/applocate/releases):
 - `applocate-win-x64.zip` – Windows x64
@@ -328,9 +345,6 @@ applocate sample --json
 ```
 
 ## Roadmap
-
-In Progress / Near Term:
-- [ ] PowerShell Gallery publishing
 
 Backlog / Later:
 - [ ] Code signing for releases
