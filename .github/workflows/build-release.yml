@@ -7,6 +7,15 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      skip_winget:
+        description: 'Skip WinGet publishing'
+        type: boolean
+        default: false
+      skip_psgallery:
+        description: 'Skip PowerShell Gallery publishing'
+        type: boolean
+        default: false
 
 permissions:
   contents: read    # principle of least privilege; elevated later only where required
@@ -286,7 +295,7 @@ jobs:
 
   winget:
     name: Publish to WinGet
-    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') && inputs.skip_winget != true
     needs: release
     runs-on: windows-latest
     environment:
@@ -357,7 +366,7 @@ jobs:
 
   psgallery:
     name: Publish to PowerShell Gallery
-    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+    if: startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-') && inputs.skip_psgallery != true
     needs: release
     runs-on: windows-latest
     environment:
