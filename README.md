@@ -63,6 +63,9 @@ AppLocate runs all discovery sources in parallel, streams results through a rank
 Pre-built binaries are available for Windows x64 and ARM64. Choose your preferred method:
 
 ### WinGet (Windows Package Manager)
+
+[![WinGet Package Version](https://img.shields.io/winget/v/AppLocate.AppLocate?label=Winget%20AppLocate&color=123456)](https://github.com/aalex954/applocate/releases/latest)
+
 ```pwsh
 winget install AppLocate.AppLocate
 ```
@@ -70,6 +73,9 @@ winget install AppLocate.AppLocate
 Stable releases are automatically submitted to the [Windows Package Manager Community Repository](https://github.com/microsoft/winget-pkgs). Pre-release versions (alpha, beta, rc) are not published to WinGet.
 
 ### PowerShell Gallery
+
+[![PowerShell Gallery Version](https://img.shields.io/powershellgallery/v/AppLocate?logo=powershell&label=PowerShell%20Gallery%20-%20AppLocate&color=123456)](https://www.powershellgallery.com/packages/AppLocate/0.1.6)
+
 ```pwsh
 Install-Module -Name AppLocate -Scope CurrentUser
 ```
