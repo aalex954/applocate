@@ -381,4 +381,4 @@ flowchart TD
 
 ---
 
-*Generated for AppLocate v0.1.5 — See [README.md](../README.md) for CLI usage.*
+*Generated for AppLocate v0.1.6 — See [README.md](../README.md) for CLI usage.*

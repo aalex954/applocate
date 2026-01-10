@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <!-- Version: set via CI with -p:Version=x.y.z; update here for each release -->
-    <Version>0.1.5</Version>
+    <Version>0.1.6</Version>
     <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

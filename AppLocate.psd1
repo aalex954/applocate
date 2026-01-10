@@ -1,6 +1,6 @@
 @{
     RootModule = 'AppLocate.psm1'
-    ModuleVersion = '0.1.5'
+    ModuleVersion = '0.1.6'
     GUID = '2b9b5a5f-2c2f-4c3d-9c9e-7f2a5b0c1b11'
     Author = 'aalex954'
     CompanyName = 'AppLocate'
