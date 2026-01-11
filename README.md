@@ -25,7 +25,7 @@ _Inspired by Linux's locate—but purpose-built for Windows application discover
 </p>
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/ac2d08f3-df46-42b1-a4f2-b77a359a0250" alt="applocate"/>
+  <img width="1491" height="837" alt="applocate_unigetui_sample" src="https://github.com/user-attachments/assets/49af37e0-19ad-427d-9487-338d86e19db6" />
 </p>
 
 ## Features
