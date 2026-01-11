@@ -52,6 +52,20 @@ namespace AppLocate.Cli.Tests {
         }
 
         [Fact]
+        public void InstallDirFilter_OnlyInstallDirHits() {
+            // Key: --install-dir WITHOUT --exe and WITHOUT --all to exercise collapse logic
+            var (code, json, err) = Run("code", "--json", "--install-dir");
+            Assert.Contains(code, AcceptExitCodes);
+            Assert.True(string.IsNullOrWhiteSpace(err), $"stderr: {err}");
+            if (code == 0) {
+                using var doc = JsonDocument.Parse(json);
+                var arr = doc.RootElement.EnumerateArray().ToList();
+                Assert.NotEmpty(arr); // Should return at least one result
+                Assert.All(arr, el => Assert.Equal(0, el.GetProperty("type").GetInt32())); // HitType.InstallDir = 0
+            }
+        }
+
+        [Fact]
         public void MultiFilter_ExeAndInstall() {
             var (code, json, err) = Run("code", "--json", "--exe", "--install-dir", "--all", "--limit", "100");
             Assert.Contains(code, AcceptExitCodes);

@@ -125,7 +125,7 @@ namespace AppLocate.Core.Sources {
             // Parse directories
             if (root.TryGetProperty("directories", out var dirsElem)) {
                 foreach (var dir in dirsElem.EnumerateArray()) {
-                    _directories.Add(dir.GetString()!);
+                    _ = _directories.Add(dir.GetString()!);
                 }
             }
 

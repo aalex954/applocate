@@ -97,7 +97,7 @@ namespace AppLocate.Core.Sources {
 
             var norm = query.ToLowerInvariant();
             var tokens = norm.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            
+
             // Also match against original query if alias canonicalization changed it (e.g., "windows terminal" -> "wt")
             var origNorm = options.OriginalQuery?.ToLowerInvariant();
             var origTokens = origNorm?.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

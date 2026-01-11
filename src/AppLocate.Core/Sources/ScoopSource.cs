@@ -84,7 +84,9 @@ namespace AppLocate.Core.Sources {
                     if (root.TryGetProperty("roots", out var rootsArr)) {
                         foreach (var r in rootsArr.EnumerateArray()) {
                             var rPath = r.GetString();
-                            if (!string.IsNullOrEmpty(rPath)) _roots.Add(rPath);
+                            if (!string.IsNullOrEmpty(rPath)) {
+                                _roots.Add(rPath);
+                            }
                         }
                     }
 
@@ -97,7 +99,9 @@ namespace AppLocate.Core.Sources {
                             if (app.TryGetProperty("exes", out var exArr)) {
                                 foreach (var e in exArr.EnumerateArray()) {
                                     var ePath = e.GetString();
-                                    if (!string.IsNullOrEmpty(ePath)) exes.Add(ePath);
+                                    if (!string.IsNullOrEmpty(ePath)) {
+                                        exes.Add(ePath);
+                                    }
                                 }
                             }
                             var hasPersist = app.TryGetProperty("persist", out var p) && p.GetBoolean();
@@ -105,7 +109,9 @@ namespace AppLocate.Core.Sources {
                             if (app.TryGetProperty("bin", out var binArr)) {
                                 foreach (var b in binArr.EnumerateArray()) {
                                     var bPath = b.GetString();
-                                    if (!string.IsNullOrEmpty(bPath)) manifestBin.Add(bPath);
+                                    if (!string.IsNullOrEmpty(bPath)) {
+                                        manifestBin.Add(bPath);
+                                    }
                                 }
                             }
 
@@ -119,32 +125,42 @@ namespace AppLocate.Core.Sources {
             public IEnumerable<string> GetRoots() => _roots;
             public bool DirectoryExists(string path) {
                 // Check if it's a root, apps dir, app dir, current dir, or persist dir
-                if (_roots.Contains(path, StringComparer.OrdinalIgnoreCase)) return true;
-                if (_roots.Any(r => path.Equals(Path.Combine(r, "apps"), StringComparison.OrdinalIgnoreCase))) return true;
-                if (_apps.ContainsKey(path)) return true;
-                if (_apps.Keys.Any(k => path.Equals(Path.Combine(k, "current"), StringComparison.OrdinalIgnoreCase))) return true;
+                if (_roots.Contains(path, StringComparer.OrdinalIgnoreCase)) {
+                    return true;
+                }
+
+                if (_roots.Any(r => path.Equals(Path.Combine(r, "apps"), StringComparison.OrdinalIgnoreCase))) {
+                    return true;
+                }
+
+                if (_apps.ContainsKey(path)) {
+                    return true;
+                }
+
+                if (_apps.Keys.Any(k => path.Equals(Path.Combine(k, "current"), StringComparison.OrdinalIgnoreCase))) {
+                    return true;
+                }
                 // Persist directories
                 foreach (var app in _apps.Values) {
-                    if (app.HasPersist && path.Equals(Path.Combine(app.RootPath, "persist", app.Name), StringComparison.OrdinalIgnoreCase))
+                    if (app.HasPersist && path.Equals(Path.Combine(app.RootPath, "persist", app.Name), StringComparison.OrdinalIgnoreCase)) {
                         return true;
+                    }
                 }
                 return false;
             }
             public string[] GetDirectories(string path) {
                 // Return app directories under apps/
                 var matching = _apps.Keys.Where(k => Path.GetDirectoryName(k)?.Equals(path, StringComparison.OrdinalIgnoreCase) == true).ToArray();
-                if (matching.Length > 0) return matching;
+                if (matching.Length > 0) {
+                    return matching;
+                }
                 // Return version dirs under app (just "current")
-                if (_apps.ContainsKey(path)) return [Path.Combine(path, "current")];
-                return [];
+                return _apps.ContainsKey(path) ? [Path.Combine(path, "current")] : [];
             }
             public string[] GetFiles(string path, string pattern) {
                 // Return exe files in current directory
                 var appDir = _apps.Keys.FirstOrDefault(k => path.Equals(Path.Combine(k, "current"), StringComparison.OrdinalIgnoreCase));
-                if (appDir != null && pattern == "*.exe") {
-                    return _apps[appDir].Exes.Select(e => Path.Combine(path, e)).ToArray();
-                }
-                return [];
+                return appDir != null && pattern == "*.exe" ? [.. _apps[appDir].Exes.Select(e => Path.Combine(path, e))] : [];
             }
             public string? ReadFileText(string path) {
                 // Return manifest.json content
@@ -170,10 +186,14 @@ namespace AppLocate.Core.Sources {
                 foreach (var app in _apps.Values) {
                     var currentPath = Path.Combine(app.RootPath, "apps", app.Name, "current");
                     foreach (var exe in app.Exes) {
-                        if (path.Equals(Path.Combine(currentPath, exe), StringComparison.OrdinalIgnoreCase)) return true;
+                        if (path.Equals(Path.Combine(currentPath, exe), StringComparison.OrdinalIgnoreCase)) {
+                            return true;
+                        }
                     }
                     foreach (var bin in app.ManifestBin) {
-                        if (path.Equals(Path.Combine(currentPath, bin.Replace('/', '\\')), StringComparison.OrdinalIgnoreCase)) return true;
+                        if (path.Equals(Path.Combine(currentPath, bin.Replace('/', '\\')), StringComparison.OrdinalIgnoreCase)) {
+                            return true;
+                        }
                     }
                 }
                 return false;
@@ -193,7 +213,9 @@ namespace AppLocate.Core.Sources {
         public ScoopSource() : this(CreateProvider()) { }
 
         /// <summary>Creates a new ScoopSource with the specified provider (for testing).</summary>
-        internal ScoopSource(IScoopProvider provider) => _provider = provider;
+        internal ScoopSource(IScoopProvider provider) {
+            _provider = provider;
+        }
 
         /// <inheritdoc />
         public async IAsyncEnumerable<AppHit> QueryAsync(
@@ -400,6 +422,18 @@ namespace AppLocate.Core.Sources {
                             }
                         }
                     }
+                    break;
+                case JsonValueKind.Undefined:
+                    break;
+                case JsonValueKind.Object:
+                    break;
+                case JsonValueKind.Number:
+                    break;
+                case JsonValueKind.True:
+                    break;
+                case JsonValueKind.False:
+                    break;
+                case JsonValueKind.Null:
                     break;
                 default:
                     break;

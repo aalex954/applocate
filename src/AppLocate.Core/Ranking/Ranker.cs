@@ -53,7 +53,7 @@ namespace AppLocate.Core.Ranking {
         /// Scores an <see cref="AppHit"/> against a normalized (lowercase) query.
         /// Refinement notes (Sep 2025):
         ///  - Distinguish inherent alias equivalence (query alias -> filename) from evidence supplied alias (AliasMatched evidence key).
-        ///  - Introduce token span tightness boost (contiguous coverage of all tokens in filename) up to +0.04.
+        ///  - Introduce token span tightness boost (contiguous coverage of all tokens in filename) up to +0.14.
         ///  - Replace ln-based multi-source diminishing returns with harmonic accumulator (H_n) scaled to cap +0.18 for smoother early gains and softer tail.
         ///  - Add lightweight fuzzy ratio scaling using normalized Levenshtein distance on filename vs query (capped influence +0.06, only when no exact match).
         ///  - Additional path quality penalties for known ephemeral / cache roots (AppData Temp, Installer, Edge update stubs) for ranking stability.
@@ -145,7 +145,7 @@ namespace AppLocate.Core.Ranking {
                     }
                 }
             }
-            // 1b. Fuzzy token ratio (very lightweight): token overlap over union (if partial mismatch) – adds up to +0.10 (noise scaled)
+            // 1b. Fuzzy token ratio (very lightweight): token overlap over union (if partial mismatch) – adds up to +0.08 (noise scaled)
             if (tokensQ.Count > 0 && tokensCand.Count > 0) {
                 var union = new HashSet<string>(tokensCand, StringComparer.OrdinalIgnoreCase);
                 foreach (var t in tokensQ) {

@@ -204,7 +204,10 @@ namespace AppLocate.Cli {
                     ?? asm.GetName().Version?.ToString() ?? "unknown";
                 // Strip source link commit hash suffix if present (e.g., "1.0.0+abc123" -> "1.0.0")
                 var plusIdx = infoVersion.IndexOf('+');
-                if (plusIdx > 0) infoVersion = infoVersion[..plusIdx];
+                if (plusIdx > 0) {
+                    infoVersion = infoVersion[..plusIdx];
+                }
+
                 Console.WriteLine($"applocate {infoVersion}");
                 return 0;
             }
@@ -1191,7 +1194,7 @@ namespace AppLocate.Cli {
                 var handledTypes = new HashSet<HitType> { HitType.Exe };
                 if (!onlyInstall || onlyExe) {
                     // InstallDir is handled by Phases 1-3 (exe pairing) unless user explicitly requested only InstallDir
-                    handledTypes.Add(HitType.InstallDir);
+                    _ = handledTypes.Add(HitType.InstallDir);
                 }
                 foreach (var typeGroup in filtered.Where(h => !handledTypes.Contains(h.Type)).GroupBy(h => h.Type)) {
                     AppHit? best = null;
