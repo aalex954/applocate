@@ -1187,7 +1187,12 @@ namespace AppLocate.Cli {
                 }
 
                 // ----- Phase 4: Single-best for remaining types (Config/Data/etc.) -----
-                var handledTypes = new HashSet<HitType> { HitType.Exe, HitType.InstallDir };
+                // When --install-dir is used without --exe, InstallDir bypassed Phases 1-3; handle it here.
+                var handledTypes = new HashSet<HitType> { HitType.Exe };
+                if (!onlyInstall || onlyExe) {
+                    // InstallDir is handled by Phases 1-3 (exe pairing) unless user explicitly requested only InstallDir
+                    handledTypes.Add(HitType.InstallDir);
+                }
                 foreach (var typeGroup in filtered.Where(h => !handledTypes.Contains(h.Type)).GroupBy(h => h.Type)) {
                     AppHit? best = null;
                     foreach (var h in typeGroup) {
@@ -1215,11 +1220,14 @@ namespace AppLocate.Cli {
                 }
 
                 // ----- Phase 5: Remove orphan install dirs (those without a selected exe and not marked VariantSibling) -----
-                var exeDirSet = selected.Where(h => h.Type == HitType.Exe)
-                                        .Select(h => Path.GetDirectoryName(h.Path))
-                                        .Where(p => !string.IsNullOrEmpty(p))
-                                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                selected = [.. selected.Where(h => h.Type != HitType.InstallDir || exeDirSet.Contains(h.Path) || (h.Evidence != null && h.Evidence.ContainsKey("VariantSibling")))];
+                // Skip orphan removal when user explicitly requested only InstallDir hits (--install-dir without --exe).
+                if (!onlyInstall || onlyExe) {
+                    var exeDirSet = selected.Where(h => h.Type == HitType.Exe)
+                                            .Select(h => Path.GetDirectoryName(h.Path))
+                                            .Where(p => !string.IsNullOrEmpty(p))
+                                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    selected = [.. selected.Where(h => h.Type != HitType.InstallDir || exeDirSet.Contains(h.Path) || (h.Evidence != null && h.Evidence.ContainsKey("VariantSibling")))];
+                }
 
                 filtered = [.. selected.OrderByDescending(h => h.Confidence).ThenBy(h => h.Type.ToString())];
             }
